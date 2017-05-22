@@ -13,8 +13,8 @@ var index []commit
 func main() {
 	// Create some initial database tree entries
 	var entry1, entry2, entry3 dbTreeEntry
-	entry1.aType = DATABASE
-	entry1.name = "testdb1.sqlite"
+	entry1.AType = DATABASE
+	entry1.Name = "testdb1.sqlite"
 	tempBuf, err := ioutil.ReadFile("/Users/jc/tmp/testdb1.sqlite")
 	if err != nil {
 		log.Printf("Something went wrong when reading in the database file: %v\n", err.Error())
@@ -22,14 +22,14 @@ func main() {
 	}
 
 	// Store the database file
-	entry1.shaSum, err = storeDatabase(tempBuf)
+	entry1.ShaSum, err = storeDatabase(tempBuf)
 	if err != nil {
 		log.Printf("Something went wrong when storing the database file: %v\n", err.Error())
 		os.Exit(2)
 	}
 
-	entry2.aType = DATABASE
-	entry2.name = "testdb2.sqlite"
+	entry2.AType = DATABASE
+	entry2.Name = "testdb2.sqlite"
 	tempBuf, err = ioutil.ReadFile("/Users/jc/tmp/testdb2.sqlite")
 	if err != nil {
 		log.Printf("Something went wrong when reading in the database file: %v\n", err.Error())
@@ -37,7 +37,7 @@ func main() {
 	}
 
 	// Store the database file
-	entry2.shaSum, err = storeDatabase(tempBuf)
+	entry2.ShaSum, err = storeDatabase(tempBuf)
 	if err != nil {
 		log.Printf("Something went wrong when storing the database file: %v\n", err.Error())
 		os.Exit(2)
@@ -45,22 +45,22 @@ func main() {
 
 	// Populate a dbTree structure with the entries
 	var someTree dbTree
-	someTree.entries = append(someTree.entries, entry1)
-	someTree.entries = append(someTree.entries, entry2)
-	someTree.id = createDBTreeID(someTree.entries)
+	someTree.Entries = append(someTree.Entries, entry1)
+	someTree.Entries = append(someTree.Entries, entry2)
+	someTree.ID = createDBTreeID(someTree.Entries)
 
 	// Construct an initial commit structure pointing to the entry
 	var someCommit commit
-	someCommit.authorEmail = "justin@postgresql.org"
-	someCommit.authorName = "Justin Clift"
-	someCommit.message = "Initial database upload"
-	someCommit.timestamp = time.Now()
-	someCommit.tree = someTree.id
-	someCommit.id = createCommitID(someCommit)
+	someCommit.AuthorEmail = "justin@postgresql.org"
+	someCommit.AuthorName = "Justin Clift"
+	someCommit.Message = "Initial database upload"
+	someCommit.Timestamp = time.Now()
+	someCommit.Tree = someTree.ID
+	someCommit.ID = createCommitID(someCommit)
 
 	// Create another tree and commit
-	entry3.aType = DATABASE
-	entry3.name = "testdb3.sqlite"
+	entry3.AType = DATABASE
+	entry3.Name = "testdb3.sqlite"
 	tempBuf, err = ioutil.ReadFile("/Users/jc/tmp/testdb3.sqlite")
 	if err != nil {
 		log.Printf("Something went wrong when reading in the database file: %v\n", err.Error())
@@ -68,24 +68,24 @@ func main() {
 	}
 
 	// Store the database file
-	entry3.shaSum, err = storeDatabase(tempBuf)
+	entry3.ShaSum, err = storeDatabase(tempBuf)
 	if err != nil {
 		log.Printf("Something went wrong when storing the database file: %v\n", err.Error())
 		os.Exit(2)
 	}
 
 	var someTree2 dbTree
-	someTree2.entries = append(someTree2.entries, entry3)
-	someTree2.id = createDBTreeID(someTree2.entries)
+	someTree2.Entries = append(someTree2.Entries, entry3)
+	someTree2.ID = createDBTreeID(someTree2.Entries)
 
 	var someCommit2 commit
-	someCommit2.parent = someCommit.id
-	someCommit2.authorEmail = "justin@postgresql.org"
-	someCommit2.authorName = "Justin Clift"
-	someCommit2.message = "Added another database"
-	someCommit2.timestamp = time.Now()
-	someCommit2.tree = someTree2.id
-	someCommit2.id = createCommitID(someCommit2)
+	someCommit2.Parent = someCommit.ID
+	someCommit2.AuthorEmail = "justin@postgresql.org"
+	someCommit2.AuthorName = "Justin Clift"
+	someCommit2.Message = "Added another database"
+	someCommit2.Timestamp = time.Now()
+	someCommit2.Tree = someTree2.ID
+	someCommit2.ID = createCommitID(someCommit2)
 
 	// Assemble the commits into an index
 	index = append(index, someCommit)
@@ -100,13 +100,13 @@ func main() {
 
 	// Create a branch
 	var someBranch branch
-	someBranch.name = "master"
-	someBranch.commit = someCommit2.id
+	someBranch.Name = "master"
+	someBranch.Commit = someCommit2.ID
 
 	// Create a branch pointing at the initial commit
 	var someBranch2 branch
-	someBranch2.name = "first_commit"
-	someBranch2.commit = someCommit.id
+	someBranch2.Name = "first_commit"
+	someBranch2.Commit = someCommit.ID
 
 	// Populate the branches variable
 	branches = append(branches, someBranch)

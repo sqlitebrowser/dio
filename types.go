@@ -3,20 +3,20 @@ package main
 import "time"
 
 type branch struct {
-	commit [32]byte
-	name   string
+	Commit [32]byte
+	Name   string
 }
 
 type commit struct {
-	authorEmail    string
-	authorName     string
-	committerEmail string
-	committerName  string
-	id             [32]byte
-	message        string
-	parent         [32]byte
-	timestamp      time.Time
-	tree           [32]byte
+	AuthorEmail    string
+	AuthorName     string
+	CommitterEmail string
+	CommitterName  string
+	ID             [32]byte
+	Message        string
+	Parent         [32]byte
+	Timestamp      time.Time
+	Tree           [32]byte
 }
 
 type DBTreeEntryType string
@@ -28,14 +28,14 @@ const (
 )
 
 type dbTree struct {
-	id      [32]byte
-	entries []dbTreeEntry
+	ID      [32]byte
+	Entries []dbTreeEntry
 }
 type dbTreeEntry struct {
-	aType   DBTreeEntryType
-	licence [32]byte
-	shaSum  [32]byte
-	name    string
+	AType   DBTreeEntryType
+	Licence [32]byte
+	ShaSum  [32]byte
+	Name    string
 }
 
 var NILSHA256 = [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
