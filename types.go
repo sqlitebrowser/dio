@@ -39,3 +39,5 @@ type dbTreeEntry struct {
 }
 
 var NILSHA256 = [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+
+const STORAGEDIR = "/Users/jc/tmp/newdatamodel"

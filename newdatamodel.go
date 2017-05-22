@@ -1,7 +1,6 @@
 package main // import "github.com/justinclift/newdatamodel"
 
 import (
-	"crypto/sha256"
 	"io/ioutil"
 	"log"
 	"os"
@@ -21,7 +20,13 @@ func main() {
 		log.Printf("Something went wrong when reading in the database file: %v\n", err.Error())
 		os.Exit(1)
 	}
-	entry1.shaSum = sha256.Sum256(tempBuf)
+
+	// Store the database file
+	entry1.shaSum, err = storeDatabase(tempBuf)
+	if err != nil {
+		log.Printf("Something went wrong when storing the database file: %v\n", err.Error())
+		os.Exit(2)
+	}
 
 	entry2.aType = DATABASE
 	entry2.name = "testdb2.sqlite"
@@ -30,7 +35,13 @@ func main() {
 		log.Printf("Something went wrong when reading in the database file: %v\n", err.Error())
 		os.Exit(1)
 	}
-	entry2.shaSum = sha256.Sum256(tempBuf)
+
+	// Store the database file
+	entry2.shaSum, err = storeDatabase(tempBuf)
+	if err != nil {
+		log.Printf("Something went wrong when storing the database file: %v\n", err.Error())
+		os.Exit(2)
+	}
 
 	// Populate a dbTree structure with the entries
 	var someTree dbTree
@@ -55,7 +66,13 @@ func main() {
 		log.Printf("Something went wrong when reading in the database file: %v\n", err.Error())
 		os.Exit(1)
 	}
-	entry3.shaSum = sha256.Sum256(tempBuf)
+
+	// Store the database file
+	entry3.shaSum, err = storeDatabase(tempBuf)
+	if err != nil {
+		log.Printf("Something went wrong when storing the database file: %v\n", err.Error())
+		os.Exit(2)
+	}
 
 	var someTree2 dbTree
 	someTree2.entries = append(someTree2.entries, entry3)
@@ -74,6 +91,13 @@ func main() {
 	index = append(index, someCommit)
 	index = append(index, someCommit2)
 
+	// Serialise and write out the index
+	err = storeIndex(index)
+	if err != nil {
+		log.Printf("Something went wrong when storing the index file: %v\n", err.Error())
+		os.Exit(3)
+	}
+
 	// Create a branch
 	var someBranch branch
 	someBranch.name = "master"
@@ -87,4 +111,11 @@ func main() {
 	// Populate the branches variable
 	branches = append(branches, someBranch)
 	branches = append(branches, someBranch2)
+
+	// Serialise and write out the branches
+	err = storeBranches(branches)
+	if err != nil {
+		log.Printf("Something went wrong when storing the branches file: %v\n", err.Error())
+		os.Exit(4)
+	}
 }
