@@ -52,7 +52,7 @@ func storeBranches(branches []branch) error {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
 		err := os.MkdirAll(STORAGEDIR, os.ModeDir|0755)
 		if err != nil {
-			log.Printf("Something went wrong when creating the database storage dir: %v\n",
+			log.Printf("Something went wrong when creating the storage dir: %v\n",
 				err.Error())
 			return err
 		}
@@ -73,21 +73,21 @@ func storeBranches(branches []branch) error {
 // Store a database file.
 func storeDatabase(db []byte) (string, error) {
 	// Create the storage directory if needed
-	_, err := os.Stat(STORAGEDIR + string(os.PathSeparator) + "dbs")
+	_, err := os.Stat(STORAGEDIR + string(os.PathSeparator) + "files")
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
-		err := os.MkdirAll(STORAGEDIR, os.ModeDir|0755)
+		err := os.MkdirAll(STORAGEDIR+string(os.PathSeparator)+"files", os.ModeDir|0755)
 		if err != nil {
-			log.Printf("Something went wrong when creating the database storage dir: %v\n",
+			log.Printf("Something went wrong when creating the storage dir: %v\n",
 				err.Error())
 			return "", err
 		}
 	}
 
-	// Create the database file is it doesn't already exist
+	// Create the database file if it doesn't already exist
 	s := sha256.Sum256(db)
 	t := hex.EncodeToString(s[:])
-	p := STORAGEDIR + string(os.PathSeparator) + "dbs" + string(os.PathSeparator) + t
+	p := STORAGEDIR + string(os.PathSeparator) + "files" + string(os.PathSeparator) + t
 	f, err := os.Stat(p)
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the file needs creating
@@ -119,7 +119,7 @@ func storeIndex(index []commit) error {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
 		err := os.MkdirAll(STORAGEDIR, os.ModeDir|0755)
 		if err != nil {
-			log.Printf("Something went wrong when creating the database storage dir: %v\n",
+			log.Printf("Something went wrong when creating the storage dir: %v\n",
 				err.Error())
 			return err
 		}
@@ -132,6 +132,33 @@ func storeIndex(index []commit) error {
 	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"index", j, os.ModePerm)
 	if err != nil {
 		log.Printf("Something went wrong when writing the index file: %v\n", err.Error())
+		return err
+	}
+	return nil
+}
+
+// Store a tree.
+func storeTree(tree dbTree) error {
+	// Create the storage directory if needed
+	_, err := os.Stat(STORAGEDIR + string(os.PathSeparator) + "files")
+	if err != nil {
+		// As this is just experimental code, we'll assume a failure above means the directory needs creating
+		err := os.MkdirAll(STORAGEDIR+string(os.PathSeparator)+"files", os.ModeDir|0755)
+		if err != nil {
+			log.Printf("Something went wrong when creating the storage dir: %v\n",
+				err.Error())
+			return err
+		}
+	}
+	j, err := json.MarshalIndent(tree, "", " ")
+	if err != nil {
+		log.Printf("Something went wrong when serialising the tree data: %v\n", err.Error())
+		return err
+	}
+	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"files"+string(os.PathSeparator)+tree.ID, j,
+		os.ModePerm)
+	if err != nil {
+		log.Printf("Something went wrong when writing the tree file: %v\n", err.Error())
 		return err
 	}
 	return nil

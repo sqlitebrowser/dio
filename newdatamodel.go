@@ -48,6 +48,11 @@ func main() {
 	someTree.Entries = append(someTree.Entries, entry1)
 	someTree.Entries = append(someTree.Entries, entry2)
 	someTree.ID = createDBTreeID(someTree.Entries)
+	err = storeTree(someTree)
+	if err != nil {
+		log.Printf("Something went wrong when storing the tree file: %v\n", err.Error())
+		os.Exit(5)
+	}
 
 	// Construct an initial commit structure pointing to the entry
 	var someCommit commit
@@ -77,6 +82,11 @@ func main() {
 	var someTree2 dbTree
 	someTree2.Entries = append(someTree2.Entries, entry3)
 	someTree2.ID = createDBTreeID(someTree2.Entries)
+	err = storeTree(someTree2)
+	if err != nil {
+		log.Printf("Something went wrong when storing the tree file: %v\n", err.Error())
+		os.Exit(5)
+	}
 
 	var someCommit2 commit
 	someCommit2.Parent = someCommit.ID
