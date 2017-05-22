@@ -18,13 +18,15 @@ type branch struct {
 }
 
 type commit struct {
-	authorEmail string
-	authorName  string
-	id          [32]byte
-	message     string
-	parent      [32]byte
-	timestamp   time.Time
-	tree        [32]byte
+	authorEmail    string
+	authorName     string
+	committerEmail string
+	committerName  string
+	id             [32]byte
+	message        string
+	parent         [32]byte
+	timestamp      time.Time
+	tree           [32]byte
 }
 
 type DBTreeEntryType string
@@ -32,6 +34,7 @@ type DBTreeEntryType string
 const (
 	TREE     DBTreeEntryType = "tree"
 	DATABASE                 = "db"
+	LICENCE                  = "licence"
 )
 
 type dbTree struct {
@@ -39,10 +42,13 @@ type dbTree struct {
 	entries []dbTreeEntry
 }
 type dbTreeEntry struct {
-	aType  DBTreeEntryType
-	shaSum [32]byte
-	name   string
+	aType   DBTreeEntryType
+	licence [32]byte
+	shaSum  [32]byte
+	name    string
 }
+
+var NILSHA256 = [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 
 var branches []branch
 var index []commit
@@ -84,12 +90,33 @@ func main() {
 	someTree.entries = append(someTree.entries, entry3)
 	someTree.id = createDBTreeID(someTree.entries)
 
-//log.Printf("SHA256: %s\n", hex.EncodeToString(someTree.id[:]))
-
 	// Construct an initial commit structure pointing to the entry
-	//var someCommit commit
-	//someCommit.tree = someTree.id
+	var someCommit commit
+	someCommit.authorEmail = "justin@postgresql.org"
+	someCommit.authorName = "Justin Clift"
+	someCommit.message = "Initial database upload"
+	someCommit.timestamp = time.Now()
+	someCommit.tree = someTree.id
 
+	someCommit.id = createCommitID(someCommit)
+
+}
+
+func createCommitID(com commit) [32]byte {
+	var b bytes.Buffer
+	b.WriteString("tree " + hex.EncodeToString(com.tree[:]) + "\n")
+	if com.parent != NILSHA256 {
+		b.WriteString("parent " + hex.EncodeToString(com.parent[:]) + "\n")
+	}
+	b.WriteString("author " + com.authorName + " <" + com.authorEmail + "> " +
+		com.timestamp.Format(time.UnixDate) + "\n")
+	if com.committerEmail != "" {
+		b.WriteString("committer " + com.committerName + " <" + com.committerEmail + "> " +
+			com.timestamp.Format(time.UnixDate) + "\n")
+	}
+	b.WriteString("\n" + com.message)
+//spew.Dump(b)
+	return sha256.Sum256(b.Bytes())
 }
 
 func createDBTreeID(entries []dbTreeEntry) [32]byte {
