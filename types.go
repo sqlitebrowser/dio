@@ -3,7 +3,7 @@ package main
 import "time"
 
 type branch struct {
-	Commit [32]byte
+	Commit string
 	Name   string
 }
 
@@ -12,11 +12,11 @@ type commit struct {
 	AuthorName     string
 	CommitterEmail string
 	CommitterName  string
-	ID             [32]byte
+	ID             string
 	Message        string
-	Parent         [32]byte
+	Parent         string
 	Timestamp      time.Time
-	Tree           [32]byte
+	Tree           string
 }
 
 type DBTreeEntryType string
@@ -28,16 +28,14 @@ const (
 )
 
 type dbTree struct {
-	ID      [32]byte
+	ID      string
 	Entries []dbTreeEntry
 }
 type dbTreeEntry struct {
 	AType   DBTreeEntryType
-	Licence [32]byte
-	ShaSum  [32]byte
+	Licence string
+	ShaSum  string
 	Name    string
 }
-
-var NILSHA256 = [32]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 
 const STORAGEDIR = "/Users/jc/tmp/newdatamodel"

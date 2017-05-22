@@ -12,11 +12,11 @@ import (
 )
 
 // Generate the SHA256 for a commit.
-func createCommitID(com commit) [32]byte {
+func createCommitID(com commit) string {
 	var b bytes.Buffer
-	b.WriteString("tree " + hex.EncodeToString(com.Tree[:]) + "\n")
-	if com.Parent != NILSHA256 {
-		b.WriteString("parent " + hex.EncodeToString(com.Parent[:]) + "\n")
+	b.WriteString("tree " + com.Tree + "\n")
+	if com.Parent != "" {
+		b.WriteString("parent " + com.Parent + "\n")
 	}
 	b.WriteString("author " + com.AuthorName + " <" + com.AuthorEmail + "> " +
 		com.Timestamp.Format(time.UnixDate) + "\n")
@@ -26,20 +26,22 @@ func createCommitID(com commit) [32]byte {
 	}
 	b.WriteString("\n" + com.Message)
 	b.WriteByte(0)
-	return sha256.Sum256(b.Bytes())
+	s := sha256.Sum256(b.Bytes())
+	return hex.EncodeToString(s[:])
 }
 
 // Generate the SHA256 for a tree.
-func createDBTreeID(entries []dbTreeEntry) [32]byte {
+func createDBTreeID(entries []dbTreeEntry) string {
 	var b bytes.Buffer
 	for _, j := range entries {
 		b.WriteString(string(j.AType))
 		b.WriteByte(0)
-		b.WriteString(hex.EncodeToString(j.ShaSum[:]))
+		b.WriteString(j.ShaSum)
 		b.WriteByte(0)
 		b.WriteString(j.Name + "\n")
 	}
-	return sha256.Sum256(b.Bytes())
+	s := sha256.Sum256(b.Bytes())
+	return hex.EncodeToString(s[:])
 }
 
 // Store a set of branches.
@@ -69,7 +71,7 @@ func storeBranches(branches []branch) error {
 }
 
 // Store a database file.
-func storeDatabase(db []byte) ([32]byte, error) {
+func storeDatabase(db []byte) (string, error) {
 	// Create the storage directory if needed
 	_, err := os.Stat(STORAGEDIR + string(os.PathSeparator) + "dbs")
 	if err != nil {
@@ -78,22 +80,23 @@ func storeDatabase(db []byte) ([32]byte, error) {
 		if err != nil {
 			log.Printf("Something went wrong when creating the database storage dir: %v\n",
 				err.Error())
-			return NILSHA256, err
+			return "", err
 		}
 	}
 
 	// Create the database file is it doesn't already exist
 	s := sha256.Sum256(db)
-	p := STORAGEDIR + string(os.PathSeparator) + "dbs" + string(os.PathSeparator) + hex.EncodeToString(s[:])
+	t := hex.EncodeToString(s[:])
+	p := STORAGEDIR + string(os.PathSeparator) + "dbs" + string(os.PathSeparator) + t
 	f, err := os.Stat(p)
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the file needs creating
 		err = ioutil.WriteFile(p, db, os.ModePerm)
 		if err != nil {
 			log.Printf("Something went wrong when writing the database file: %v\n", err.Error())
-			return NILSHA256, err
+			return "", err
 		}
-		return s, nil
+		return t, nil
 	}
 
 	// The file already exists, so check if the file size matches the buffer size we're intending on writing
@@ -102,10 +105,10 @@ func storeDatabase(db []byte) ([32]byte, error) {
 		err = ioutil.WriteFile(p, db, os.ModePerm)
 		if err != nil {
 			log.Printf("Something went wrong when writing the database file: %v\n", err.Error())
-			return NILSHA256, err
+			return "", err
 		}
 	}
-	return s, nil
+	return t, nil
 }
 
 // Store an index.
