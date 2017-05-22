@@ -70,6 +70,33 @@ func storeBranches(branches []branch) error {
 	return nil
 }
 
+// Store a commit.
+func storeCommit(c commit) error {
+	// Create the storage directory if needed
+	_, err := os.Stat(STORAGEDIR + string(os.PathSeparator) + "files")
+	if err != nil {
+		// As this is just experimental code, we'll assume a failure above means the directory needs creating
+		err := os.MkdirAll(STORAGEDIR+string(os.PathSeparator)+"files", os.ModeDir|0755)
+		if err != nil {
+			log.Printf("Something went wrong when creating the storage dir: %v\n",
+				err.Error())
+			return err
+		}
+	}
+	j, err := json.MarshalIndent(c, "", " ")
+	if err != nil {
+		log.Printf("Something went wrong when serialising the commit data: %v\n", err.Error())
+		return err
+	}
+	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"files"+string(os.PathSeparator)+c.ID, j,
+		os.ModePerm)
+	if err != nil {
+		log.Printf("Something went wrong when writing the commit file: %v\n", err.Error())
+		return err
+	}
+	return nil
+}
+
 // Store a database file.
 func storeDatabase(db []byte) (string, error) {
 	// Create the storage directory if needed
@@ -138,7 +165,7 @@ func storeIndex(index []commit) error {
 }
 
 // Store a tree.
-func storeTree(tree dbTree) error {
+func storeTree(t dbTree) error {
 	// Create the storage directory if needed
 	_, err := os.Stat(STORAGEDIR + string(os.PathSeparator) + "files")
 	if err != nil {
@@ -150,12 +177,12 @@ func storeTree(tree dbTree) error {
 			return err
 		}
 	}
-	j, err := json.MarshalIndent(tree, "", " ")
+	j, err := json.MarshalIndent(t, "", " ")
 	if err != nil {
 		log.Printf("Something went wrong when serialising the tree data: %v\n", err.Error())
 		return err
 	}
-	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"files"+string(os.PathSeparator)+tree.ID, j,
+	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"files"+string(os.PathSeparator)+t.ID, j,
 		os.ModePerm)
 	if err != nil {
 		log.Printf("Something went wrong when writing the tree file: %v\n", err.Error())

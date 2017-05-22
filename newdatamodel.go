@@ -62,6 +62,11 @@ func main() {
 	someCommit.Timestamp = time.Now()
 	someCommit.Tree = someTree.ID
 	someCommit.ID = createCommitID(someCommit)
+	err = storeCommit(someCommit)
+	if err != nil {
+		log.Printf("Something went wrong when storing the commit file: %v\n", err.Error())
+		os.Exit(6)
+	}
 
 	// Create another tree and commit
 	entry3.AType = DATABASE
@@ -96,6 +101,11 @@ func main() {
 	someCommit2.Timestamp = time.Now()
 	someCommit2.Tree = someTree2.ID
 	someCommit2.ID = createCommitID(someCommit2)
+	err = storeCommit(someCommit2)
+	if err != nil {
+		log.Printf("Something went wrong when storing the commit file: %v\n", err.Error())
+		os.Exit(6)
+	}
 
 	// Assemble the commits into an index
 	index = append(index, someCommit)
