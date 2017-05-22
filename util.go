@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"io/ioutil"
 	"log"
 	"os"
@@ -55,8 +56,18 @@ func storeBranches(branches []branch) error {
 		}
 	}
 
-	// TODO: Serialise and store the branches file
+	// Store the branches file
+	j, err := json.MarshalIndent(branches, "", " ")
+	if err != nil {
+		log.Printf("Something went wrong when serialising the branch data: %v\n", err.Error())
+		return err
+	}
 
+	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"branches", j, os.ModePerm)
+	if err != nil {
+		log.Printf("Something went wrong when writing the branches file: %v\n", err.Error())
+		return err
+	}
 	return nil
 }
 
@@ -114,6 +125,16 @@ func storeIndex(index []commit) error {
 		}
 	}
 
-	// TODO: Serialise and store the index
+	// Store the index
+	j, err := json.Marshal(index)
+	if err != nil {
+		log.Printf("Something went wrong when serialising the index data: %v\n", err.Error())
+		return err
+	}
+	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"index", j, os.ModePerm)
+	if err != nil {
+		log.Printf("Something went wrong when writing the index file: %v\n", err.Error())
+		return err
+	}
 	return nil
 }
