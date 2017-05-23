@@ -8,8 +8,59 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/urfave/cli"
 )
+
+// Creates a branch for a database.
+func addBranch(c *cli.Context) error {
+	// Ensure we've only been passed a single database to create the branch for
+	l := c.Args()
+	if len(l) < 1 {
+		return errors.New("No database file specified")
+	}
+	if len(l) > 1 {
+		return errors.New("'branch add' only takes a single database file argument")
+	}
+
+	// Retrieve the branches for the given database
+	d := filepath.Base(l[0])
+	branches, err := getBranches(d)
+	if err != nil {
+		return errors.New("That database isn't in the system")
+	}
+spew.Dump(branches)
+	// TODO: Check if the named branch already exists.  Error out if so
+
+	// TODO: Get the current commit ID from the database index
+	currentCommit, err := getCurrentCommit(d)
+	if err != nil {
+		log.Printf("Something went wrong when retrieving the current commit ID: %v\n", err.Error())
+		return err
+	}
+spew.Dump(currentCommit)
+	// TODO: Add the named branch to the branches structure
+	// Create the default branch
+	//var b branch
+	//b.Name = "master"
+	//b.Commit = c.ID
+
+	// TODO: Write the updates branches structure to disk
+
+	return nil
+}
+
+// Remove a branch from a database.
+func removeBranch(c *cli.Context) error {
+	// TODO: Everything for this
+	return nil
+}
+
+// Display the branches for a database.
+func showBranches(c *cli.Context) error {
+	// TODO: Everything for this
+	return nil
+}
 
 // Display the commit log for a database.
 func showLog(c *cli.Context) error {
@@ -22,7 +73,7 @@ func showLog(c *cli.Context) error {
 		return errors.New("log only takes a single database file argument")
 	}
 
-	// Parse the index for the given database
+	// Retrieve the index for the given database
 	p := filepath.Base(l[0])
 	idx, err := getIndex(p)
 	if err != nil {
@@ -102,10 +153,10 @@ func uploadDB(c *cli.Context) error {
 			// As this is just experimental code, we'll assume an error returned here means the database
 			// isn't already in the system
 			// TODO: Proper error handling
-			c.Message = "Initial database upload" // TODO: Add a flag to passing the commit message
+			c.Message = "Initial database upload" // TODO: Add a flag to pass the commit message
 		} else {
 			// No error, which should mean the database already exists
-			c.Message = "foo" // TODO: Add a flag to passing the commit message
+			c.Message = "foo" // TODO: Add a flag to pass the commit message
 		}
 
 		// Store the commit and add its id to the index
@@ -138,6 +189,13 @@ func uploadDB(c *cli.Context) error {
 		err = storeBranches(n, branches)
 		if err != nil {
 			log.Printf("Something went wrong when storing the branches file: %v\n", err.Error())
+			return err
+		}
+
+		// Create the "HEAD" file to track which branch the client is on
+		err = storeHEAD(e.Name, "master")
+		if err != nil {
+			log.Printf("Something went wrong when creating the HEAD file: %v\n", err.Error())
 			return err
 		}
 

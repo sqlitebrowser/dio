@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 // Generate a stable SHA256 for a commit.
@@ -57,6 +59,50 @@ func generateCommitText(c commit) (string, error) {
 	return s, nil
 }
 
+func getBranches(d string) ([]branch, error) {
+	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", d, "branches"))
+	if err != nil {
+		return nil, err
+	}
+	var i []branch
+	err = json.Unmarshal(b, &i)
+	if err != nil {
+		log.Printf("Something went wrong when unserialising the branch data: %v\n", err.Error())
+		return nil, err
+	}
+	return i, nil
+}
+
+// Retrieve the current commit ID
+func getCurrentCommit(d string) (string, error) {
+	// Get the current branch
+	currentBranch, err := getHead(d)
+	if err != nil {
+		log.Printf("Something went wrong when reading the current HEAD file: %v\n", err.Error())
+		return "", err
+	}
+spew.Dump(currentBranch)
+	// Get the latest commit from the current branch
+	branches, err := getBranches(d)
+	if err != nil {
+		return "", err
+	}
+
+spew.Dump(branches)
+
+	return "", nil // TODO: We'll need a real value returned here
+}
+
+// Retrieve the current client HEAD branch from disk
+func getHead(d string) (string, error) {
+	b, err := ioutil.ReadFile(filepath.Join(clientDir, d, "HEAD"))
+	if err != nil {
+		return "", err
+	}
+	i := fmt.Sprintf("%s", b)
+	return i, nil
+}
+
 func getIndex(d string) ([]commit, error) {
 	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", d, "index"))
 	if err != nil {
@@ -72,13 +118,13 @@ func getIndex(d string) ([]commit, error) {
 }
 
 // Store a set of branches.
-func storeBranches(dbPath string, branches []branch) error {
+func storeBranches(p string, branches []branch) error {
 	// Create the storage directory if needed
-	_, err := os.Stat(filepath.Join(STORAGEDIR, "meta", dbPath))
+	_, err := os.Stat(filepath.Join(STORAGEDIR, "meta", p))
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
 		// TODO: Proper error checking
-		err := os.MkdirAll(filepath.Join(STORAGEDIR, "meta", dbPath), os.ModeDir|0755)
+		err := os.MkdirAll(filepath.Join(STORAGEDIR, "meta", p), os.ModeDir|0755)
 		if err != nil {
 			log.Printf("Something went wrong when creating the storage dir: %v\n",
 				err.Error())
@@ -90,7 +136,7 @@ func storeBranches(dbPath string, branches []branch) error {
 		log.Printf("Something went wrong when serialising the branch data: %v\n", err.Error())
 		return err
 	}
-	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "meta", dbPath, "branches"), j, os.ModePerm)
+	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "meta", p, "branches"), j, os.ModePerm)
 	if err != nil {
 		log.Printf("Something went wrong when writing the branches file: %v\n", err.Error())
 		return err
@@ -131,6 +177,7 @@ func storeDatabase(db []byte) (string, error) {
 	_, err := os.Stat(filepath.Join(STORAGEDIR, "files"))
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
+		// TODO: Proper error checking
 		err := os.MkdirAll(filepath.Join(STORAGEDIR, "files"), os.ModeDir|0755)
 		if err != nil {
 			log.Printf("Something went wrong when creating the storage dir: %v\n",
@@ -169,9 +216,36 @@ func storeDatabase(db []byte) (string, error) {
 	return t, nil
 }
 
+// Write the client side HEAD to disk.
+func storeHEAD(d string, b string) error {
+	// Create the containing directory if needed
+	_, err := os.Stat(filepath.Join(clientDir, d))
+	if err != nil {
+		// As this is just experimental code, we'll assume a failure above means the directory needs creating
+		// TODO: Proper error checking
+		err := os.MkdirAll(clientDir, os.ModeDir|0755)
+		if err != nil {
+			log.Printf("Something went wrong when creating the storage dir: %v\n",
+				err.Error())
+			return nil
+		}
+	}
+
+	// Write the HEAD file to disk
+	var f bytes.Buffer
+	f.WriteString(b)
+	err = ioutil.WriteFile(filepath.Join(clientDir, d, "HEAD"), f.Bytes(), os.ModePerm)
+	if err != nil {
+		log.Printf("Something went wrong when writing the HEAD file: %v\n", err.Error())
+		return err
+	}
+
+	return nil
+}
+
 // Store an index.
 func storeIndex(dbPath string, index []commit) error {
-	// Create the storage directory if needed
+	// Create the containing directory if needed
 	_, err := os.Stat(filepath.Join(STORAGEDIR, "meta", dbPath))
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
