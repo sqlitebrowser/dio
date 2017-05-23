@@ -1,7 +1,7 @@
 package main // import "github.com/justinclift/dio"
 
 import (
-	"fmt"
+	"log"
 	"os"
 	"sort"
 
@@ -9,8 +9,6 @@ import (
 )
 
 func main() {
-	var language string
-
 	app := cli.NewApp()
 
 	app.Name = "dio"
@@ -23,26 +21,27 @@ func main() {
 			Aliases: []string{"up"},
 			Usage:   "Upload a database",
 			Action: func(c *cli.Context) error {
-				return uploadDB(c)
+				err := uploadDB(c)
+				if err != nil {
+					log.Print(err.Error())
+				}
+				return err
+			},
+		},
+		{
+			Name:  "log",
+			Usage: "Show the commit history for a database",
+			Action: func(c *cli.Context) error {
+				err := showLog(c)
+				if err != nil {
+					log.Print(err.Error())
+				}
+				return err
 			},
 		},
 	}
 
-	sort.Sort(cli.FlagsByName(app.Flags))
 	sort.Sort(cli.CommandsByName(app.Commands))
-
-	app.Action = func(c *cli.Context) error {
-		name := "someone"
-		if c.NArg() > 0 {
-			name = c.Args().Get(0)
-		}
-		if language == "spanish" {
-			fmt.Println("Hola", name)
-		} else {
-			fmt.Println("Hello", name)
-		}
-		return nil
-	}
 
 	// TODO: Remember to add tags and annotated tags capability
 

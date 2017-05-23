@@ -1,19 +1,59 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/urfave/cli"
 )
 
+func showLog(c *cli.Context) error {
+	// Ensure we've only been passed a single database to generate the log for
+	dbList := c.Args()
+	if len(dbList) < 1 {
+		return errors.New("No database file specified")
+	}
+	if len(dbList) > 1 {
+		return errors.New("log only takes a single database file argument")
+	}
+
+	// Parse the index for the given database
+	dbPath := filepath.Base(dbList[0])
+	buf, err := ioutil.ReadFile(STORAGEDIR + string(os.PathSeparator) + "meta" + string(os.PathSeparator) +
+		dbPath + string(os.PathSeparator) + "index")
+	if err != nil {
+		log.Printf("Something went wrong when reading the index file: %v\n", err.Error())
+		return err
+	}
+	var index []commit
+	err = json.Unmarshal(buf, &index)
+	if err != nil {
+		log.Printf("Something went wrong when unserialising the index data: %v\n", err.Error())
+		return err
+	}
+
+	// Display the commits
+	for _, j := range index {
+		txt, err := generateCommitText(j, true)
+		if err != nil {
+			log.Printf("Something went wrong when generating commit text: %v\n", err.Error())
+			return err
+		}
+		fmt.Printf("%s\n", txt)
+	}
+
+	return nil
+}
+
+// Store a database file.
 func uploadDB(c *cli.Context) error {
 	dbList := c.Args()
-log.Printf("%v arguments: %v\n", len(dbList), dbList)
 
 	if len(dbList) < 1 {
 		return errors.New("No database files specified")
@@ -66,7 +106,8 @@ log.Printf("%v arguments: %v\n", len(dbList), dbList)
 		i = append(i, c)
 
 		// Serialise and write out the index
-		err = storeIndex(filepath.Base(j), i)
+		n := filepath.Base(j)
+		err = storeIndex(n, i)
 		if err != nil {
 			log.Printf("Something went wrong when storing the index file: %v\n", err.Error())
 			return err
@@ -82,14 +123,13 @@ log.Printf("%v arguments: %v\n", len(dbList), dbList)
 		branches = append(branches, b)
 
 		// Serialise and write out the branches
-		err = storeBranches(filepath.Base(j), branches)
+		err = storeBranches(n, branches)
 		if err != nil {
 			log.Printf("Something went wrong when storing the branches file: %v\n", err.Error())
 			return err
 		}
 
-spew.Dump(c)
-log.Printf("Length of database file '%s': %v\n", j, len(buf))
+		fmt.Printf("%s stored, %d bytes, commit ID %s\n", n, len(buf), c.ID)
 	}
 
 	return nil

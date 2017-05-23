@@ -13,19 +13,7 @@ import (
 
 // Generate the SHA256 for a commit.
 func createCommitID(com commit) string {
-	var b bytes.Buffer
-	b.WriteString("tree " + com.Tree + "\n")
-	if com.Parent != "" {
-		b.WriteString("parent " + com.Parent + "\n")
-	}
-	b.WriteString("author " + com.AuthorName + " <" + com.AuthorEmail + "> " +
-		com.Timestamp.Format(time.UnixDate) + "\n")
-	if com.CommitterEmail != "" {
-		b.WriteString("committer " + com.CommitterName + " <" + com.CommitterEmail + "> " +
-			com.Timestamp.Format(time.UnixDate) + "\n")
-	}
-	b.WriteString("\n" + com.Message)
-	b.WriteByte(0)
+	b, _ := generateCommitText(com, false)
 	s := sha256.Sum256(b.Bytes())
 	return hex.EncodeToString(s[:])
 }
@@ -42,6 +30,37 @@ func createDBTreeID(entries []dbTreeEntry) string {
 	}
 	s := sha256.Sum256(b.Bytes())
 	return hex.EncodeToString(s[:])
+}
+
+// Generates the commit text for a given commit.
+func generateCommitText(com commit, withCommitID bool) (bytes.Buffer, error) {
+	var a, b bytes.Buffer
+	b.WriteString("tree " + com.Tree + "\n")
+	if com.Parent != "" {
+		b.WriteString("parent " + com.Parent + "\n")
+	}
+	b.WriteString("author " + com.AuthorName + " <" + com.AuthorEmail + "> " +
+		com.Timestamp.Format(time.UnixDate) + "\n")
+	if com.CommitterEmail != "" {
+		b.WriteString("committer " + com.CommitterName + " <" + com.CommitterEmail + "> " +
+			com.Timestamp.Format(time.UnixDate) + "\n")
+	}
+	b.WriteString("\n" + com.Message)
+	//b.WriteByte(0)
+	if !withCommitID {
+		return b, nil
+	}
+
+	// Add the commit ID to the commit message
+	s := sha256.Sum256(b.Bytes())
+	a.WriteString("commit " + hex.EncodeToString(s[:]) + "\n")
+	_, err := a.Write(b.Bytes())
+	if err != nil {
+		log.Printf("Error when generating commit text: %v\n", err.Error())
+		var z bytes.Buffer
+		return z, err // Return an empty buffer.  This is probably a very silly way to do it. ;)
+	}
+	return a, nil
 }
 
 // Store a set of branches.
