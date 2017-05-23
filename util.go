@@ -5,15 +5,28 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"time"
 )
 
-// Generate the SHA256 for a commit.
-func createCommitID(com commit) string {
-	b, _ := generateCommitText(com, false)
+// Generate a stable SHA256 for a commit.
+func createCommitID(c commit) string {
+	var b bytes.Buffer
+	b.WriteString(fmt.Sprintf("tree %s\n", c.Tree))
+	if c.Parent != "" {
+		b.WriteString(fmt.Sprintf("parent %s\n", c.Parent))
+	}
+	b.WriteString(fmt.Sprintf("author %s <%s> %v\n", c.AuthorName, c.AuthorEmail,
+		c.Timestamp.Format(time.UnixDate)))
+	if c.CommitterEmail != "" {
+		b.WriteString(fmt.Sprintf("committer %s <%s> %v\n", c.CommitterName, c.CommitterEmail,
+			c.Timestamp.Format(time.UnixDate)))
+	}
+	b.WriteString("\n" + c.Message)
+	b.WriteByte(0)
 	s := sha256.Sum256(b.Bytes())
 	return hex.EncodeToString(s[:])
 }
@@ -32,35 +45,13 @@ func createDBTreeID(entries []dbTreeEntry) string {
 	return hex.EncodeToString(s[:])
 }
 
-// Generates the commit text for a given commit.
-func generateCommitText(com commit, withCommitID bool) (bytes.Buffer, error) {
-	var a, b bytes.Buffer
-	b.WriteString("tree " + com.Tree + "\n")
-	if com.Parent != "" {
-		b.WriteString("parent " + com.Parent + "\n")
-	}
-	b.WriteString("author " + com.AuthorName + " <" + com.AuthorEmail + "> " +
-		com.Timestamp.Format(time.UnixDate) + "\n")
-	if com.CommitterEmail != "" {
-		b.WriteString("committer " + com.CommitterName + " <" + com.CommitterEmail + "> " +
-			com.Timestamp.Format(time.UnixDate) + "\n")
-	}
-	b.WriteString("\n" + com.Message)
-	//b.WriteByte(0)
-	if !withCommitID {
-		return b, nil
-	}
-
-	// Add the commit ID to the commit message
-	s := sha256.Sum256(b.Bytes())
-	a.WriteString("commit " + hex.EncodeToString(s[:]) + "\n")
-	_, err := a.Write(b.Bytes())
-	if err != nil {
-		log.Printf("Error when generating commit text: %v\n", err.Error())
-		var z bytes.Buffer
-		return z, err // Return an empty buffer.  This is probably a very silly way to do it. ;)
-	}
-	return a, nil
+// Generates the user visible commit text for a commit.
+func generateCommitText(c commit) (string, error) {
+	s := fmt.Sprintf("commit %s\n", createCommitID(c))
+	s += fmt.Sprintf("Author: %s <%s>\n", c.AuthorName, c.AuthorEmail)
+	s += fmt.Sprintf("Date: %v\n\n", c.Timestamp.Format(time.UnixDate))
+	s += fmt.Sprintf("%s\n", c.Message)
+	return s, nil
 }
 
 // Store a set of branches.

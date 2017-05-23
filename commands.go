@@ -40,7 +40,7 @@ func showLog(c *cli.Context) error {
 
 	// Display the commits
 	for _, j := range index {
-		txt, err := generateCommitText(j, true)
+		txt, err := generateCommitText(j)
 		if err != nil {
 			log.Printf("Something went wrong when generating commit text: %v\n", err.Error())
 			return err
