@@ -38,4 +38,4 @@ type dbTreeEntry struct {
 	Name    string
 }
 
-const STORAGEDIR = "/Users/jc/tmp/newdatamodel"
+const STORAGEDIR = "/Users/jc/tmp/diostorage"

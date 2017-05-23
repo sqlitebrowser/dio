@@ -45,12 +45,13 @@ func createDBTreeID(entries []dbTreeEntry) string {
 }
 
 // Store a set of branches.
-func storeBranches(branches []branch) error {
+func storeBranches(dbPath string, branches []branch) error {
 	// Create the storage directory if needed
-	_, err := os.Stat(STORAGEDIR)
+	_, err := os.Stat(STORAGEDIR + string(os.PathSeparator) + "meta" + string(os.PathSeparator) + dbPath)
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
-		err := os.MkdirAll(STORAGEDIR, os.ModeDir|0755)
+		err := os.MkdirAll(STORAGEDIR+string(os.PathSeparator)+string(os.PathSeparator)+"meta"+dbPath,
+			os.ModeDir|0755)
 		if err != nil {
 			log.Printf("Something went wrong when creating the storage dir: %v\n",
 				err.Error())
@@ -62,7 +63,8 @@ func storeBranches(branches []branch) error {
 		log.Printf("Something went wrong when serialising the branch data: %v\n", err.Error())
 		return err
 	}
-	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"branches", j, os.ModePerm)
+	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"meta"+string(os.PathSeparator)+dbPath+
+		string(os.PathSeparator)+"branches", j, os.ModePerm)
 	if err != nil {
 		log.Printf("Something went wrong when writing the branches file: %v\n", err.Error())
 		return err
@@ -139,12 +141,13 @@ func storeDatabase(db []byte) (string, error) {
 }
 
 // Store an index.
-func storeIndex(index []commit) error {
+func storeIndex(dbPath string, index []commit) error {
 	// Create the storage directory if needed
-	_, err := os.Stat(STORAGEDIR)
+	_, err := os.Stat(STORAGEDIR + string(os.PathSeparator) + "meta" + string(os.PathSeparator) + dbPath)
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
-		err := os.MkdirAll(STORAGEDIR, os.ModeDir|0755)
+		err := os.MkdirAll(STORAGEDIR+string(os.PathSeparator)+"meta"+string(os.PathSeparator)+dbPath,
+			os.ModeDir|0755)
 		if err != nil {
 			log.Printf("Something went wrong when creating the storage dir: %v\n",
 				err.Error())
@@ -156,7 +159,8 @@ func storeIndex(index []commit) error {
 		log.Printf("Something went wrong when serialising the index data: %v\n", err.Error())
 		return err
 	}
-	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"index", j, os.ModePerm)
+	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"meta"+string(os.PathSeparator)+dbPath+
+		string(os.PathSeparator)+"index", j, os.ModePerm)
 	if err != nil {
 		log.Printf("Something went wrong when writing the index file: %v\n", err.Error())
 		return err

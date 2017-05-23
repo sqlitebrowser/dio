@@ -66,7 +66,7 @@ log.Printf("%v arguments: %v\n", len(dbList), dbList)
 		i = append(i, c)
 
 		// Serialise and write out the index
-		err = storeIndex(i)
+		err = storeIndex(filepath.Base(j), i)
 		if err != nil {
 			log.Printf("Something went wrong when storing the index file: %v\n", err.Error())
 			return err
@@ -82,7 +82,7 @@ log.Printf("%v arguments: %v\n", len(dbList), dbList)
 		branches = append(branches, b)
 
 		// Serialise and write out the branches
-		err = storeBranches(branches)
+		err = storeBranches(filepath.Base(j), branches)
 		if err != nil {
 			log.Printf("Something went wrong when storing the branches file: %v\n", err.Error())
 			return err
