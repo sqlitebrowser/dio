@@ -1,46 +1,37 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/urfave/cli"
 )
 
+// Display the commit log for a database.
 func showLog(c *cli.Context) error {
 	// Ensure we've only been passed a single database to generate the log for
-	dbList := c.Args()
-	if len(dbList) < 1 {
+	l := c.Args()
+	if len(l) < 1 {
 		return errors.New("No database file specified")
 	}
-	if len(dbList) > 1 {
+	if len(l) > 1 {
 		return errors.New("log only takes a single database file argument")
 	}
 
 	// Parse the index for the given database
-	dbPath := filepath.Base(dbList[0])
-	buf, err := ioutil.ReadFile(STORAGEDIR + string(os.PathSeparator) + "meta" + string(os.PathSeparator) +
-		dbPath + string(os.PathSeparator) + "index")
+	p := filepath.Base(l[0])
+	idx, err := getIndex(p)
 	if err != nil {
-		log.Printf("Something went wrong when reading the index file: %v\n", err.Error())
-		return err
-	}
-	var index []commit
-	err = json.Unmarshal(buf, &index)
-	if err != nil {
-		log.Printf("Something went wrong when unserialising the index data: %v\n", err.Error())
-		return err
+		return errors.New("That database isn't in the system")
 	}
 
-	// Display the commits
-	for _, j := range index {
-		txt, err := generateCommitText(j)
+	// Display the commits (in reverse order)
+	for i := len(idx) - 1; i >= 0; i-- {
+		txt, err := generateCommitText(idx[i])
 		if err != nil {
 			log.Printf("Something went wrong when generating commit text: %v\n", err.Error())
 			return err
@@ -48,6 +39,13 @@ func showLog(c *cli.Context) error {
 		fmt.Printf("%s\n", txt)
 	}
 
+	return nil
+}
+
+func showTags(c *cli.Context) error {
+	// TODO: Read in the existing tags
+
+	// TODO: Display the tags
 	return nil
 }
 
@@ -59,6 +57,8 @@ func uploadDB(c *cli.Context) error {
 		return errors.New("No database files specified")
 	}
 
+	// TODO: Ensure the databases are unique (eg no double ups such as "dio up a.db b.db b.db")
+
 	for _, j := range dbList {
 		// Create dbTree entry for the database file
 		var e dbTreeEntry
@@ -66,15 +66,17 @@ func uploadDB(c *cli.Context) error {
 		e.Name = filepath.Base(j)
 		buf, err := ioutil.ReadFile(j)
 		if err != nil {
-			log.Printf("Something went wrong when reading in the database file: %v\n", err.Error())
-			return err
+			log.Printf("Something went wrong when reading the database file '%s': %v\n", j,
+				err.Error())
+			continue
 		}
 
 		// Store the database file
 		e.ShaSum, err = storeDatabase(buf)
 		if err != nil {
-			log.Printf("Something went wrong when storing the database file: %v\n", err.Error())
-			return err
+			log.Printf("Something went wrong when storing the database file '%s': %v\n", j,
+				err.Error())
+			continue
 		}
 
 		// Add the entry to the dbTree structure
@@ -87,22 +89,32 @@ func uploadDB(c *cli.Context) error {
 			return err
 		}
 
-		// Construct an initial commit structure pointing to the entry
+		// Construct a commit structure for the entry
 		var c commit
-		c.AuthorEmail = "justin@postgresql.org"
+		c.AuthorEmail = "justin@postgresql.org" // TODO: Load the settings from a config file
 		c.AuthorName = "Justin Clift"
-		c.Message = "Initial database upload"
 		c.Timestamp = time.Now()
 		c.Tree = t.ID
+
+		// If the database is already in our system, load its existing index
+		i, err := getIndex(e.Name)
+		if err != nil {
+			// As this is just experimental code, we'll assume an error returned here means the database
+			// isn't already in the system
+			// TODO: Proper error handling
+			c.Message = "Initial database upload" // TODO: Add a flag to passing the commit message
+		} else {
+			// No error, which should mean the database already exists
+			c.Message = "foo" // TODO: Add a flag to passing the commit message
+		}
+
+		// Store the commit and add its id to the index
 		c.ID = createCommitID(c)
 		err = storeCommit(c)
 		if err != nil {
 			log.Printf("Something went wrong when storing the commit file: %v\n", err.Error())
 			return err
 		}
-
-		// Assemble the commits into an index
-		var i []commit
 		i = append(i, c)
 
 		// Serialise and write out the index

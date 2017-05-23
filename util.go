@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -50,18 +51,34 @@ func generateCommitText(c commit) (string, error) {
 	s := fmt.Sprintf("commit %s\n", createCommitID(c))
 	s += fmt.Sprintf("Author: %s <%s>\n", c.AuthorName, c.AuthorEmail)
 	s += fmt.Sprintf("Date: %v\n\n", c.Timestamp.Format(time.UnixDate))
-	s += fmt.Sprintf("%s\n", c.Message)
+	if c.Message != "" {
+		s += fmt.Sprintf("    %s\n", c.Message)
+	}
 	return s, nil
+}
+
+func getIndex(d string) ([]commit, error) {
+	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", d, "index"))
+	if err != nil {
+		return nil, err
+	}
+	var i []commit
+	err = json.Unmarshal(b, &i)
+	if err != nil {
+		log.Printf("Something went wrong when unserialising the index data: %v\n", err.Error())
+		return nil, err
+	}
+	return i, nil
 }
 
 // Store a set of branches.
 func storeBranches(dbPath string, branches []branch) error {
 	// Create the storage directory if needed
-	_, err := os.Stat(STORAGEDIR + string(os.PathSeparator) + "meta" + string(os.PathSeparator) + dbPath)
+	_, err := os.Stat(filepath.Join(STORAGEDIR, "meta", dbPath))
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
-		err := os.MkdirAll(STORAGEDIR+string(os.PathSeparator)+string(os.PathSeparator)+"meta"+dbPath,
-			os.ModeDir|0755)
+		// TODO: Proper error checking
+		err := os.MkdirAll(filepath.Join(STORAGEDIR, "meta", dbPath), os.ModeDir|0755)
 		if err != nil {
 			log.Printf("Something went wrong when creating the storage dir: %v\n",
 				err.Error())
@@ -73,8 +90,7 @@ func storeBranches(dbPath string, branches []branch) error {
 		log.Printf("Something went wrong when serialising the branch data: %v\n", err.Error())
 		return err
 	}
-	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"meta"+string(os.PathSeparator)+dbPath+
-		string(os.PathSeparator)+"branches", j, os.ModePerm)
+	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "meta", dbPath, "branches"), j, os.ModePerm)
 	if err != nil {
 		log.Printf("Something went wrong when writing the branches file: %v\n", err.Error())
 		return err
@@ -85,10 +101,11 @@ func storeBranches(dbPath string, branches []branch) error {
 // Store a commit.
 func storeCommit(c commit) error {
 	// Create the storage directory if needed
-	_, err := os.Stat(STORAGEDIR + string(os.PathSeparator) + "files")
+	_, err := os.Stat(filepath.Join(STORAGEDIR, "files"))
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
-		err := os.MkdirAll(STORAGEDIR+string(os.PathSeparator)+"files", os.ModeDir|0755)
+		// TODO: Proper error checking
+		err := os.MkdirAll(filepath.Join(STORAGEDIR, "files"), os.ModeDir|0755)
 		if err != nil {
 			log.Printf("Something went wrong when creating the storage dir: %v\n",
 				err.Error())
@@ -100,8 +117,7 @@ func storeCommit(c commit) error {
 		log.Printf("Something went wrong when serialising the commit data: %v\n", err.Error())
 		return err
 	}
-	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"files"+string(os.PathSeparator)+c.ID, j,
-		os.ModePerm)
+	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "files", c.ID), j, os.ModePerm)
 	if err != nil {
 		log.Printf("Something went wrong when writing the commit file: %v\n", err.Error())
 		return err
@@ -112,10 +128,10 @@ func storeCommit(c commit) error {
 // Store a database file.
 func storeDatabase(db []byte) (string, error) {
 	// Create the storage directory if needed
-	_, err := os.Stat(STORAGEDIR + string(os.PathSeparator) + "files")
+	_, err := os.Stat(filepath.Join(STORAGEDIR, "files"))
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
-		err := os.MkdirAll(STORAGEDIR+string(os.PathSeparator)+"files", os.ModeDir|0755)
+		err := os.MkdirAll(filepath.Join(STORAGEDIR, "files"), os.ModeDir|0755)
 		if err != nil {
 			log.Printf("Something went wrong when creating the storage dir: %v\n",
 				err.Error())
@@ -126,7 +142,7 @@ func storeDatabase(db []byte) (string, error) {
 	// Create the database file if it doesn't already exist
 	s := sha256.Sum256(db)
 	t := hex.EncodeToString(s[:])
-	p := STORAGEDIR + string(os.PathSeparator) + "files" + string(os.PathSeparator) + t
+	p := filepath.Join(STORAGEDIR, "files", t)
 	f, err := os.Stat(p)
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the file needs creating
@@ -140,6 +156,9 @@ func storeDatabase(db []byte) (string, error) {
 
 	// The file already exists, so check if the file size matches the buffer size we're intending on writing
 	// (Obviously this is just a super lightweight check, not a real world approach)
+	// TODO: Add real world checks to ensure the file contents are identical.  Maybe read the file contents into
+	// TODO  memory, then binary compare them?  Prob not great for memory efficiency, but it would likely do as a
+	// TODO  first go for something accurate.
 	if len(db) != int(f.Size()) {
 		err = ioutil.WriteFile(p, db, os.ModePerm)
 		if err != nil {
@@ -153,11 +172,10 @@ func storeDatabase(db []byte) (string, error) {
 // Store an index.
 func storeIndex(dbPath string, index []commit) error {
 	// Create the storage directory if needed
-	_, err := os.Stat(STORAGEDIR + string(os.PathSeparator) + "meta" + string(os.PathSeparator) + dbPath)
+	_, err := os.Stat(filepath.Join(STORAGEDIR, "meta", dbPath))
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
-		err := os.MkdirAll(STORAGEDIR+string(os.PathSeparator)+"meta"+string(os.PathSeparator)+dbPath,
-			os.ModeDir|0755)
+		err := os.MkdirAll(filepath.Join(STORAGEDIR, "meta", dbPath), os.ModeDir|0755)
 		if err != nil {
 			log.Printf("Something went wrong when creating the storage dir: %v\n",
 				err.Error())
@@ -169,8 +187,7 @@ func storeIndex(dbPath string, index []commit) error {
 		log.Printf("Something went wrong when serialising the index data: %v\n", err.Error())
 		return err
 	}
-	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"meta"+string(os.PathSeparator)+dbPath+
-		string(os.PathSeparator)+"index", j, os.ModePerm)
+	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "meta", dbPath, "index"), j, os.ModePerm)
 	if err != nil {
 		log.Printf("Something went wrong when writing the index file: %v\n", err.Error())
 		return err
@@ -181,10 +198,10 @@ func storeIndex(dbPath string, index []commit) error {
 // Store a tree.
 func storeTree(t dbTree) error {
 	// Create the storage directory if needed
-	_, err := os.Stat(STORAGEDIR + string(os.PathSeparator) + "files")
+	_, err := os.Stat(filepath.Join(STORAGEDIR, "files"))
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
-		err := os.MkdirAll(STORAGEDIR+string(os.PathSeparator)+"files", os.ModeDir|0755)
+		err := os.MkdirAll(filepath.Join(STORAGEDIR, "files"), os.ModeDir|0755)
 		if err != nil {
 			log.Printf("Something went wrong when creating the storage dir: %v\n",
 				err.Error())
@@ -196,8 +213,7 @@ func storeTree(t dbTree) error {
 		log.Printf("Something went wrong when serialising the tree data: %v\n", err.Error())
 		return err
 	}
-	err = ioutil.WriteFile(STORAGEDIR+string(os.PathSeparator)+"files"+string(os.PathSeparator)+t.ID, j,
-		os.ModePerm)
+	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "files", t.ID), j, os.ModePerm)
 	if err != nil {
 		log.Printf("Something went wrong when writing the tree file: %v\n", err.Error())
 		return err
