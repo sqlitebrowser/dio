@@ -73,16 +73,20 @@ func showLog(c *cli.Context) error {
 		return errors.New("log only takes a single database file argument")
 	}
 
-	// Retrieve the index for the given database
-	p := filepath.Base(l[0])
-	idx, err := getIndex(p)
-	if err != nil {
-		return errors.New("That database isn't in the system")
+	var activeBranch string
+	dbPath := filepath.Base(l[0])
+	activeBranch, err := getActiveBranch(dbPath)
+	if err == nil {
+		// As this is experimental code, we'll just assume an error here means there are no commits
+		return errors.New("This database has no commits")
 	}
 
+	// Retrieve the commit history for the active branch
+	commitList, err := getHistory(activeBranch)
+
 	// Display the commits (in reverse order)
-	for i := len(idx) - 1; i >= 0; i-- {
-		txt, err := generateCommitText(idx[i])
+	for i := len(commitList) - 1; i >= 0; i-- {
+		txt, err := generateCommitText(commitList[i])
 		if err != nil {
 			log.Printf("Something went wrong when generating commit text: %v\n", err.Error())
 			return err
@@ -147,59 +151,44 @@ func uploadDB(c *cli.Context) error {
 		c.Timestamp = time.Now()
 		c.Tree = t.ID
 
-		// If the database is already in our system, load its existing index
-		i, err := getIndex(e.Name)
-		if err != nil {
-			// As this is just experimental code, we'll assume an error returned here means the database
-			// isn't already in the system
-			// TODO: Proper error handling
-			c.Message = "Initial database upload" // TODO: Add a flag to pass the commit message
-		} else {
-			// No error, which should mean the database already exists
-			c.Message = "foo" // TODO: Add a flag to pass the commit message
-		}
-
-		// Store the commit and add its id to the index
-		c.ID = createCommitID(c)
-		err = storeCommit(c)
-		if err != nil {
-			log.Printf("Something went wrong when storing the commit file: %v\n", err.Error())
-			return err
-		}
-		i = append(i, c)
-
-		// Serialise and write out the index
-		n := filepath.Base(j)
-		err = storeIndex(n, i)
-		if err != nil {
-			log.Printf("Something went wrong when storing the index file: %v\n", err.Error())
-			return err
-		}
-
-		// Create the default branch
+		// Construct the branch structures for the entry
 		var b branch
-		b.Name = "master"
+		var branches []branch
 		b.Commit = c.ID
 
-		// Populate the branches variable
-		var branches []branch
-		branches = append(branches, b)
+		// Check for an "activebranch" file.  If it's not present, assume there are no prior commits
+		d := filepath.Base(j)
+		var activeBranch string
+		activeBranch, err = getActiveBranch(d)
+		if err == nil {
+			// As this is experimental code, we'll just assume an error getting this means there are no
+			// prior commits.  So, we create an initial branch called master.
+			b.Name = "master"
+			branches = append(branches, b)
+		} else {
+			// TODO: Load the previous branches, replacing the commit id of the existing maching branch
+			// TODO  if it exists
+			// branches = [ previous branches ]
+		}
 
-		// Serialise and write out the branches
-		err = storeBranches(n, branches)
+		// Add the new commit to the branches, then write the updated branch structure to disk
+		b.Name = activeBranch // TODO: This will probably need to be in the above else {}
+
+		// Write the updated branch structure to disk
+		err = storeBranches(d, branches)
 		if err != nil {
 			log.Printf("Something went wrong when storing the branches file: %v\n", err.Error())
 			return err
 		}
 
 		// Create the "HEAD" file to track which branch the client is on
-		err = storeHEAD(e.Name, "master")
+		err = storeActiveBranch(e.Name, "master")
 		if err != nil {
 			log.Printf("Something went wrong when creating the HEAD file: %v\n", err.Error())
 			return err
 		}
 
-		fmt.Printf("%s stored, %d bytes, commit ID %s\n", n, len(buf), c.ID)
+		fmt.Printf("%s stored, %d bytes, commit ID %s\n", d, len(buf), c.ID)
 	}
 
 	return nil

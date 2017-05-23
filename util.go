@@ -75,27 +75,29 @@ func getBranches(d string) ([]branch, error) {
 
 // Retrieve the current commit ID
 func getCurrentCommit(d string) (string, error) {
-	// Get the current branch
-	currentBranch, err := getHead(d)
+	// Get the active branch
+	activeBranch, err := getActiveBranch(d)
 	if err != nil {
 		log.Printf("Something went wrong when reading the current HEAD file: %v\n", err.Error())
 		return "", err
 	}
-spew.Dump(currentBranch)
-	// Get the latest commit from the current branch
+	spew.Dump(activeBranch)
+	// Read the branches JSON, as it records the latest commit for all branches
 	branches, err := getBranches(d)
 	if err != nil {
 		return "", err
 	}
 
-spew.Dump(branches)
+	spew.Dump(branches)
+
+	// TODO: Grab the commit ID from the matching branch name
 
 	return "", nil // TODO: We'll need a real value returned here
 }
 
-// Retrieve the current client HEAD branch from disk
-func getHead(d string) (string, error) {
-	b, err := ioutil.ReadFile(filepath.Join(clientDir, d, "HEAD"))
+// Get the active branch (client side).
+func getActiveBranch(d string) (string, error) {
+	b, err := ioutil.ReadFile(filepath.Join(clientDir, d, "activebranch"))
 	if err != nil {
 		return "", err
 	}
@@ -103,21 +105,14 @@ func getHead(d string) (string, error) {
 	return i, nil
 }
 
-func getIndex(d string) ([]commit, error) {
-	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", d, "index"))
-	if err != nil {
-		return nil, err
-	}
-	var i []commit
-	err = json.Unmarshal(b, &i)
-	if err != nil {
-		log.Printf("Something went wrong when unserialising the index data: %v\n", err.Error())
-		return nil, err
-	}
-	return i, nil
+// Returns the full commit history for the given branch.
+func getHistory(branch string) ([]commit, error) {
+	// TODO: Walk the commit history, assembling it into a useful array
+	var empty []commit
+	return empty, nil
 }
 
-// Store a set of branches.
+// Store a set of branches (server side).
 func storeBranches(p string, branches []branch) error {
 	// Create the storage directory if needed
 	_, err := os.Stat(filepath.Join(STORAGEDIR, "meta", p))
@@ -144,7 +139,7 @@ func storeBranches(p string, branches []branch) error {
 	return nil
 }
 
-// Store a commit.
+// Store a commit (server side).
 func storeCommit(c commit) error {
 	// Create the storage directory if needed
 	_, err := os.Stat(filepath.Join(STORAGEDIR, "files"))
@@ -171,7 +166,7 @@ func storeCommit(c commit) error {
 	return nil
 }
 
-// Store a database file.
+// Store a database file (server side).
 func storeDatabase(db []byte) (string, error) {
 	// Create the storage directory if needed
 	_, err := os.Stat(filepath.Join(STORAGEDIR, "files"))
@@ -216,8 +211,8 @@ func storeDatabase(db []byte) (string, error) {
 	return t, nil
 }
 
-// Write the client side HEAD to disk.
-func storeHEAD(d string, b string) error {
+// Write the default branch to disk (server side).
+func storeDefaultBranch(d string, b string) error {
 	// Create the containing directory if needed
 	_, err := os.Stat(filepath.Join(clientDir, d))
 	if err != nil {
@@ -243,33 +238,34 @@ func storeHEAD(d string, b string) error {
 	return nil
 }
 
-// Store an index.
-func storeIndex(dbPath string, index []commit) error {
+// Write the active branch (client side) to disk.
+func storeActiveBranch(d string, b string) error {
 	// Create the containing directory if needed
-	_, err := os.Stat(filepath.Join(STORAGEDIR, "meta", dbPath))
+	_, err := os.Stat(filepath.Join(clientDir, d))
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the directory needs creating
-		err := os.MkdirAll(filepath.Join(STORAGEDIR, "meta", dbPath), os.ModeDir|0755)
+		// TODO: Proper error checking
+		err := os.MkdirAll(clientDir, os.ModeDir|0755)
 		if err != nil {
 			log.Printf("Something went wrong when creating the storage dir: %v\n",
 				err.Error())
-			return err
+			return nil
 		}
 	}
-	j, err := json.MarshalIndent(index, "", " ")
+
+	// Write the HEAD file to disk
+	var f bytes.Buffer
+	f.WriteString(b)
+	err = ioutil.WriteFile(filepath.Join(clientDir, d, "activebranch"), f.Bytes(), os.ModePerm)
 	if err != nil {
-		log.Printf("Something went wrong when serialising the index data: %v\n", err.Error())
+		log.Printf("Something went wrong when writing the active branch file: %v\n", err.Error())
 		return err
 	}
-	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "meta", dbPath, "index"), j, os.ModePerm)
-	if err != nil {
-		log.Printf("Something went wrong when writing the index file: %v\n", err.Error())
-		return err
-	}
+
 	return nil
 }
 
-// Store a tree.
+// Store a tree (server side).
 func storeTree(t dbTree) error {
 	// Create the storage directory if needed
 	_, err := os.Stat(filepath.Join(STORAGEDIR, "files"))
