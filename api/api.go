@@ -32,6 +32,7 @@ func main() {
 	ws.Route(ws.POST("/branch_create").Consumes("application/x-www-form-urlencoded").To(branchCreate))
 	ws.Route(ws.GET("/branch_history").To(branchHistory))
 	ws.Route(ws.GET("/branch_list").To(branchList))
+	ws.Route(ws.POST("/branch_remove").Consumes("application/x-www-form-urlencoded").To(branchRemove))
 	ws.Route(ws.PUT("/db_upload").To(dbUpload))
 	ws.Route(ws.GET("/db_download").To(dbDownload))
 	ws.Route(ws.GET("/db_list").To(dbList))
@@ -184,6 +185,56 @@ func branchList(r *rest.Request, w *rest.Response) {
 
 	// Return the list of branch heads
 	w.WriteAsJson(branches)
+}
+
+// Removes a branch from a database.
+// Can be tested with: curl -d database=a.db -d branch=master http://localhost:8080/branch_remove
+func branchRemove(r *rest.Request, w *rest.Response) {
+	// Retrieve the database and branch names
+	err := r.Request.ParseForm()
+	if err != nil {
+		w.WriteErrorString(http.StatusBadRequest, err.Error())
+		return
+	}
+	dbName := r.Request.FormValue("database")
+	branchName := r.Request.FormValue("branch")
+
+	// Sanity check the inputs
+	if dbName == "" || branchName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// TODO: Validate the database and branch names
+
+	// Ensure the requested database is in our system
+	if !dbExists(dbName) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Load the existing branch heads from disk
+	branches, err := getBranches(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure the branch exists in the database
+	_, ok := branches[branchName]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Remove the branch
+	delete(branches, branchName)
+	err = storeBranches(dbName, branches)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Upload a database.
