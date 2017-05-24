@@ -29,7 +29,7 @@ func main() {
 	// Create and start the API server
 	ws := new(rest.WebService)
 	ws.Filter(rest.NoBrowserCacheFilter)
-	ws.Route(ws.PUT("/branch_history").To(branchHistory))
+	ws.Route(ws.GET("/branch_history").To(branchHistory))
 	ws.Route(ws.PUT("/db_upload").To(dbUpload))
 	ws.Route(ws.GET("/db_download").To(dbDownload))
 	ws.Route(ws.GET("/db_list").To(dbList))
@@ -37,24 +37,52 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
+// Returns the history for a branch.
+// Can be tested with: curl -H "Name: a.db" -H "Branch: master" http://localhost:8080/branch_history
 func branchHistory(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
 	dbName := r.Request.Header.Get("Name")
-	//branchName := r.Request.Header.Get("Branch")
+	branchName := r.Request.Header.Get("Branch")
 
 	// TODO: Validate the database and branch names
 
-	//var err error
-	if dbExists(dbName) {
-		// Load the existing branchHeads from disk
-		_, err := getBranches(dbName)
-		//branches, err := getBranches(dbName)
+	// Ensure the requested database is in our system
+	if !dbExists(dbName) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Load the existing branch heads from disk
+	branches, err := getBranches(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure the requested branch exists in the database
+	id, ok := branches[branchName]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Walk the commit history, assembling it into something useful
+	var history []commit
+	c, err := getCommit(id)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	history = append(history, c)
+	for c.Parent != "" {
+		c, err = getCommit(c.Parent)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
+		history = append(history, c)
 	}
+	w.WriteAsJson(history)
 }
 
 // Upload a database.
@@ -108,7 +136,7 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 		}
 
 		// We check if the desired branch already exists.  If it does, we use the commit ID from that as the
-		// "parent" for our new commit.  Then we add update the branch with the commit created for this new
+		// "parent" for our new commit.  Then we update the branch with the commit created for this new
 		// database upload
 		if id, ok := branches[branchName]; ok {
 			c.Parent = id
