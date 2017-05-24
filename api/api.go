@@ -29,6 +29,7 @@ func main() {
 	// Create and start the API server
 	ws := new(rest.WebService)
 	ws.Filter(rest.NoBrowserCacheFilter)
+	ws.Route(ws.POST("/branch_create").Consumes("application/x-www-form-urlencoded").To(branchCreate))
 	ws.Route(ws.GET("/branch_history").To(branchHistory))
 	ws.Route(ws.GET("/branch_list").To(branchList))
 	ws.Route(ws.PUT("/db_upload").To(dbUpload))
@@ -38,14 +39,82 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
+// Creates a new branch for a database.
+// Can be tested with: curl -d database=a.db -d from-branch=master -d new-branch=mynewbranch http://localhost:8080/branch_create
+func branchCreate(r *rest.Request, w *rest.Response) {
+	// We do this such that a branch can only fork from an existing branch head of the database. The alternative
+	// would be to allow giving a direct commit ID for branching from, but that seems like it would be a security
+	// problem due to being able to potentially point at other people's commits in our multi-user environment
+
+	// Retrieve the database and branch names
+	err := r.Request.ParseForm()
+	if err != nil {
+		w.WriteErrorString(http.StatusBadRequest, err.Error())
+		return
+	}
+	dbName := r.Request.FormValue("database")
+	fromBranch := r.Request.FormValue("from-branch")
+	newBranch := r.Request.FormValue("new-branch")
+
+	// Sanity check the inputs
+	if dbName == "" || fromBranch == "" || newBranch == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// TODO: Validate the database and branch names
+
+	// Ensure the requested database is in our system
+	if !dbExists(dbName) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Load the existing branch heads from disk
+	branches, err := getBranches(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure the "from" branch exists in the database
+	fromId, ok := branches[fromBranch]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Ensure the new branch doesn't already exist in the database
+	_, ok = branches[newBranch]
+	if ok {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	// Add the new branch
+	branches[newBranch] = fromId
+	err = storeBranches(dbName, branches)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // Returns the history for a branch.
-// Can be tested with: curl -H "Name: a.db" -H "Branch: master" http://localhost:8080/branch_history
+// Can be tested with: curl -H "Database: a.db" -H "Branch: master" http://localhost:8080/branch_history
 func branchHistory(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
-	dbName := r.Request.Header.Get("Name")
+	dbName := r.Request.Header.Get("Database")
 	branchName := r.Request.Header.Get("Branch")
 
 	// TODO: Validate the database and branch names
+
+	// Sanity check the inputs
+	if dbName == "" || branchName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	// Ensure the requested database is in our system
 	if !dbExists(dbName) {
@@ -87,12 +156,18 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 }
 
 // Returns the list of branch heads for a database.
-// Can be tested with: curl -H "Name: a.db" http://localhost:8080/branch_list
+// Can be tested with: curl -H "Database: a.db" http://localhost:8080/branch_list
 func branchList(r *rest.Request, w *rest.Response) {
 	// Retrieve the database name
-	dbName := r.Request.Header.Get("Name")
+	dbName := r.Request.Header.Get("Database")
 
 	// TODO: Validate the database name
+
+	// Sanity check the input
+	if dbName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	// Ensure the requested database is in our system
 	if !dbExists(dbName) {
@@ -119,6 +194,12 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	branchName := r.Request.Header.Get("Branch")
 
 	// TODO: Validate the database and branch names
+
+	// Sanity check the inputs
+	if dbName == "" || branchName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	// Default to "master" if no branch name was given
 	if branchName == "" {
@@ -200,7 +281,7 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 		return
 	}
 
-	// Write the updated branchHeads to disk
+	// Write the updated branch heads to disk
 	err = storeBranches(dbName, branches)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
