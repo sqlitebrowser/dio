@@ -32,10 +32,12 @@ type dbTree struct {
 	Entries []dbTreeEntry
 }
 type dbTreeEntry struct {
-	AType   DBTreeEntryType
-	Licence string
-	ShaSum  string
-	Name    string
+	AType         DBTreeEntryType
+	Last_Modified time.Time
+	Licence       string
+	ShaSum        string
+	Size          int
+	Name          string
 }
 
 const STORAGEDIR = "/Users/jc/tmp/diostorage"
