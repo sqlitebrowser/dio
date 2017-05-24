@@ -29,11 +29,32 @@ func main() {
 	// Create and start the API server
 	ws := new(rest.WebService)
 	ws.Filter(rest.NoBrowserCacheFilter)
+	ws.Route(ws.PUT("/branch_history").To(branchHistory))
 	ws.Route(ws.PUT("/db_upload").To(dbUpload))
 	ws.Route(ws.GET("/db_download").To(dbDownload))
 	ws.Route(ws.GET("/db_list").To(dbList))
 	rest.Add(ws)
 	http.ListenAndServe(":8080", nil)
+}
+
+func branchHistory(r *rest.Request, w *rest.Response) {
+	// Retrieve the database and branch names
+	dbName := r.Request.Header.Get("Name")
+	//branchName := r.Request.Header.Get("Branch")
+
+	// TODO: Validate the database and branch names
+
+	//var err error
+	if dbExists(dbName) {
+		// Load the existing branchHeads from disk
+		_, err := getBranches(dbName)
+		//branches, err := getBranches(dbName)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+	}
 }
 
 // Upload a database.
@@ -77,7 +98,7 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 
 	// Check if the database already exists
 	var err error
-	var branches []branch
+	var branches map[string]string
 	if dbExists(dbName) {
 		// Load the existing branchHeads from disk
 		branches, err = getBranches(dbName)
@@ -87,31 +108,18 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 		}
 
 		// We check if the desired branch already exists.  If it does, we use the commit ID from that as the
-		// "parent" for our new commit.  Then we add update the branch with the new commit created for this
-		// new database upload
-		m := make(map[string]string)
-		for _, j := range branches {
-			m[j.Name] = j.Commit
-		}
-		if id, ok := m[branchName]; ok {
+		// "parent" for our new commit.  Then we add update the branch with the commit created for this new
+		// database upload
+		if id, ok := branches[branchName]; ok {
 			c.Parent = id
 		}
 		c.ID = createCommitID(c)
-		m[branchName] = c.ID
-
-		// Create a new branch list from m, then overwrite the old branch list with it
-		var newBranches []branch
-		for i, j := range m {
-			var n branch
-			n.Name = i
-			n.Commit = j
-			newBranches = append(newBranches, n)
-		}
-		branches = newBranches
+		branches[branchName] = c.ID
 	} else {
 		// No existing branches, so this will be the first
 		c.ID = createCommitID(c)
-		branches = append(branches, branch{Commit: c.ID, Name: branchName})
+		branches = make(map[string]string)
+		branches[branchName] = c.ID
 	}
 
 	// Write the database to disk

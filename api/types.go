@@ -2,11 +2,6 @@ package main
 
 import "time"
 
-type branch struct {
-	Commit string
-	Name   string
-}
-
 type commit struct {
 	AuthorEmail    string
 	AuthorName     string

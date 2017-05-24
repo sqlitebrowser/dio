@@ -65,12 +65,12 @@ func dbExists(dbName string) bool {
 }
 
 // Load the branch heads for a database.
-func getBranches(dbName string) ([]branch, error) {
+func getBranches(dbName string) (map[string]string, error) {
 	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", dbName, "branchHeads"))
 	if err != nil {
 		return nil, err
 	}
-	var i []branch
+	var i map[string]string
 	err = json.Unmarshal(b, &i)
 	if err != nil {
 		log.Printf("Something went wrong unserialising the branchHeads data: %v\n", err.Error())
@@ -80,7 +80,7 @@ func getBranches(dbName string) ([]branch, error) {
 }
 
 // Store the branch heads for a database.
-func storeBranches(dbName string, branches []branch) error {
+func storeBranches(dbName string, branches map[string]string) error {
 	path := filepath.Join(STORAGEDIR, "meta", dbName)
 	_, err := os.Stat(path)
 	if err != nil {
