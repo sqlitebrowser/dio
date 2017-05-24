@@ -30,6 +30,7 @@ func main() {
 	ws := new(rest.WebService)
 	ws.Filter(rest.NoBrowserCacheFilter)
 	ws.Route(ws.GET("/branch_history").To(branchHistory))
+	ws.Route(ws.GET("/branch_list").To(branchList))
 	ws.Route(ws.PUT("/db_upload").To(dbUpload))
 	ws.Route(ws.GET("/db_download").To(dbDownload))
 	ws.Route(ws.GET("/db_list").To(dbList))
@@ -83,6 +84,31 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 		history = append(history, c)
 	}
 	w.WriteAsJson(history)
+}
+
+// Returns the list of branch heads for a database.
+// Can be tested with: curl -H "Name: a.db" http://localhost:8080/branch_list
+func branchList(r *rest.Request, w *rest.Response) {
+	// Retrieve the database name
+	dbName := r.Request.Header.Get("Name")
+
+	// TODO: Validate the database name
+
+	// Ensure the requested database is in our system
+	if !dbExists(dbName) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Load the existing branch heads from disk
+	branches, err := getBranches(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Return the list of branch heads
+	w.WriteAsJson(branches)
 }
 
 // Upload a database.
