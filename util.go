@@ -59,6 +59,16 @@ func generateCommitText(c commit) (string, error) {
 	return s, nil
 }
 
+// Get the active branch (client side).
+func getActiveBranch(d string) (string, error) {
+	b, err := ioutil.ReadFile(filepath.Join(clientDir, d, "activebranch"))
+	if err != nil {
+		return "", err
+	}
+	i := fmt.Sprintf("%s", b)
+	return i, nil
+}
+
 func getBranches(d string) ([]branch, error) {
 	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", d, "branches"))
 	if err != nil {
@@ -93,16 +103,6 @@ func getCurrentCommit(d string) (string, error) {
 	// TODO: Grab the commit ID from the matching branch name
 
 	return "", nil // TODO: We'll need a real value returned here
-}
-
-// Get the active branch (client side).
-func getActiveBranch(d string) (string, error) {
-	b, err := ioutil.ReadFile(filepath.Join(clientDir, d, "activebranch"))
-	if err != nil {
-		return "", err
-	}
-	i := fmt.Sprintf("%s", b)
-	return i, nil
 }
 
 // Returns the full commit history for the given branch.
