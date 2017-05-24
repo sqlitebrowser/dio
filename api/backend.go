@@ -54,7 +54,7 @@ func createDBTreeID(entries []dbTreeEntry) string {
 
 // Check if a database already exists.
 func dbExists(dbName string) bool {
-	path := filepath.Join(STORAGEDIR, "files", dbName)
+	path := filepath.Join(STORAGEDIR, "meta", dbName)
 	_, err := os.Stat(path)
 	if err != nil {
 		// As this is just experimental code, we'll assume a failure above means the db doesn't exist

@@ -86,10 +86,28 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 			return
 		}
 
-		// TODO: If the requested branch already exists, we need to retrieve the commit ID from it,
-		// TODO  use that as the "parent" value for our new commit, generate a commit ID, and update
-		// TODO  update the commit ID in it
-log.Println("Code needs writing for the branchHeads already existing")
+		// We check if the desired branch already exists.  If it does, we use the commit ID from that as the
+		// "parent" for our new commit.  Then we add update the branch with the new commit created for this
+		// new database upload
+		m := make(map[string]string)
+		for _, j := range branches {
+			m[j.Name] = j.Commit
+		}
+		if id, ok := m[branchName]; ok {
+			c.Parent = id
+		}
+		c.ID = createCommitID(c)
+		m[branchName] = c.ID
+
+		// Create a new branch list from m, then overwrite the old branch list with it
+		var newBranches []branch
+		for i, j := range m {
+			var n branch
+			n.Name = i
+			n.Commit = j
+			newBranches = append(newBranches, n)
+		}
+		branches = newBranches
 	} else {
 		// No existing branches, so this will be the first
 		c.ID = createCommitID(c)
