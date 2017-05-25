@@ -33,6 +33,7 @@ func main() {
 	ws.Route(ws.GET("/branch_history").To(branchHistory))
 	ws.Route(ws.GET("/branch_list").To(branchList))
 	ws.Route(ws.POST("/branch_remove").Consumes("application/x-www-form-urlencoded").To(branchRemove))
+	ws.Route(ws.POST("/branch_revert").Consumes("application/x-www-form-urlencoded").To(branchRevert))
 	ws.Route(ws.PUT("/db_upload").To(dbUpload))
 	ws.Route(ws.GET("/db_download").To(dbDownload))
 	ws.Route(ws.GET("/db_list").To(dbList))
@@ -75,8 +76,7 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 	}
 
 	// Ensure the new branch name doesn't already exist in the database
-	_, ok := branches[branchName]
-	if ok {
+	if _, ok := branches[branchName]; ok {
 		w.WriteHeader(http.StatusConflict)
 		return
 	}
@@ -253,14 +253,97 @@ func branchRemove(r *rest.Request, w *rest.Response) {
 	}
 
 	// Ensure the branch exists in the database
-	_, ok := branches[branchName]
-	if !ok {
+	if _, ok := branches[branchName]; !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	// Remove the branch
 	delete(branches, branchName)
+	err = storeBranches(dbName, branches)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Reverts a branch to a previous commit.
+// Can be tested with: curl -d database=a.db -d branch=master -d commit=xxx http://localhost:8080/branch_revert
+func branchRevert(r *rest.Request, w *rest.Response) {
+	// Retrieve the database and branch names
+	err := r.Request.ParseForm()
+	if err != nil {
+		w.WriteErrorString(http.StatusBadRequest, err.Error())
+		return
+	}
+	dbName := r.Request.FormValue("database")
+	branchName := r.Request.FormValue("branch")
+	commit := r.Request.FormValue("commit")
+
+	// Sanity check the inputs
+	if dbName == "" || branchName == "" || commit == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// TODO: Validate the database and branch names
+
+	// Ensure the requested database is in our system
+	if !dbExists(dbName) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Load the existing branch heads from disk
+	branches, err := getBranches(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure the branch exists in the database
+	id, ok := branches[branchName]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// * Ensure the requested commit exists in the branch history *
+
+	// If the head commit of the branch already matches the requested commit, there's nothing to change
+	if id == commit {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	// It didn't, so walk the branch history looking for the commit there
+	commitExists := false
+	c, err := getCommit(id)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	for c.Parent != "" {
+		if c.ID == commit {
+			// This commit in the branch history matches the requested commit, so we're good to proceed
+			commitExists = true
+		}
+		c, err = getCommit(c.Parent)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// The commit wasn't found, so don't update the branch
+	if commitExists != true {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Update the branch
+	branches[branchName] = commit
 	err = storeBranches(dbName, branches)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
