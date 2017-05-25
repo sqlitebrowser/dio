@@ -395,6 +395,22 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// Download a database
+func dbDownload(r *rest.Request, w *rest.Response) {
+	log.Println("dbDownload() called")
+}
+
+// Get the list of databases
+// Can be tested with: curl http://localhost:8080/db_list
+func dbList(r *rest.Request, w *rest.Response) {
+	dbList, err := databaseList()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Write(dbList)
+}
+
 // Upload a database.
 // Can be tested with: curl -T a.db -H "Name: a.db" -w \%{response_code} -D headers.out http://localhost:8080/db_upload
 func dbUpload(r *rest.Request, w *rest.Response) {
@@ -514,14 +530,4 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	// Send a 201 "Created" response, along with the location of the URL for working with the (new) database
 	w.AddHeader("Location", "/"+dbName)
 	w.WriteHeader(http.StatusCreated)
-}
-
-// Download a database
-func dbDownload(r *rest.Request, w *rest.Response) {
-	log.Println("dbDownload() called")
-}
-
-// Get a list of databases
-func dbList(r *rest.Request, w *rest.Response) {
-	log.Println("dbList() called")
 }

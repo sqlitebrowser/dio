@@ -66,6 +66,31 @@ func createDBTreeID(entries []dbTreeEntry) string {
 	return hex.EncodeToString(s[:])
 }
 
+// Returns the list of available databases.
+func databaseList() ([]byte, error) {
+	// For now, just use the entries in the "meta" directory as the list
+	p := filepath.Join(STORAGEDIR, "meta")
+	dirEntries, err := ioutil.ReadDir(p)
+	if err != nil {
+		// As this is just experimental code, we'll assume a failure above means the db doesn't exist
+		log.Printf("Error when reading database list: %v\n", err)
+		return []byte{}, err
+	}
+	var dbs []string
+	for _, j := range dirEntries {
+		dbs = append(dbs, j.Name())
+	}
+
+	// Convert into json
+	j, err := json.MarshalIndent(dbs, "", " ")
+	if err != nil {
+		log.Printf("Something went wrong serialising the branch data: %v\n", err.Error())
+		return []byte{}, err
+	}
+
+	return j, nil
+}
+
 // Check if a database already exists.
 func dbExists(dbName string) bool {
 	path := filepath.Join(STORAGEDIR, "meta", dbName)
