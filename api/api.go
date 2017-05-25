@@ -367,9 +367,9 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 		return
 	}
 
-	// Default to "master" if no branch name was given
+	// If no branch name was given, use the default for the database
 	if branchName == "" {
-		branchName = "master"
+		branchName = getDefaultBranchName(dbName)
 	}
 
 	// Read the database into a buffer
@@ -394,12 +394,13 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	var c commit
 	c.AuthorEmail = "justin@postgresql.org" // TODO: Author and Committer info should come from the client, so we
 	c.AuthorName = "Justin Clift"           // TODO  hard code these for now.  Proper auth will need adding later
-	c.Timestamp = time.Now()                // TODO: Would it be better to accept a timestamp from the client?
+	c.Timestamp = time.Now()                // TODO: If provided from the client, use a timestamp for the db
 	c.Tree = t.ID
 
 	// Check if the database already exists
 	var err error
 	var branches map[string]string
+	needDefBranch := false
 	if dbExists(dbName) {
 		// Load the existing branchHeads from disk
 		branches, err = getBranches(dbName)
@@ -408,22 +409,22 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 			return
 		}
 
-		// We check if the desired branch already exists.  If it does, we use the commit ID from that as the
-		// "parent" for our new commit.  Then we update the branch with the commit created for this new
-		// database upload
+		// Check if the desired branch already exists.  If it does, use its head commit as the parent for
+		// our new uploads commit
 		if id, ok := branches[branchName]; ok {
 			c.Parent = id
 		}
-		c.ID = createCommitID(c)
-		branches[branchName] = c.ID
 	} else {
 		// No existing branches, so this will be the first
-		c.ID = createCommitID(c)
 		branches = make(map[string]string)
-		branches[branchName] = c.ID
+
+		// We'll need to create the default branch value for the database later on too
+		needDefBranch = true
 	}
 
-	// Write the database to disk
+	// Update the branch with the commit for this new database upload
+	c.ID = createCommitID(c)
+	branches[branchName] = c.ID
 	err = storeDatabase(buf.Bytes())
 	if err != nil {
 		log.Printf("Error when writing database '%s' to disk: %v\n", dbName, err.Error())
@@ -452,6 +453,15 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
+	}
+
+	// Write the default branch name to disk
+	if needDefBranch {
+		err = storeDefaultBranchName(dbName, branchName)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Log the upload

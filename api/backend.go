@@ -93,6 +93,21 @@ func getBranches(dbName string) (map[string]string, error) {
 	return i, nil
 }
 
+// Retrieve the default branch name for a database.
+func getDefaultBranchName(dbName string) string {
+	if !dbExists(dbName) {
+		return "master" // Database doesn't exist, so use "master" as the initial default
+	}
+
+	// Return the default branch name
+	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", dbName, "defaultBranch"))
+	if err != nil {
+		log.Printf("Error when reading default branch for '%s': %v\n", dbName, err.Error())
+		return "master" // An error occurred reading the default branch name, so default to master
+	}
+	return string(b[:])
+}
+
 // Reads a commit from disk.
 func getCommit(id string) (commit, error) {
 	var c commit
@@ -180,6 +195,19 @@ func storeDatabase(db []byte) error {
 			log.Printf("Something went wrong writing the database file: %v\n", err.Error())
 			return err
 		}
+	}
+	return nil
+}
+
+// Stores the default branch name for a database.
+func storeDefaultBranchName(dbName string, branchName string) error {
+	var buf bytes.Buffer
+	buf.WriteString(branchName)
+	err := ioutil.WriteFile(filepath.Join(STORAGEDIR, "meta", dbName, "defaultBranch"), buf.Bytes(), os.ModePerm)
+	if err != nil {
+		log.Printf("Something went wrong writing the default branch name for '%s': %v\n", dbName,
+			err.Error())
+		return err
 	}
 	return nil
 }
