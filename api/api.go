@@ -30,6 +30,7 @@ func main() {
 	ws := new(rest.WebService)
 	ws.Filter(rest.NoBrowserCacheFilter)
 	ws.Route(ws.POST("/branch_create").Consumes("application/x-www-form-urlencoded").To(branchCreate))
+	ws.Route(ws.POST("/branch_default_change").Consumes("application/x-www-form-urlencoded").To(branchDefaultChange))
 	ws.Route(ws.GET("/branch_history").To(branchHistory))
 	ws.Route(ws.GET("/branch_list").To(branchList))
 	ws.Route(ws.POST("/branch_remove").Consumes("application/x-www-form-urlencoded").To(branchRemove))
@@ -127,6 +128,48 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 	// Create the new branch
 	branches[branchName] = commit
 	err = storeBranches(dbName, branches)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Changes the default branch for a database.
+// Can be tested with: curl -d database=a.db -d branch=master -d commit=xxx http://localhost:8080/branch_default_change
+func branchDefaultChange(r *rest.Request, w *rest.Response) {
+	dbName := r.Request.FormValue("database")
+	branchName := r.Request.FormValue("branch")
+
+	// Sanity check the inputs
+	if dbName == "" || branchName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// TODO: Validate the database and branch names
+
+	// Ensure the requested database is in our system
+	if !dbExists(dbName) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Load the existing branch heads from disk
+	branches, err := getBranches(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure the branch exists in the database
+	if _, ok := branches[branchName]; !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Write the new default branch to disk
+	err = storeDefaultBranchName(dbName, branchName)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
