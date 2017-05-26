@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -35,9 +36,9 @@ func main() {
 	ws.Route(ws.GET("/branch_list").To(branchList))
 	ws.Route(ws.POST("/branch_remove").Consumes("application/x-www-form-urlencoded").To(branchRemove))
 	ws.Route(ws.POST("/branch_revert").Consumes("application/x-www-form-urlencoded").To(branchRevert))
-	ws.Route(ws.PUT("/db_upload").To(dbUpload))
 	ws.Route(ws.GET("/db_download").To(dbDownload))
 	ws.Route(ws.GET("/db_list").To(dbList))
+	ws.Route(ws.PUT("/db_upload").To(dbUpload))
 	rest.Add(ws)
 	http.ListenAndServe(":8080", nil)
 }
@@ -178,11 +179,11 @@ func branchDefaultChange(r *rest.Request, w *rest.Response) {
 }
 
 // Returns the history for a branch.
-// Can be tested with: curl -H "Database: a.db" -H "Branch: master" http://localhost:8080/branch_history
+// Can be tested with: curl 'http://localhost:8080/branch_history?database=a.db&branch=master'
 func branchHistory(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
-	dbName := r.Request.Header.Get("Database")
-	branchName := r.Request.Header.Get("Branch")
+	dbName := r.Request.FormValue("database")
+	branchName := r.Request.FormValue("branch")
 
 	// TODO: Validate the database and branch names
 
@@ -232,10 +233,10 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 }
 
 // Returns the list of branch heads for a database.
-// Can be tested with: curl -H "Database: a.db" http://localhost:8080/branch_list
+// Can be tested with: curl http://localhost:8080/branch_list?database=a.db
 func branchList(r *rest.Request, w *rest.Response) {
 	// Retrieve the database name
-	dbName := r.Request.Header.Get("Database")
+	dbName := r.Request.FormValue("database")
 
 	// TODO: Validate the database name
 
@@ -396,8 +397,75 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 }
 
 // Download a database
+// Can be tested with: curl -OJ 'http://localhost:8080/db_download?database=a.db&branch=master'
 func dbDownload(r *rest.Request, w *rest.Response) {
-	log.Println("dbDownload() called")
+	// Retrieve the database and branch names
+	dbName := r.Request.FormValue("database")
+	branchName := r.Request.FormValue("branch")
+
+	// TODO: Add support for the user specifying a direct commit ID via GET URL params
+
+	// TODO: Validate the database and branch names
+
+	// Sanity check the inputs
+	if dbName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Ensure the requested database is in our system
+	if !dbExists(dbName) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// If no branch name was given, use the default for the database
+	if branchName == "" {
+		branchName = getDefaultBranchName(dbName)
+	}
+
+	// Read the commit ID for the branch
+	branches, err := getBranches(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	commitID := branches[branchName]
+
+	// Read the tree ID from the commit
+	c, err := getCommit(commitID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	treeID := c.Tree
+
+	// Read the database ID from the tree
+	t, err := getTree(treeID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	var dbID string
+	for _, e := range t.Entries {
+		if e.Name == dbName {
+			dbID = e.Sha256
+		}
+	}
+	if dbID == "" {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Send the database
+	db, err := getDatabase(dbID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", dbName))
+	w.Header().Set("Content-Type", "application/x-sqlite3")
+	w.Write(db)
 }
 
 // Get the list of databases

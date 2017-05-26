@@ -148,6 +148,32 @@ func getCommit(id string) (commit, error) {
 	return c, nil
 }
 
+// Reads a database from disk.
+func getDatabase(id string) ([]byte, error) {
+	d, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "files", id))
+	if err != nil {
+		log.Printf("Error reading file: '%s': %v\n", id, err.Error())
+		return []byte{}, err
+	}
+	return d, nil
+}
+
+// Reads a tree from disk.
+func getTree(id string) (dbTree, error) {
+	var t dbTree
+	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "files", id))
+	if err != nil {
+		log.Printf("Error reading file: '%s': %v\n", id, err.Error())
+		return t, err
+	}
+	err = json.Unmarshal(b, &t)
+	if err != nil {
+		log.Printf("Something went wrong unserialising a commit's data: %v\n", err.Error())
+		return t, err
+	}
+	return t, nil
+}
+
 // Store the branch heads for a database.
 func storeBranches(dbName string, branches map[string]string) error {
 	path := filepath.Join(STORAGEDIR, "meta", dbName)
