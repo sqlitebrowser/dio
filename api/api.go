@@ -41,6 +41,7 @@ func main() {
 	ws.Route(ws.PUT("/db_upload").To(dbUpload))
 	ws.Route(ws.POST("/tag_create").Consumes("application/x-www-form-urlencoded").To(tagCreate))
 	ws.Route(ws.GET("/tag_list").To(tagList))
+	ws.Route(ws.POST("/tag_remove").Consumes("application/x-www-form-urlencoded").To(tagRemove))
 	rest.Add(ws)
 	http.ListenAndServe(":8080", nil)
 }
@@ -263,12 +264,7 @@ func branchList(r *rest.Request, w *rest.Response) {
 // Removes a branch from a database.
 // Can be tested with: curl -d database=a.db -d branch=master http://localhost:8080/branch_remove
 func branchRemove(r *rest.Request, w *rest.Response) {
-	// Retrieve the database and branch names
-	err := r.Request.ParseForm()
-	if err != nil {
-		w.WriteErrorString(http.StatusBadRequest, err.Error())
-		return
-	}
+	// Retrieve the database and branch name
 	dbName := r.Request.FormValue("database")
 	branchName := r.Request.FormValue("branch")
 
@@ -313,11 +309,6 @@ func branchRemove(r *rest.Request, w *rest.Response) {
 // Can be tested with: curl -d database=a.db -d branch=master -d commit=xxx http://localhost:8080/branch_revert
 func branchRevert(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
-	err := r.Request.ParseForm()
-	if err != nil {
-		w.WriteErrorString(http.StatusBadRequest, err.Error())
-		return
-	}
 	dbName := r.Request.FormValue("database")
 	branchName := r.Request.FormValue("branch")
 	commit := r.Request.FormValue("commit")
@@ -797,4 +788,48 @@ func tagList(r *rest.Request, w *rest.Response) {
 
 	// Return the list of tags
 	w.WriteAsJson(tags)
+}
+
+// Removes a tag from a database.
+// Can be tested with: curl -d database=a.db -d tag=foo http://localhost:8080/tag_remove
+func tagRemove(r *rest.Request, w *rest.Response) {
+	// Retrieve the database and tag name
+	dbName := r.Request.FormValue("database")
+	tag := r.Request.FormValue("tag")
+
+	// Sanity check the inputs
+	if dbName == "" || tag == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// TODO: Validate the inputs
+
+	// Ensure the requested database is in our system
+	if !dbExists(dbName) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Load the existing tags from disk
+	tags, err := getTags(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure the tag exists in the database
+	if _, ok := tags[tag]; !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Remove the tag
+	delete(tags, tag)
+	err = storeTags(dbName, tags)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
