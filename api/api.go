@@ -39,6 +39,8 @@ func main() {
 	ws.Route(ws.GET("/db_download").To(dbDownload))
 	ws.Route(ws.GET("/db_list").To(dbList))
 	ws.Route(ws.PUT("/db_upload").To(dbUpload))
+	ws.Route(ws.POST("/tag_create").Consumes("application/x-www-form-urlencoded").To(tagCreate))
+	ws.Route(ws.GET("/tag_list").To(tagList))
 	rest.Add(ws)
 	http.ListenAndServe(":8080", nil)
 }
@@ -47,11 +49,6 @@ func main() {
 // Can be tested with: curl -d database=a.db -d branch=master -d commit=xxx http://localhost:8080/branch_create
 func branchCreate(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
-	err := r.Request.ParseForm()
-	if err != nil {
-		w.WriteErrorString(http.StatusBadRequest, err.Error())
-		return
-	}
 	dbName := r.Request.FormValue("database")
 	branchName := r.Request.FormValue("branch")
 	commit := r.Request.FormValue("commit")
@@ -108,14 +105,14 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 			return
 		}
 		for c.Parent != "" {
-			if c.ID == commit {
-				// This commit in the history matches the requested commit, so we're good
-				commitExists = true
-			}
 			c, err = getCommit(c.Parent)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
+			}
+			if c.ID == commit {
+				// This commit in the history matches the requested commit, so we're good
+				commitExists = true
 			}
 		}
 	}
@@ -369,14 +366,14 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 		return
 	}
 	for c.Parent != "" {
-		if c.ID == commit {
-			// This commit in the branch history matches the requested commit, so we're good to proceed
-			commitExists = true
-		}
 		c, err = getCommit(c.Parent)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
+		}
+		if c.ID == commit {
+			// This commit in the branch history matches the requested commit, so we're good to proceed
+			commitExists = true
 		}
 	}
 
@@ -543,10 +540,10 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 	w.Write(db)
 }
 
-// Get the list of databases
+// Get the list of databases.
 // Can be tested with: curl http://localhost:8080/db_list
 func dbList(r *rest.Request, w *rest.Response) {
-	dbList, err := databaseList()
+	dbList, err := listDatabases()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -675,4 +672,129 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	// Send a 201 "Created" response, along with the location of the URL for working with the (new) database
 	w.AddHeader("Location", "/"+dbName)
 	w.WriteHeader(http.StatusCreated)
+}
+
+// Creates a new tag for a database.
+// Can be tested with: curl -d database=a.db -d tag=foo -d commit=xxx http://localhost:8080/tag_create
+func tagCreate(r *rest.Request, w *rest.Response) {
+	// Retrieve the database and tag names, and the commit ID
+	dbName := r.Request.FormValue("database")
+	tag := r.Request.FormValue("tag")
+	commit := r.Request.FormValue("commit")
+
+	// Sanity check the inputs
+	if dbName == "" || tag == "" || commit == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// TODO: Validate the inputs
+
+	// Ensure the requested database is in our system
+	if !dbExists(dbName) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Load the existing tags from disk
+	tags, err := getTags(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure the new tag doesn't already exist for the database
+	if _, ok := tags[tag]; ok {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	// Load the existing branch heads from disk
+	branches, err := getBranches(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure the requested commit exists in the database history
+	// This is important, because if we didn't do it then people could supply any commit ID.  Even one's belonging
+	// to completely unrelated databases, which they shouldn't have access to.
+	// By ensuring the requested commit is already part of the existing database history, we solve that problem.
+	commitExists := false
+	for _, ID := range branches {
+		// Because there seems to be no valid way of adding this condition in the loop declaration?
+		if commitExists == true {
+			continue
+		}
+
+		// Check if the head commit of the branch matches the requested commit
+		if ID == commit {
+			commitExists = true
+			continue
+		}
+
+		// It didn't, so walk the commit history looking for the commit there
+		c, err := getCommit(ID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		for c.Parent != "" {
+			c, err = getCommit(c.Parent)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if c.ID == commit {
+				// This commit in the history matches the requested commit, so we're good
+				commitExists = true
+			}
+		}
+	}
+
+	// The commit wasn't found, so don't create the new tag
+	if commitExists != true {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Create the new tag
+	tags[tag] = commit
+	err = storeTags(dbName, tags)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Returns the list of tags for a database.
+// Can be tested with: curl http://localhost:8080/tag_list?database=a.db
+func tagList(r *rest.Request, w *rest.Response) {
+	// Retrieve the database name
+	dbName := r.Request.FormValue("database")
+
+	// TODO: Validate the database name
+
+	// Sanity check the input
+	if dbName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Ensure the requested database is in our system
+	if !dbExists(dbName) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Load the existing tags from disk
+	tags, err := getTags(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Return the list of tags
+	w.WriteAsJson(tags)
 }

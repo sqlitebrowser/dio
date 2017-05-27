@@ -66,31 +66,6 @@ func createDBTreeID(entries []dbTreeEntry) string {
 	return hex.EncodeToString(s[:])
 }
 
-// Returns the list of available databases.
-func databaseList() ([]byte, error) {
-	// For now, just use the entries in the "meta" directory as the list
-	p := filepath.Join(STORAGEDIR, "meta")
-	dirEntries, err := ioutil.ReadDir(p)
-	if err != nil {
-		// As this is just experimental code, we'll assume a failure above means the db doesn't exist
-		log.Printf("Error when reading database list: %v\n", err)
-		return []byte{}, err
-	}
-	var dbs []string
-	for _, j := range dirEntries {
-		dbs = append(dbs, j.Name())
-	}
-
-	// Convert into json
-	j, err := json.MarshalIndent(dbs, "", " ")
-	if err != nil {
-		log.Printf("Something went wrong serialising the branch data: %v\n", err.Error())
-		return []byte{}, err
-	}
-
-	return j, nil
-}
-
 // Check if a database already exists.
 func dbExists(dbName string) bool {
 	path := filepath.Join(STORAGEDIR, "meta", dbName)
@@ -158,6 +133,28 @@ func getDatabase(id string) ([]byte, error) {
 	return d, nil
 }
 
+// Load the tags (standard, non-annotated type) for a database.
+func getTags(dbName string) (map[string]string, error) {
+	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", dbName, "tags"))
+	if err != nil {
+		_, ok := err.(*os.PathError)
+		if ok {
+			// There are no tags for the database yet
+			return make(map[string]string), nil
+		}
+
+		log.Printf("Something went wrong reading the tags data: %v\n", err.Error())
+		return nil, err
+	}
+	var i map[string]string
+	err = json.Unmarshal(b, &i)
+	if err != nil {
+		log.Printf("Something went wrong unserialising the tags data: %v\n", err.Error())
+		return nil, err
+	}
+	return i, nil
+}
+
 // Reads a tree from disk.
 func getTree(id string) (dbTree, error) {
 	var t dbTree
@@ -174,20 +171,33 @@ func getTree(id string) (dbTree, error) {
 	return t, nil
 }
 
-// Store the branch heads for a database.
-func storeBranches(dbName string, branches map[string]string) error {
-	path := filepath.Join(STORAGEDIR, "meta", dbName)
-	_, err := os.Stat(path)
+// Returns the list of available databases.
+func listDatabases() ([]byte, error) {
+	// For now, just use the entries in the "meta" directory as the list
+	p := filepath.Join(STORAGEDIR, "meta")
+	dirEntries, err := ioutil.ReadDir(p)
 	if err != nil {
-		// As this is just experimental code, we'll assume a failure above means the dir needs creating
-		// TODO: Proper handling for errors here.  It may not mean the dir doesn't exist.
-		err := os.MkdirAll(filepath.Join(STORAGEDIR, "meta", dbName), os.ModeDir|0755)
-		if err != nil {
-			log.Printf("Something went wrong creating the database meta dir: %v\n", err.Error())
-			return err
-		}
+		// As this is just experimental code, we'll assume a failure above means the db doesn't exist
+		log.Printf("Error when reading database list: %v\n", err)
+		return []byte{}, err
+	}
+	var dbs []string
+	for _, j := range dirEntries {
+		dbs = append(dbs, j.Name())
 	}
 
+	// Convert into json
+	j, err := json.MarshalIndent(dbs, "", " ")
+	if err != nil {
+		log.Printf("Something went wrong serialising the branch data: %v\n", err.Error())
+		return []byte{}, err
+	}
+
+	return j, nil
+}
+
+// Store the branch heads for a database.
+func storeBranches(dbName string, branches map[string]string) error {
 	j, err := json.MarshalIndent(branches, "", " ")
 	if err != nil {
 		log.Printf("Something went wrong serialising the branch data: %v\n", err.Error())
@@ -258,6 +268,21 @@ func storeDefaultBranchName(dbName string, branchName string) error {
 	if err != nil {
 		log.Printf("Something went wrong writing the default branch name for '%s': %v\n", dbName,
 			err.Error())
+		return err
+	}
+	return nil
+}
+
+// Store the tags (standard, non-annotated type) for a database.
+func storeTags(dbName string, tags map[string]string) error {
+	j, err := json.MarshalIndent(tags, "", " ")
+	if err != nil {
+		log.Printf("Something went wrong serialising the branch data: %v\n", err.Error())
+		return err
+	}
+	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "meta", dbName, "tags"), j, os.ModePerm)
+	if err != nil {
+		log.Printf("Something went wrong writing the tags file: %v\n", err.Error())
 		return err
 	}
 	return nil
