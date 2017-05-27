@@ -398,12 +398,12 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 
 // Download a database
 // Can be tested with: curl -OJ 'http://localhost:8080/db_download?database=a.db&branch=master'
+// or curl -OJ 'http://localhost:8080/db_download?database=a.db&commit=xxx'
 func dbDownload(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
 	dbName := r.Request.FormValue("database")
 	branchName := r.Request.FormValue("branch")
-
-	// TODO: Add support for the user specifying a direct commit ID via GET URL params
+	reqCommit := r.Request.FormValue("commit")
 
 	// TODO: Validate the database and branch names
 
@@ -419,42 +419,117 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 		return
 	}
 
-	// If no branch name was given, use the default for the database
-	if branchName == "" {
-		branchName = getDefaultBranchName(dbName)
-	}
-
-	// Read the commit ID for the branch
+	// Grab the branch list for the database
 	branches, err := getBranches(dbName)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	commitID := branches[branchName]
 
-	// Read the tree ID from the commit
-	c, err := getCommit(commitID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	treeID := c.Tree
-
-	// Read the database ID from the tree
-	t, err := getTree(treeID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	// Determine the database commit ID
 	var dbID string
-	for _, e := range t.Entries {
-		if e.Name == dbName {
-			dbID = e.Sha256
+	if reqCommit != "" {
+		// * It was given by the user *
+
+		// Ensure the commit exists in the database history
+		commitExists := false
+		for _, head := range branches {
+			if commitExists == true {
+				continue
+			}
+
+			// Gather the details of the head commit
+			c, err := getCommit(head)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			// If the requested commit matches the branch head, retrieve the matching database ID
+			var e dbTreeEntry
+			var t dbTree
+			if reqCommit == head {
+				t, err = getTree(c.Tree)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				for _, e = range t.Entries {
+					if e.Name == dbName {
+						dbID = e.Sha256
+						commitExists = true
+					}
+				}
+			}
+
+			// The requested commit wasn't the branch head, so we walk the branch history looking for it
+			for c.Parent != "" {
+				c, err = getCommit(c.Parent)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+
+				if reqCommit == c.ID {
+					// Found a match, so retrieve the database ID for the commit
+					t, err = getTree(c.Tree)
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					for _, e = range t.Entries {
+						if e.Name == dbName {
+							dbID = e.Sha256
+							commitExists = true
+						}
+					}
+				}
+			}
 		}
-	}
-	if dbID == "" {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+
+		// The requested commit isn't in the database history
+		if !commitExists {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	} else {
+		// * We'll need to figure the database file ID from branch history *
+
+		// If no branch name was given, use the default for the database
+		if branchName == "" {
+			branchName = getDefaultBranchName(dbName)
+		}
+
+		// Retrieve the commit ID for the branch
+		commitID, ok := branches[branchName]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		// Retrieve the tree ID from the commit
+		c, err := getCommit(commitID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		treeID := c.Tree
+
+		// Retrieve the database ID from the tree
+		t, err := getTree(treeID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		for _, e := range t.Entries {
+			if e.Name == dbName {
+				dbID = e.Sha256
+			}
+		}
+		if dbID == "" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Send the database
@@ -487,6 +562,8 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	branchName := r.Request.Header.Get("Branch")
 
 	// TODO: Validate the database and branch names
+
+	// TODO: Add code to accept timestamp for the database last modified time
 
 	// Sanity check the inputs
 	if dbName == "" {
