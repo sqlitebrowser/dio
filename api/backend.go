@@ -198,6 +198,18 @@ func listDatabases() ([]byte, error) {
 
 // Store the branch heads for a database.
 func storeBranches(dbName string, branches map[string]string) error {
+	path := filepath.Join(STORAGEDIR, "meta", dbName)
+	_, err := os.Stat(path)
+	if err != nil {
+		// As this is just experimental code, we'll assume a failure above means the dir needs creating
+		// TODO: Proper handling for errors here.  It may not mean the dir doesn't exist.
+		err := os.MkdirAll(filepath.Join(STORAGEDIR, "meta", dbName), os.ModeDir|0755)
+		if err != nil {
+			log.Printf("Something went wrong creating the database meta dir: %v\n", err.Error())
+			return err
+		}
+	}
+
 	j, err := json.MarshalIndent(branches, "", " ")
 	if err != nil {
 		log.Printf("Something went wrong serialising the branch data: %v\n", err.Error())
@@ -262,9 +274,21 @@ func storeDatabase(db []byte) error {
 
 // Stores the default branch name for a database.
 func storeDefaultBranchName(dbName string, branchName string) error {
+	path := filepath.Join(STORAGEDIR, "meta", dbName)
+	_, err := os.Stat(path)
+	if err != nil {
+		// As this is just experimental code, we'll assume a failure above means the dir needs creating
+		// TODO: Proper handling for errors here.  It may not mean the dir doesn't exist.
+		err := os.MkdirAll(filepath.Join(STORAGEDIR, "meta", dbName), os.ModeDir|0755)
+		if err != nil {
+			log.Printf("Something went wrong creating the database meta dir: %v\n", err.Error())
+			return err
+		}
+	}
+
 	var buf bytes.Buffer
 	buf.WriteString(branchName)
-	err := ioutil.WriteFile(filepath.Join(STORAGEDIR, "meta", dbName, "defaultBranch"), buf.Bytes(), os.ModePerm)
+	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "meta", dbName, "defaultBranch"), buf.Bytes(), os.ModePerm)
 	if err != nil {
 		log.Printf("Something went wrong writing the default branch name for '%s': %v\n", dbName,
 			err.Error())
@@ -275,6 +299,18 @@ func storeDefaultBranchName(dbName string, branchName string) error {
 
 // Store the tags (standard, non-annotated type) for a database.
 func storeTags(dbName string, tags map[string]tagEntry) error {
+	path := filepath.Join(STORAGEDIR, "meta", dbName)
+	_, err := os.Stat(path)
+	if err != nil {
+		// As this is just experimental code, we'll assume a failure above means the dir needs creating
+		// TODO: Proper handling for errors here.  It may not mean the dir doesn't exist.
+		err := os.MkdirAll(filepath.Join(STORAGEDIR, "meta", dbName), os.ModeDir|0755)
+		if err != nil {
+			log.Printf("Something went wrong creating the database meta dir: %v\n", err.Error())
+			return err
+		}
+	}
+
 	j, err := json.MarshalIndent(tags, "", " ")
 	if err != nil {
 		log.Printf("Something went wrong serialising the branch data: %v\n", err.Error())
