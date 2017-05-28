@@ -134,19 +134,19 @@ func getDatabase(id string) ([]byte, error) {
 }
 
 // Load the tags (standard, non-annotated type) for a database.
-func getTags(dbName string) (map[string]string, error) {
+func getTags(dbName string) (map[string]tagEntry, error) {
 	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", dbName, "tags"))
 	if err != nil {
 		_, ok := err.(*os.PathError)
 		if ok {
 			// There are no tags for the database yet
-			return make(map[string]string), nil
+			return make(map[string]tagEntry), nil
 		}
 
 		log.Printf("Something went wrong reading the tags data: %v\n", err.Error())
 		return nil, err
 	}
-	var i map[string]string
+	var i map[string]tagEntry
 	err = json.Unmarshal(b, &i)
 	if err != nil {
 		log.Printf("Something went wrong unserialising the tags data: %v\n", err.Error())
@@ -274,7 +274,7 @@ func storeDefaultBranchName(dbName string, branchName string) error {
 }
 
 // Store the tags (standard, non-annotated type) for a database.
-func storeTags(dbName string, tags map[string]string) error {
+func storeTags(dbName string, tags map[string]tagEntry) error {
 	j, err := json.MarshalIndent(tags, "", " ")
 	if err != nil {
 		log.Printf("Something went wrong serialising the branch data: %v\n", err.Error())

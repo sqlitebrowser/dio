@@ -667,19 +667,50 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 
 // Creates a new tag for a database.
 // Can be tested with: curl -d database=a.db -d tag=foo -d commit=xxx http://localhost:8080/tag_create
+// or curl -d database=a.db -d tag=foo -d commit=xxx -d taggeremail=foo@bar.com -d taggername="Some person" \
+//   -d msg="My tag message" -d date="2017-05-28T07:15:46%2b01:00" http://localhost:8080/tag_create
+// Note the URL encoded + sign (%2b) in the date argument above, as the + sign doesn't get through otherwise
 func tagCreate(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and tag names, and the commit ID
-	dbName := r.Request.FormValue("database")
-	tag := r.Request.FormValue("tag")
-	commit := r.Request.FormValue("commit")
+	commit := r.Request.FormValue("commit")      // Required
+	date := r.Request.FormValue("date")          // Optional
+	dbName := r.Request.FormValue("database")    // Required
+	tEmail := r.Request.FormValue("taggeremail") // Only for annotated commits
+	tName := r.Request.FormValue("taggername")   // Only for annotated commits
+	msg := r.Request.FormValue("msg")            // Only for annotated commits
+	tag := r.Request.FormValue("tag")            // Required
 
-	// Sanity check the inputs
+	// Ensure at least the minimum inputs were provided
 	if dbName == "" || tag == "" || commit == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	isAnno := false
+	if tEmail != "" || tName != "" || msg != "" {
+		// If any of these fields are filled out, it's an annotated commit, so make sure they
+		// all have a value
+		if tEmail == "" || tName == "" || msg == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		isAnno = true
+	}
 
 	// TODO: Validate the inputs
+
+	var tDate time.Time
+	var err error
+	if date == "" {
+		tDate = time.Now()
+		log.Printf("Date: %v\n", tDate.Format(time.RFC3339))
+	} else {
+		tDate, err = time.Parse(time.RFC3339, date)
+		if err != nil {
+			log.Printf("Error when converting date: %v\n", err.Error())
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	}
 
 	// Ensure the requested database is in our system
 	if !dbExists(dbName) {
@@ -750,7 +781,29 @@ func tagCreate(r *rest.Request, w *rest.Response) {
 	}
 
 	// Create the new tag
-	tags[tag] = commit
+	var t tagEntry
+	if isAnno == true {
+		// It's an annotated commit
+		t = tagEntry{
+			Commit:      commit,
+			Date:        tDate,
+			Message:     msg,
+			TagType:     ANNOTATED,
+			TaggerEmail: tEmail,
+			TaggerName:  tName,
+		}
+	} else {
+		// It's a simple commit
+		t = tagEntry{
+			Commit:      commit,
+			Date:        tDate,
+			Message:     "",
+			TagType:     SIMPLE,
+			TaggerEmail: "",
+			TaggerName:  "",
+		}
+	}
+	tags[tag] = t
 	err = storeTags(dbName, tags)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

@@ -14,10 +14,10 @@ type commit struct {
 	Tree           string
 }
 
-type DBTreeEntryType string
+type dbTreeEntryType string
 
 const (
-	TREE     DBTreeEntryType = "tree"
+	TREE     dbTreeEntryType = "tree"
 	DATABASE                 = "db"
 	LICENCE                  = "licence"
 )
@@ -27,7 +27,7 @@ type dbTree struct {
 	Entries []dbTreeEntry
 }
 type dbTreeEntry struct {
-	AType         DBTreeEntryType
+	AType         dbTreeEntryType
 	Last_Modified time.Time
 	Licence       string
 	Sha256        string
@@ -36,3 +36,19 @@ type dbTreeEntry struct {
 }
 
 const STORAGEDIR = "/Users/jc/tmp/dioapistorage"
+
+type tagType string
+
+const (
+	SIMPLE    tagType = "simple"
+	ANNOTATED         = "annotated"
+)
+
+type tagEntry struct {
+	Commit      string
+	Date        time.Time
+	Message     string
+	TagType     tagType
+	TaggerEmail string
+	TaggerName  string
+}
