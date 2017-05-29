@@ -533,6 +533,7 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 
 // Get the list of databases.
 // Can be tested with: curl http://localhost:8080/db_list
+// or dio list
 func dbList(r *rest.Request, w *rest.Response) {
 	dbList, err := listDatabases()
 	if err != nil {
