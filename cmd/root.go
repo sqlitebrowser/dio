@@ -37,7 +37,7 @@ func init() {
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
 		"config file (default is $HOME/.dio.yaml)")
-	RootCmd.PersistentFlags().StringVar(&cloud, "cloud", "http://localhost:8080/",
+	RootCmd.PersistentFlags().StringVar(&cloud, "cloud", "http://localhost:8080",
 		"Remote cloud to communicate with")
 	RootCmd.PersistentFlags().StringVar(&database, "database", "", "Name of the database")
 

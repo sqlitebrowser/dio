@@ -79,6 +79,8 @@ func dbExists(dbName string) bool {
 }
 
 // Load the branch heads for a database.
+// TODO: It might be better to have the default branch name be returned as part of this list, by indicating in the list
+// TODO  which of the branches is the default.
 func getBranches(dbName string) (map[string]string, error) {
 	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", dbName, "branchHeads"))
 	if err != nil {
@@ -181,12 +183,9 @@ func listDatabases() ([]byte, error) {
 		log.Printf("Error when reading database list: %v\n", err)
 		return []byte{}, err
 	}
-	type databaseEntry struct {
-		Database string `json:"database"`
-	}
-	var dbs []databaseEntry
+	var dbs []dbListEntry
 	for _, j := range dirEntries {
-		d := databaseEntry{j.Name()}
+		d := dbListEntry{Database: j.Name(), LastModified: j.ModTime(), Size: int(j.Size())}
 		dbs = append(dbs, d)
 	}
 

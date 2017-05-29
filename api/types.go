@@ -14,6 +14,12 @@ type commit struct {
 	Tree           string
 }
 
+type dbListEntry struct {
+	Database     string    `json:"database"`
+	LastModified time.Time `json:"last_modified"`
+	Size         int       `json:"size"`
+}
+
 type dbTreeEntryType string
 
 const (
