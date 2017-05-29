@@ -182,6 +182,7 @@ func branchDefaultChange(r *rest.Request, w *rest.Response) {
 // Can be tested with: $ dio branch default get a.db
 func branchDefaultGet(r *rest.Request, w *rest.Response) {
 	dbName := r.Request.Header.Get("database")
+
 	// Sanity check the input
 	if dbName == "" {
 		w.WriteHeader(http.StatusBadRequest)
