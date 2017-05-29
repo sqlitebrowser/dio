@@ -62,5 +62,5 @@ var pullCmd = &cobra.Command{
 func init() {
 	RootCmd.AddCommand(pullCmd)
 	pullCmd.Flags().StringVar(&pullBranch, "branch", "master",
-		"Remote branch the database will be uploaded from")
+		"Remote branch the database will be downloaded from")
 }

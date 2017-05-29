@@ -1,30 +1,71 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"log"
 
+	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
 )
 
-// branchCreateCmd represents the branchCreate command
+var branchCreateBranch, branchCreateCommit string
+
+// Creates a branch for a database
 var branchCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Creates a branch for a database",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("branch create called")
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Ensure a database file was given
+		if len(args) == 0 {
+			return errors.New("No database file specified")
+		}
+		// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
+		// TODO  into a for loop
+		if len(args) > 1 {
+			return errors.New("Only one database can be uploaded at a time (for now)")
+		}
+
+		// Ensure a new branch name and commit ID were given
+		if branchCreateBranch == "" {
+			return errors.New("No branch name given")
+		}
+		if branchCreateCommit == "" {
+			return errors.New("No commit ID given")
+		}
+
+		// Create the branch
+		file := args[0]
+		resp, _, errs := rq.New().Post(cloud+"/branch_create").
+			Set("branch", branchCreateBranch).
+			Set("commit", branchCreateCommit).
+			Set("database", file).
+			End()
+		if errs != nil {
+			log.Print("Errors when creating branch:")
+			for _, err := range errs {
+				log.Print(err.Error())
+			}
+			return errors.New("Error when creating branch")
+		}
+		if resp.StatusCode != 204 {
+			if resp.StatusCode == 404 {
+				return errors.New("Requested database or commit not found")
+			}
+			if resp.StatusCode == 409 {
+				return errors.New("Requested branch already exists")
+			}
+			return errors.New(fmt.Sprintf("Branch creation failed with an error: HTTP status %d - '%v'\n",
+				resp.StatusCode, resp.Status))
+		}
+
+		fmt.Println("Branch creation succeeded")
+		return nil
 	},
 }
 
 func init() {
 	branchCmd.AddCommand(branchCreateCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// branchCreateCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// branchCreateCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	branchCreateCmd.Flags().StringVar(&branchCreateBranch, "branch", "master", "Remote branch to operate on")
+	branchCreateCmd.Flags().StringVar(&branchCreateCommit, "commit", "", "Commit ID for the new branch head")
 }

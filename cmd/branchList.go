@@ -25,7 +25,7 @@ var branchListCmd = &cobra.Command{
 			return errors.New("Only one database can be uploaded at a time (for now)")
 		}
 
-		// Download the database file
+		// Retrieve the list of branches
 		file := args[0]
 		resp, body, errs := rq.New().Get(cloud+"/branch_list").
 			Set("database", file).
@@ -50,6 +50,7 @@ var branchListCmd = &cobra.Command{
 			return err
 		}
 
+		// Display the list of branches
 		fmt.Printf("Branches for %s:\n\n", file)
 		for i, j := range list {
 			fmt.Printf("* %s : commit %s\n", i, j)
