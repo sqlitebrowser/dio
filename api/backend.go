@@ -181,9 +181,13 @@ func listDatabases() ([]byte, error) {
 		log.Printf("Error when reading database list: %v\n", err)
 		return []byte{}, err
 	}
-	var dbs []string
+	type databaseEntry struct {
+		Database string `json:"database"`
+	}
+	var dbs []databaseEntry
 	for _, j := range dirEntries {
-		dbs = append(dbs, j.Name())
+		d := databaseEntry{j.Name()}
+		dbs = append(dbs, d)
 	}
 
 	// Convert into json
