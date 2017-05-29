@@ -51,9 +51,9 @@ func main() {
 // Can be tested with: curl -d database=a.db -d branch=master -d commit=xxx http://localhost:8080/branch_create
 func branchCreate(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
-	dbName := r.Request.FormValue("database")
-	branchName := r.Request.FormValue("branch")
-	commit := r.Request.FormValue("commit")
+	dbName := r.Request.Header.Get("database")
+	branchName := r.Request.Header.Get("branch")
+	commit := r.Request.Header.Get("commit")
 
 	// Sanity check the inputs
 	if dbName == "" || branchName == "" || commit == "" {
@@ -138,8 +138,8 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 // Changes the default branch for a database.
 // Can be tested with: curl -d database=a.db -d branch=master -d commit=xxx http://localhost:8080/branch_default_change
 func branchDefaultChange(r *rest.Request, w *rest.Response) {
-	dbName := r.Request.FormValue("database")
-	branchName := r.Request.FormValue("branch")
+	dbName := r.Request.Header.Get("database")
+	branchName := r.Request.Header.Get("branch")
 
 	// Sanity check the inputs
 	if dbName == "" || branchName == "" {
@@ -181,8 +181,8 @@ func branchDefaultChange(r *rest.Request, w *rest.Response) {
 // Can be tested with: curl 'http://localhost:8080/branch_history?database=a.db&branch=master'
 func branchHistory(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
-	dbName := r.Request.FormValue("database")
-	branchName := r.Request.FormValue("branch")
+	dbName := r.Request.Header.Get("database")
+	branchName := r.Request.Header.Get("branch")
 
 	// TODO: Validate the database and branch names
 
@@ -235,7 +235,7 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 // Can be tested with: curl http://localhost:8080/branch_list?database=a.db
 func branchList(r *rest.Request, w *rest.Response) {
 	// Retrieve the database name
-	dbName := r.Request.FormValue("database")
+	dbName := r.Request.Header.Get("database")
 
 	// TODO: Validate the database name
 
@@ -266,8 +266,8 @@ func branchList(r *rest.Request, w *rest.Response) {
 // Can be tested with: curl -d database=a.db -d branch=master http://localhost:8080/branch_remove
 func branchRemove(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch name
-	dbName := r.Request.FormValue("database")
-	branchName := r.Request.FormValue("branch")
+	dbName := r.Request.Header.Get("database")
+	branchName := r.Request.Header.Get("branch")
 
 	// Sanity check the inputs
 	if dbName == "" || branchName == "" {
@@ -310,9 +310,9 @@ func branchRemove(r *rest.Request, w *rest.Response) {
 // Can be tested with: curl -d database=a.db -d branch=master -d commit=xxx http://localhost:8080/branch_revert
 func branchRevert(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
-	dbName := r.Request.FormValue("database")
-	branchName := r.Request.FormValue("branch")
-	commit := r.Request.FormValue("commit")
+	dbName := r.Request.Header.Get("database")
+	branchName := r.Request.Header.Get("branch")
+	commit := r.Request.Header.Get("commit")
 
 	// Sanity check the inputs
 	if dbName == "" || branchName == "" || commit == "" {
@@ -687,13 +687,13 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 // Note the URL encoded + sign (%2b) in the date argument above, as the + sign doesn't get through otherwise
 func tagCreate(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and tag names, and the commit ID
-	commit := r.Request.FormValue("commit")      // Required
-	date := r.Request.FormValue("date")          // Optional
-	dbName := r.Request.FormValue("database")    // Required
-	tEmail := r.Request.FormValue("taggeremail") // Only for annotated commits
-	tName := r.Request.FormValue("taggername")   // Only for annotated commits
-	msg := r.Request.FormValue("msg")            // Only for annotated commits
-	tag := r.Request.FormValue("tag")            // Required
+	commit := r.Request.Header.Get("commit")      // Required
+	date := r.Request.Header.Get("date")          // Optional
+	dbName := r.Request.Header.Get("database")    // Required
+	tEmail := r.Request.Header.Get("taggeremail") // Only for annotated commits
+	tName := r.Request.Header.Get("taggername")   // Only for annotated commits
+	msg := r.Request.Header.Get("msg")            // Only for annotated commits
+	tag := r.Request.Header.Get("tag")            // Required
 
 	// Ensure at least the minimum inputs were provided
 	if dbName == "" || tag == "" || commit == "" {
@@ -831,7 +831,7 @@ func tagCreate(r *rest.Request, w *rest.Response) {
 // Can be tested with: curl http://localhost:8080/tag_list?database=a.db
 func tagList(r *rest.Request, w *rest.Response) {
 	// Retrieve the database name
-	dbName := r.Request.FormValue("database")
+	dbName := r.Request.Header.Get("database")
 
 	// TODO: Validate the database name
 
@@ -862,8 +862,8 @@ func tagList(r *rest.Request, w *rest.Response) {
 // Can be tested with: curl -d database=a.db -d tag=foo http://localhost:8080/tag_remove
 func tagRemove(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and tag name
-	dbName := r.Request.FormValue("database")
-	tag := r.Request.FormValue("tag")
+	dbName := r.Request.Header.Get("database")
+	tag := r.Request.Header.Get("tag")
 
 	// Sanity check the inputs
 	if dbName == "" || tag == "" {

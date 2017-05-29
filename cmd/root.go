@@ -37,7 +37,7 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
 		"config file (default is $HOME/.dio.yaml)")
 	RootCmd.PersistentFlags().StringVar(&cloud, "cloud", "http://localhost:8080",
-		"Remote cloud to communicate with")
+		"Address of the DBHub.io cloud")
 }
 
 // initConfig reads in config file and ENV variables if set.

@@ -34,7 +34,7 @@ var pullCmd = &cobra.Command{
 			Set("database", file).
 			End()
 		if errs != nil {
-			log.Print("Errors when downloading database :")
+			log.Print("Errors when downloading database:")
 			for _, err := range errs {
 				log.Print(err.Error())
 			}

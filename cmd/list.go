@@ -16,7 +16,7 @@ type dbListEntry struct {
 // Displays a list of the databases on the DBHub.io server.
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "Returns a list of databases available on a remote cloud",
+	Short: "Returns a list of available databases",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("Databases on %s\n\n", cloud)
 		fmt.Println("Name\tSize\t\tLast Modified")
