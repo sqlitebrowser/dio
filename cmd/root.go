@@ -11,7 +11,6 @@ import (
 
 var cfgFile string
 var cloud string
-var database string
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
@@ -39,11 +38,6 @@ func init() {
 		"config file (default is $HOME/.dio.yaml)")
 	RootCmd.PersistentFlags().StringVar(&cloud, "cloud", "http://localhost:8080",
 		"Remote cloud to communicate with")
-	RootCmd.PersistentFlags().StringVar(&database, "database", "", "Name of the database")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 // initConfig reads in config file and ENV variables if set.

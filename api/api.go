@@ -547,13 +547,12 @@ func dbList(r *rest.Request, w *rest.Response) {
 // Upload a database.
 // Can be tested with: dio push
 func dbUpload(r *rest.Request, w *rest.Response) {
-	// Retrieve the database and branch names
+	// Retrieve metadata from the post headers
 	dbName := r.Request.Header.Get("Name")
 	branchName := r.Request.Header.Get("Branch")
+	modTime := r.Request.Header.Get("Modtime")
 
 	// TODO: Validate the database and branch names
-
-	// TODO: Add code to accept timestamp for the database last modified time
 
 	// Sanity check the inputs
 	if dbName == "" {
@@ -586,7 +585,12 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	e.AType = DATABASE
 	e.Sha256 = hex.EncodeToString(sha[:])
 	e.Name = dbName
-	e.Last_Modified = time.Now()
+	e.Last_Modified, err = time.Parse(time.RFC3339, modTime)
+	if err != nil {
+		log.Println(err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	e.Size = buf.Len()
 
 	// Create a dbTree structure for the database entry
@@ -598,7 +602,7 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	var c commit
 	c.AuthorEmail = "justin@postgresql.org" // TODO: Author and Committer info should come from the client, so we
 	c.AuthorName = "Justin Clift"           // TODO  hard code these for now.  Proper auth will need adding later
-	c.Timestamp = time.Now()                // TODO: If provided from the client, use a timestamp for the db
+	c.Timestamp = time.Now()
 	c.Tree = t.ID
 
 	// Check if the database already exists
