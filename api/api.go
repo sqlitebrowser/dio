@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -38,7 +39,7 @@ func main() {
 	ws.Route(ws.POST("/branch_revert").Consumes("application/x-www-form-urlencoded").To(branchRevert))
 	ws.Route(ws.GET("/db_download").To(dbDownload))
 	ws.Route(ws.GET("/db_list").To(dbList))
-	ws.Route(ws.PUT("/db_upload").To(dbUpload))
+	ws.Route(ws.POST("/db_upload").To(dbUpload))
 	ws.Route(ws.POST("/tag_create").Consumes("application/x-www-form-urlencoded").To(tagCreate))
 	ws.Route(ws.GET("/tag_list").To(tagList))
 	ws.Route(ws.POST("/tag_remove").Consumes("application/x-www-form-urlencoded").To(tagRemove))
@@ -544,7 +545,7 @@ func dbList(r *rest.Request, w *rest.Response) {
 }
 
 // Upload a database.
-// Can be tested with: curl -T a.db -H "Name: a.db" -w \%{response_code} -D headers.out http://localhost:8080/db_upload
+// Can be tested with: dio push
 func dbUpload(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
 	dbName := r.Request.Header.Get("Name")
@@ -565,9 +566,19 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 		branchName = getDefaultBranchName(dbName)
 	}
 
-	// Read the database into a buffer
+	// Grab the uploaded database
+	tempFile, _, err := r.Request.FormFile("file1")
+	if err != nil {
+		log.Printf("Uploading file failed: %v\n", err)
+		return
+	}
+	defer tempFile.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r.Request.Body)
+	_, err = io.Copy(&buf, tempFile)
+	if err != nil {
+		log.Printf("Error: %v\n", err)
+		return
+	}
 	sha := sha256.Sum256(buf.Bytes())
 
 	// Create a dbTree entry for the individual database file
@@ -591,7 +602,6 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	c.Tree = t.ID
 
 	// Check if the database already exists
-	var err error
 	var branches map[string]string
 	needDefBranch := false
 	if dbExists(dbName) {

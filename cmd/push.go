@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 
+	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
 )
 
@@ -11,7 +13,29 @@ var pushCmd = &cobra.Command{
 	Use:   "push",
 	Short: "Upload a database",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("push called")
+
+		// TODO: Also send the last modified timestamp for the file, so that can be stored on the remote end too
+
+		// Send the file
+		resp, _, errs := rq.New().Post(cloud+"/db_upload").
+			Type("multipart").
+			Set("Name", "a.db").
+			Set("Branch", "master").
+			SendFile("/Users/jc/Databases/c.db").
+			End()
+		if errs != nil {
+			log.Print("Errors when sending the database to the cloud:")
+			for _, err := range errs {
+				log.Print(err.Error())
+			}
+		}
+
+		if resp.StatusCode != 201 {
+			fmt.Printf("Cloud responded with an error: HTTP status %d - '%v'\n", resp.StatusCode,
+				resp.Status)
+		}
+		fmt.Printf("%s - Database upload succeessful\n", cloud)
+		//fmt.Printf("Database upload succeeded.  Name: %s, size: %d, branch: %s\n")
 	},
 }
 
