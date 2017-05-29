@@ -1,30 +1,66 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"log"
 
+	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
 )
 
-// branchRevertCmd represents the branchRevert command
+// Reverts a database to a prior commit in its history
 var branchRevertCmd = &cobra.Command{
 	Use:   "revert",
 	Short: "Resets a database branch back to a previous commit",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("branch revert called")
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Ensure a database file was given
+		if len(args) == 0 {
+			return errors.New("No database file specified")
+		}
+		// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
+		// TODO  into a for loop
+		if len(args) > 1 {
+			return errors.New("Only one database can be changed at a time (for now)")
+		}
+
+		// Ensure a branch name and commit ID were given
+		if branch == "" {
+			return errors.New("No branch name given")
+		}
+		if commit == "" {
+			return errors.New("No commit ID given")
+		}
+
+		// Revert the branch
+		file := args[0]
+		resp, _, errs := rq.New().Post(cloud+"/branch_revert").
+			Set("branch", branch).
+			Set("commit", commit).
+			Set("database", file).
+			End()
+		if errs != nil {
+			log.Print("Errors when reverting branch:")
+			for _, err := range errs {
+				log.Print(err.Error())
+			}
+			return errors.New("Error when reverting branch")
+		}
+		if resp.StatusCode != 204 {
+			if resp.StatusCode == 404 {
+				return errors.New("Requested database or commit not found")
+			}
+			return errors.New(fmt.Sprintf("Branch revertion failed with an error: HTTP status %d - '%v'\n",
+				resp.StatusCode, resp.Status))
+		}
+
+		fmt.Println("Branch revertion succeeded")
+		return nil
 	},
 }
 
 func init() {
 	branchCmd.AddCommand(branchRevertCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// branchRevertCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// branchRevertCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	branchRevertCmd.Flags().StringVar(&branch, "branch", "master", "Remote branch to operate on")
+	branchRevertCmd.Flags().StringVar(&commit, "commit", "", "Commit ID for the to revert to")
 }
