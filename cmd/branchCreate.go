@@ -9,8 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var branchCreateBranch, branchCreateCommit string
-
 // Creates a branch for a database
 var branchCreateCmd = &cobra.Command{
 	Use:   "create",
@@ -23,22 +21,22 @@ var branchCreateCmd = &cobra.Command{
 		// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
 		// TODO  into a for loop
 		if len(args) > 1 {
-			return errors.New("Only one database can be uploaded at a time (for now)")
+			return errors.New("Only one database can be changed at a time (for now)")
 		}
 
 		// Ensure a new branch name and commit ID were given
-		if branchCreateBranch == "" {
+		if branch == "" {
 			return errors.New("No branch name given")
 		}
-		if branchCreateCommit == "" {
+		if commit == "" {
 			return errors.New("No commit ID given")
 		}
 
 		// Create the branch
 		file := args[0]
 		resp, _, errs := rq.New().Post(cloud+"/branch_create").
-			Set("branch", branchCreateBranch).
-			Set("commit", branchCreateCommit).
+			Set("branch", branch).
+			Set("commit", commit).
 			Set("database", file).
 			End()
 		if errs != nil {
@@ -66,6 +64,6 @@ var branchCreateCmd = &cobra.Command{
 
 func init() {
 	branchCmd.AddCommand(branchCreateCmd)
-	branchCreateCmd.Flags().StringVar(&branchCreateBranch, "branch", "master", "Remote branch to operate on")
-	branchCreateCmd.Flags().StringVar(&branchCreateCommit, "commit", "", "Commit ID for the new branch head")
+	branchCreateCmd.Flags().StringVar(&branch, "branch", "master", "Remote branch to operate on")
+	branchCreateCmd.Flags().StringVar(&commit, "commit", "", "Commit ID for the new branch head")
 }

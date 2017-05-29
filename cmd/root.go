@@ -9,8 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-var cfgFile string
-var cloud string
+var branch, cfgFile, cloud, commit string
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
@@ -33,7 +32,6 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
 		"config file (default is $HOME/.dio.yaml)")
 	RootCmd.PersistentFlags().StringVar(&cloud, "cloud", "http://localhost:8080",

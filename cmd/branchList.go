@@ -22,7 +22,7 @@ var branchListCmd = &cobra.Command{
 		// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
 		// TODO  into a for loop
 		if len(args) > 1 {
-			return errors.New("Only one database can be uploaded at a time (for now)")
+			return errors.New("Only one database can be worked with at a time (for now)")
 		}
 
 		// Retrieve the list of branches

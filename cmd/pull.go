@@ -10,8 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var pullBranch string
-
 // Downloads a database from a DBHub.io cloud.
 var pullCmd = &cobra.Command{
 	Use:   "pull [database file]",
@@ -24,13 +22,13 @@ var pullCmd = &cobra.Command{
 		// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
 		// TODO  into a for loop
 		if len(args) > 1 {
-			return errors.New("Only one database can be uploaded at a time (for now)")
+			return errors.New("Only one database can be downloaded at a time (for now)")
 		}
 
 		// Download the database file
 		file := args[0]
 		resp, body, errs := rq.New().Get(cloud+"/db_download").
-			Set("branch", pullBranch).
+			Set("branch", branch).
 			Set("database", file).
 			End()
 		if errs != nil {
@@ -54,13 +52,13 @@ var pullCmd = &cobra.Command{
 			return err
 		}
 		fmt.Printf("%s - Database download successful.  Name: %s, size: %d, branch: %s\n", cloud,
-			file, len(body), pushBranch)
+			file, len(body), branch)
 		return nil
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(pullCmd)
-	pullCmd.Flags().StringVar(&pullBranch, "branch", "master",
+	pullCmd.Flags().StringVar(&branch, "branch", "master",
 		"Remote branch the database will be downloaded from")
 }
