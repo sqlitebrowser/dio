@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var branch, name string
+var pushBranch, pushName string
 
 // Uploads a database to a DBHub.io cloud.
 var pushCmd = &cobra.Command{
@@ -37,16 +37,16 @@ var pushCmd = &cobra.Command{
 		}
 
 		// Determine name to store database as
-		if name == "" {
-			name = filepath.Base(file)
+		if pushName == "" {
+			pushName = filepath.Base(file)
 		}
 
 		// Send the file
 		resp, _, errs := rq.New().Post(cloud+"/db_upload").
 			Type("multipart").
-			Set("Branch", branch).
+			Set("Branch", pushBranch).
 			Set("ModTime", fi.ModTime().Format(time.RFC3339)).
-			Set("Name", name).
+			Set("Name", pushName).
 			SendFile(file).
 			End()
 		if errs != nil {
@@ -61,14 +61,14 @@ var pushCmd = &cobra.Command{
 			return errors.New(fmt.Sprintf("Upload failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
 		}
-		fmt.Printf("%s - Database upload successful.  Name: %s, size: %d, branch: %s\n", cloud, name,
-			fi.Size(), branch)
+		fmt.Printf("%s - Database upload successful.  Name: %s, size: %d, branch: %s\n", cloud,
+			pushName, fi.Size(), pushBranch)
 		return nil
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(pushCmd)
-	pushCmd.Flags().StringVar(&branch, "branch", "master", "Remote branch the database will be uploaded to")
-	pushCmd.Flags().StringVar(&name, "name", "", "Override for the database name")
+	pushCmd.Flags().StringVar(&pushBranch, "branch", "master", "Remote branch the database will be uploaded to")
+	pushCmd.Flags().StringVar(&pushName, "name", "", "Override for the database name")
 }

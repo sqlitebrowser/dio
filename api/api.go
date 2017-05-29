@@ -390,9 +390,9 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 // or curl -OJ 'http://localhost:8080/db_download?database=a.db&commit=xxx'
 func dbDownload(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
-	dbName := r.Request.FormValue("database")
-	branchName := r.Request.FormValue("branch")
-	reqCommit := r.Request.FormValue("commit")
+	dbName := r.Request.Header.Get("database")
+	branchName := r.Request.Header.Get("branch")
+	reqCommit := r.Request.Header.Get("commit")
 
 	// TODO: Validate the database and branch names
 

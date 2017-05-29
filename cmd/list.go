@@ -13,7 +13,7 @@ type dbListEntry struct {
 	Size         int       `json:"size"`
 }
 
-// listCmd represents the list command
+// Displays a list of the databases on the DBHub.io server.
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Returns a list of databases available on a remote cloud",
