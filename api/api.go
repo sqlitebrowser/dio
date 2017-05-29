@@ -33,6 +33,7 @@ func main() {
 	ws.Filter(rest.NoBrowserCacheFilter)
 	ws.Route(ws.POST("/branch_create").To(branchCreate))
 	ws.Route(ws.POST("/branch_default_change").To(branchDefaultChange))
+	ws.Route(ws.GET("/branch_default_get").To(branchDefaultGet))
 	ws.Route(ws.GET("/branch_history").To(branchHistory))
 	ws.Route(ws.GET("/branch_list").To(branchList))
 	ws.Route(ws.POST("/branch_remove").To(branchRemove))
@@ -177,6 +178,29 @@ func branchDefaultChange(r *rest.Request, w *rest.Response) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// Changes the default branch for a database.
+// Can be tested with: $ dio branch default get a.db
+func branchDefaultGet(r *rest.Request, w *rest.Response) {
+	dbName := r.Request.Header.Get("database")
+	// Sanity check the input
+	if dbName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// TODO: Validate the database name
+
+	// Ensure the requested database is in our system
+	if !dbExists(dbName) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Return the default branch name
+	b := getDefaultBranchName(dbName)
+	w.Write([]byte(b))
+}
+
 // Returns the history for a branch.
 // Can be tested with: curl 'http://localhost:8080/branch_history?database=a.db&branch=master'
 func branchHistory(r *rest.Request, w *rest.Response) {
@@ -293,6 +317,12 @@ func branchRemove(r *rest.Request, w *rest.Response) {
 	// Ensure the branch exists in the database
 	if _, ok := branches[branchName]; !ok {
 		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Ensure the branch isn't the default for the database
+	if branchName == getDefaultBranchName(dbName) {
+		w.WriteHeader(http.StatusConflict)
 		return
 	}
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 
 	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
@@ -46,11 +47,11 @@ var branchCreateCmd = &cobra.Command{
 			}
 			return errors.New("Error when creating branch")
 		}
-		if resp.StatusCode != 204 {
-			if resp.StatusCode == 404 {
+		if resp.StatusCode != http.StatusNoContent {
+			if resp.StatusCode == http.StatusNotFound {
 				return errors.New("Requested database or commit not found")
 			}
-			if resp.StatusCode == 409 {
+			if resp.StatusCode == http.StatusConflict {
 				return errors.New("Requested branch already exists")
 			}
 			return errors.New(fmt.Sprintf("Branch creation failed with an error: HTTP status %d - '%v'\n",

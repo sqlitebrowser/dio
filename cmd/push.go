@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -56,8 +57,7 @@ var pushCmd = &cobra.Command{
 			}
 			return errors.New("Error when uploading database to the cloud")
 		}
-
-		if resp != nil && resp.StatusCode != 201 {
+		if resp != nil && resp.StatusCode != http.StatusCreated {
 			return errors.New(fmt.Sprintf("Upload failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
 		}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 
 	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
@@ -46,8 +47,8 @@ var branchRevertCmd = &cobra.Command{
 			}
 			return errors.New("Error when reverting branch")
 		}
-		if resp.StatusCode != 204 {
-			if resp.StatusCode == 404 {
+		if resp.StatusCode != http.StatusNoContent {
+			if resp.StatusCode == http.StatusNotFound {
 				return errors.New("Requested database or commit not found")
 			}
 			return errors.New(fmt.Sprintf("Branch revertion failed with an error: HTTP status %d - '%v'\n",

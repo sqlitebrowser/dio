@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 
 	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
@@ -37,8 +38,8 @@ var branchListCmd = &cobra.Command{
 			}
 			return errors.New("Error when retrieving branch list")
 		}
-		if resp.StatusCode != 200 {
-			if resp.StatusCode == 404 {
+		if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode == http.StatusNotFound {
 				return errors.New("Requested database not found")
 			}
 			return errors.New(fmt.Sprintf("Branch list failed with an error: HTTP status %d - '%v'\n",

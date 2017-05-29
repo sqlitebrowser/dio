@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 
 	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
@@ -42,9 +43,12 @@ var branchRemoveCmd = &cobra.Command{
 			}
 			return errors.New("Error when removing branch")
 		}
-		if resp.StatusCode != 204 {
-			if resp.StatusCode == 404 {
+		if resp.StatusCode != http.StatusNoContent {
+			if resp.StatusCode == http.StatusNotFound {
 				return errors.New("Requested database or commit not found")
+			}
+			if resp.StatusCode == http.StatusConflict {
+				return errors.New("Default branch can't be removed.  Change the default branch first")
 			}
 			return errors.New(fmt.Sprintf("Branch removal failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))

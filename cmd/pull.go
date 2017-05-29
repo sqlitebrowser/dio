@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 
 	rq "github.com/parnurzeal/gorequest"
 	"github.com/pkg/errors"
@@ -38,15 +39,15 @@ var pullCmd = &cobra.Command{
 			}
 			return errors.New("Error when downloading database")
 		}
-		if resp.StatusCode != 200 {
-			if resp.StatusCode == 404 {
+		if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode == http.StatusNotFound {
 				return errors.New("Requested database not found")
 			}
 			return errors.New(fmt.Sprintf("Download failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
 		}
 
-		// Write the file to disk
+		// Write the database file to disk
 		err := ioutil.WriteFile(file, []byte(body), 0644)
 		if err != nil {
 			return err
