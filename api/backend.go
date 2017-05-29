@@ -32,20 +32,6 @@ func createCommitID(c commit) string {
 	return hex.EncodeToString(s[:])
 }
 
-// Creates the user visible commit text for a commit.
-func createCommitText(c commit) (string, error) {
-	if c.ID == "" {
-		c.ID = createCommitID(c)
-	}
-	s := fmt.Sprintf("commit %s\n", c.ID)
-	s += fmt.Sprintf("Author: %s <%s>\n", c.AuthorName, c.AuthorEmail)
-	s += fmt.Sprintf("Date: %v\n\n", c.Timestamp.Format(time.UnixDate))
-	if c.Message != "" {
-		s += fmt.Sprintf("    %s\n", c.Message)
-	}
-	return s, nil
-}
-
 // Generate the SHA256 for a tree.
 // Tree entry structure is:
 // * [ type ] [ sha256 ] [ db name ] [ last modified (timestamp) ] [ db size (bytes) ]
