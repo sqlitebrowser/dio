@@ -184,8 +184,30 @@ func listDatabases() ([]byte, error) {
 		return []byte{}, err
 	}
 	var dbs []dbListEntry
-	for _, j := range dirEntries {
-		d := dbListEntry{Database: j.Name(), LastModified: j.ModTime(), Size: int(j.Size())}
+	for _, i := range dirEntries {
+		// Get the size and last modified date of each of the databases from it's commit tree entry
+		def := getDefaultBranchName(i.Name())
+		b, err := getBranches(i.Name())
+		if err != nil {
+			return []byte{}, err
+		}
+		c, err := getCommit(b[def])
+		if err != nil {
+			return []byte{}, err
+		}
+		t, err := getTree(c.Tree)
+		if err != nil {
+			return []byte{}, err
+		}
+		var lastMod time.Time
+		var dbSize int
+		for _, j := range t.Entries {
+			if j.Name == i.Name() {
+				lastMod = j.Last_Modified
+				dbSize = j.Size
+			}
+		}
+		d := dbListEntry{Database: i.Name(), LastModified: lastMod, Size: dbSize}
 		dbs = append(dbs, d)
 	}
 
