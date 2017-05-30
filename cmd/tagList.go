@@ -31,7 +31,7 @@ type tagEntry struct {
 
 // Displays the list of tags for a remote database
 var tagListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   "tags",
 	Short: "Displays a list of tags for a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given
@@ -98,5 +98,5 @@ var tagListCmd = &cobra.Command{
 }
 
 func init() {
-	tagCmd.AddCommand(tagListCmd)
+	RootCmd.AddCommand(tagListCmd)
 }

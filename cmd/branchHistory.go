@@ -76,7 +76,7 @@ var branchHistoryCmd = &cobra.Command{
 }
 
 func init() {
-	branchCmd.AddCommand(branchHistoryCmd)
+	RootCmd.AddCommand(branchHistoryCmd)
 	branchHistoryCmd.Flags().StringVar(&branch, "branch", "", "Remote branch to retrieve history of")
 }
 
