@@ -579,12 +579,14 @@ func dbList(r *rest.Request, w *rest.Response) {
 // Can be tested with: dio push
 func dbUpload(r *rest.Request, w *rest.Response) {
 	// Retrieve metadata from the post headers
-	dbName := r.Request.Header.Get("Name")
+	authorName := r.Request.Header.Get("Author")
 	branchName := r.Request.Header.Get("Branch")
+	dbName := r.Request.Header.Get("Database")
+	email := r.Request.Header.Get("Email")
 	msg := r.Request.Header.Get("Message")
 	modTime := r.Request.Header.Get("Modtime")
 
-	// TODO: Validate the database and branch names
+	// TODO: Validate the inputs
 
 	// Sanity check the inputs
 	if dbName == "" || msg == "" {
@@ -632,8 +634,17 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 
 	// Construct a commit structure pointing to the tree
 	var c commit
-	c.AuthorEmail = "justin@postgresql.org" // TODO: Author and Committer info should come from the client, so we
-	c.AuthorName = "Justin Clift"           // TODO  hard code these for now.  Proper auth will need adding later
+	if authorName != "" {
+		c.AuthorName = authorName
+	} else {
+		c.AuthorName = "Justin Clift" // TODO: This is a temporary value.  Get rid of the need for it.
+	}
+	if email != "" {
+		c.AuthorEmail = email
+	} else {
+		c.AuthorEmail = "justin@postgresql.org" // TODO: This is a temporary value.  Get rid of the need for it.
+	}
+
 	c.Message = msg
 	c.Timestamp = time.Now()
 	c.Tree = t.ID

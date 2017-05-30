@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var pushMsg, pushName string
+var pushDB string
 
 // Uploads a database to a DBHub.io cloud.
 var pushCmd = &cobra.Command{
@@ -38,24 +38,28 @@ var pushCmd = &cobra.Command{
 		}
 
 		// Ensure commit message has been provided
-		if pushMsg == "" {
+		if msg == "" {
 			return errors.New("Missing commit message!")
 		}
 
 		// Determine name to store database as
-		if pushName == "" {
-			pushName = filepath.Base(file)
+		if pushDB == "" {
+			pushDB = filepath.Base(file)
 		}
 
 		// Send the file
-		resp, _, errs := rq.New().Post(cloud+"/db_upload").
+		req := rq.New().Post(cloud+"/db_upload").
 			Type("multipart").
 			Set("Branch", branch).
-			Set("Message", pushMsg).
+			Set("Message", msg).
 			Set("ModTime", fi.ModTime().Format(time.RFC3339)).
-			Set("Name", pushName).
-			SendFile(file).
-			End()
+			Set("Database", pushDB).
+			SendFile(file)
+		if name != "" && email != "" {
+			req.Set("Author", name)
+			req.Set("Email", email)
+		}
+		resp, _, errs := req.End()
 		if errs != nil {
 			log.Print("Errors when uploading database to the cloud:")
 			for _, err := range errs {
@@ -68,7 +72,7 @@ var pushCmd = &cobra.Command{
 				resp.StatusCode, resp.Status))
 		}
 		fmt.Printf("%s - Database upload successful.  Name: %s, size: %d, branch: %s\n", cloud,
-			pushName, fi.Size(), branch)
+			pushDB, fi.Size(), branch)
 		return nil
 	},
 }
@@ -77,7 +81,9 @@ func init() {
 	RootCmd.AddCommand(pushCmd)
 	pushCmd.Flags().StringVar(&branch, "branch", "master",
 		"Remote branch the database will be uploaded to")
-	pushCmd.Flags().StringVar(&pushMsg, "message", "",
+	pushCmd.Flags().StringVar(&email, "email", "", "Email address of the author")
+	pushCmd.Flags().StringVar(&msg, "message", "",
 		"(Required) Commit message for this upload")
-	pushCmd.Flags().StringVar(&pushName, "name", "", "Override for the database name")
+	pushCmd.Flags().StringVar(&name, "author", "", "Author name")
+	pushCmd.Flags().StringVar(&pushDB, "dbname", "", "Override for the database name")
 }

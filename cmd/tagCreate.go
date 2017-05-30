@@ -11,8 +11,7 @@ import (
 )
 
 var tagAnno *bool
-var tagDate string                   // Optional
-var tagEmail, tagName, tagMsg string // Only for annotated commits
+var tagDate string // Optional
 
 // Creates a tag for a database
 var tagCreateCmd = &cobra.Command{
@@ -39,7 +38,7 @@ var tagCreateCmd = &cobra.Command{
 
 		// If we're creating an annotated tag, ensure the required values are all present
 		if *tagAnno == true {
-			if tagEmail == "" || tagName == "" || tagMsg == "" {
+			if email == "" || name == "" || msg == "" {
 				return errors.New("Email, name, and message are all required for annotated tags")
 			}
 		}
@@ -50,20 +49,20 @@ var tagCreateCmd = &cobra.Command{
 
 		// Create the tag
 		file := args[0]
-		r := rq.New().Post(cloud+"/tag_create").
+		req := rq.New().Post(cloud+"/tag_create").
 			Set("tag", tag).
 			Set("commit", commit).
 			Set("database", file)
 		if *tagAnno == true {
 			// We're creating an annotated tag, so add the required extra information
 			if tagDate != "" {
-				r.Set("date", tagDate)
+				req.Set("date", tagDate)
 			}
-			r.Set("taggeremail", tagEmail).
-				Set("taggername", tagName).
-				Set("msg", tagMsg)
+			req.Set("taggeremail", email)
+			req.Set("taggername", name)
+			req.Set("msg", msg)
 		}
-		resp, _, errs := r.End()
+		resp, _, errs := req.End()
 		if errs != nil {
 			log.Print("Errors when creating tag:")
 			for _, err := range errs {
@@ -93,7 +92,7 @@ func init() {
 	tagCreateCmd.Flags().StringVar(&commit, "commit", "", "Commit ID for the new tag")
 	tagCreateCmd.Flags().StringVar(&tag, "tag", "", "Name of remote tag to create")
 	tagCreateCmd.Flags().StringVar(&tagDate, "date", "", "(Optional) Custom date for annotated tag")
-	tagCreateCmd.Flags().StringVar(&tagEmail, "email", "", "(Annotated) Email address of tagger")
-	tagCreateCmd.Flags().StringVar(&tagName, "name", "", "(Annotated) Name of tagger")
-	tagCreateCmd.Flags().StringVar(&tagMsg, "message", "", "(Annotated) Text message to include")
+	tagCreateCmd.Flags().StringVar(&email, "email", "", "(Annotated) Email address of tagger")
+	tagCreateCmd.Flags().StringVar(&name, "name", "", "(Annotated) Name of tagger")
+	tagCreateCmd.Flags().StringVar(&msg, "message", "", "(Annotated) Text message to include")
 }
