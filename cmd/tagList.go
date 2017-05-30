@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"time"
 
 	rq "github.com/parnurzeal/gorequest"
@@ -67,17 +68,28 @@ var tagListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-
-		// Display the list of tags
 		if len(list) == 0 {
 			fmt.Printf("Database %s has no tags\n", file)
 			return nil
 		}
+
+		// Sort the list alphabetically
+		var sortedKeys []string
+		for k := range list {
+			sortedKeys = append(sortedKeys, k)
+		}
+		sort.Strings(sortedKeys)
+
+		// Display the list of tags
 		fmt.Printf("Tags for %s:\n\n", file)
-		for i, j := range list {
-			// TODO: Add support for annotated tags
-			if j.TagType == SIMPLE {
-				fmt.Printf("* %s : commit %s\n", i, j.Commit)
+		for _, i := range sortedKeys {
+			if list[i].TagType == SIMPLE {
+				fmt.Printf("* %s : commit %s\n", i, list[i].Commit)
+			} else {
+				fmt.Printf("* %s : commit %s\n\n", i, list[i].Commit)
+				fmt.Printf("    Author: %s <%s>\n", list[i].TaggerName, list[i].TaggerEmail)
+				fmt.Printf("    Date: %s\n", list[i].Date.Format(time.RFC3339))
+				fmt.Printf("    Message: %s\n\n", list[i].Message)
 			}
 		}
 		fmt.Println()

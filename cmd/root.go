@@ -19,6 +19,8 @@ var RootCmd = &cobra.Command{
 
 With dio you can send and receive database files to a DBHub.io cloud,
 and manipulate its tags and branches.`,
+	SilenceErrors: true,
+	SilenceUsage:  true,
 }
 
 // Execute adds all child commands to the root command sets flags appropriately.
