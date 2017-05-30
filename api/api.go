@@ -748,7 +748,6 @@ func tagCreate(r *rest.Request, w *rest.Response) {
 	var err error
 	if date == "" {
 		tDate = time.Now()
-		log.Printf("Date: %v\n", tDate.Format(time.RFC3339))
 	} else {
 		tDate, err = time.Parse(time.RFC3339, date)
 		if err != nil {

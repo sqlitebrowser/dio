@@ -45,7 +45,7 @@ var branchRemoveCmd = &cobra.Command{
 		}
 		if resp.StatusCode != http.StatusNoContent {
 			if resp.StatusCode == http.StatusNotFound {
-				return errors.New("Requested database or commit not found")
+				return errors.New("Requested database or branch not found")
 			}
 			if resp.StatusCode == http.StatusConflict {
 				return errors.New("Default branch can't be removed.  Change the default branch first")
