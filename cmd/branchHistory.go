@@ -66,11 +66,10 @@ var branchHistoryCmd = &cobra.Command{
 		}
 
 		// Display the branch history
-		fmt.Printf("History for %s:\n\n", file)
+		fmt.Printf("Branch \"%s\" history for %s:\n\n", branch, file)
 		for _, j := range list {
 			fmt.Printf(createCommitText(j))
 		}
-		fmt.Println()
 		return nil
 	},
 }
@@ -82,11 +81,11 @@ func init() {
 
 // Creates the user visible commit text for a commit.
 func createCommitText(c commitEntry) string {
-	s := fmt.Sprintf("commit %s\n", c.ID)
-	s += fmt.Sprintf("Author: %s <%s>\n", c.AuthorName, c.AuthorEmail)
-	s += fmt.Sprintf("Date: %v\n\n", c.Timestamp.Format(time.UnixDate))
+	s := fmt.Sprintf("  commit %s\n", c.ID)
+	s += fmt.Sprintf("  Author: %s <%s>\n", c.AuthorName, c.AuthorEmail)
+	s += fmt.Sprintf("  Date: %v\n\n", c.Timestamp.Format(time.UnixDate))
 	if c.Message != "" {
-		s += fmt.Sprintf("    %s\n", c.Message)
+		s += fmt.Sprintf("      %s\n", c.Message)
 	}
 	return s
 }
