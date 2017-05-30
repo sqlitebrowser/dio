@@ -25,21 +25,30 @@ var branchRevertCmd = &cobra.Command{
 			return errors.New("Only one database can be changed at a time (for now)")
 		}
 
-		// Ensure a branch name and commit ID were given
+		// Ensure the required info was given
 		if branch == "" {
 			return errors.New("No branch name given")
 		}
-		if commit == "" {
-			return errors.New("No commit ID given")
+		if commit == "" && tag == "" {
+			return errors.New("Either a commit ID or tag must be given.")
+		}
+
+		// Ensure we were given only a commit ID OR a tag
+		if commit != "" && tag != "" {
+			return errors.New("Either a commit ID or tag must be given.  Not both!")
 		}
 
 		// Revert the branch
 		file := args[0]
-		resp, _, errs := rq.New().Post(cloud+"/branch_revert").
+		req := rq.New().Post(cloud+"/branch_revert").
 			Set("branch", branch).
-			Set("commit", commit).
-			Set("database", file).
-			End()
+			Set("database", file)
+		if commit != "" {
+			req.Set("commit", commit)
+		} else {
+			req.Set("tag", tag)
+		}
+		resp, _, errs := req.End()
 		if errs != nil {
 			log.Print("Errors when reverting branch:")
 			for _, err := range errs {
@@ -64,4 +73,5 @@ func init() {
 	branchCmd.AddCommand(branchRevertCmd)
 	branchRevertCmd.Flags().StringVar(&branch, "branch", "master", "Remote branch to operate on")
 	branchRevertCmd.Flags().StringVar(&commit, "commit", "", "Commit ID for the to revert to")
+	branchRevertCmd.Flags().StringVar(&tag, "tag", "", "Name of tag to revert to")
 }

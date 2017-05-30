@@ -344,9 +344,18 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	dbName := r.Request.Header.Get("database")
 	branchName := r.Request.Header.Get("branch")
 	commit := r.Request.Header.Get("commit")
+	tag := r.Request.Header.Get("tag")
 
 	// Sanity check the inputs
-	if dbName == "" || branchName == "" || commit == "" {
+	if dbName == "" || branchName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if commit == "" && tag == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if commit != "" && tag != "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -357,6 +366,22 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	if !dbExists(dbName) {
 		w.WriteHeader(http.StatusNotFound)
 		return
+	}
+
+	// If we were given a tag, load it's corresponding commit
+	if tag != "" {
+		tags, err := getTags(dbName)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		c, ok := tags[tag]
+		if !ok {
+			// Requested tag wasn't found
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		commit = c.Commit
 	}
 
 	// Load the existing branch heads from disk
