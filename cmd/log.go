@@ -25,7 +25,7 @@ type commitEntry struct {
 }
 
 // Retrieves the commit history for a database branch
-var branchHistoryCmd = &cobra.Command{
+var branchLog = &cobra.Command{
 	Use:   "log",
 	Short: "Displays the history for a database branch",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -69,14 +69,17 @@ var branchHistoryCmd = &cobra.Command{
 		fmt.Printf("Branch \"%s\" history for %s:\n\n", branch, file)
 		for _, j := range list {
 			fmt.Printf(createCommitText(j))
+			if j.Message != "" {
+				fmt.Println()
+			}
 		}
 		return nil
 	},
 }
 
 func init() {
-	RootCmd.AddCommand(branchHistoryCmd)
-	branchHistoryCmd.Flags().StringVar(&branch, "branch", "", "Remote branch to retrieve history of")
+	RootCmd.AddCommand(branchLog)
+	branchLog.Flags().StringVar(&branch, "branch", "", "Remote branch to retrieve history of")
 }
 
 // Creates the user visible commit text for a commit.

@@ -581,12 +581,13 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	// Retrieve metadata from the post headers
 	dbName := r.Request.Header.Get("Name")
 	branchName := r.Request.Header.Get("Branch")
+	msg := r.Request.Header.Get("Message")
 	modTime := r.Request.Header.Get("Modtime")
 
 	// TODO: Validate the database and branch names
 
 	// Sanity check the inputs
-	if dbName == "" {
+	if dbName == "" || msg == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -633,6 +634,7 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	var c commit
 	c.AuthorEmail = "justin@postgresql.org" // TODO: Author and Committer info should come from the client, so we
 	c.AuthorName = "Justin Clift"           // TODO  hard code these for now.  Proper auth will need adding later
+	c.Message = msg
 	c.Timestamp = time.Now()
 	c.Tree = t.ID
 

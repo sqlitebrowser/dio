@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var pushName string
+var pushMsg, pushName string
 
 // Uploads a database to a DBHub.io cloud.
 var pushCmd = &cobra.Command{
@@ -37,6 +37,11 @@ var pushCmd = &cobra.Command{
 			return err
 		}
 
+		// Ensure commit message has been provided
+		if pushMsg == "" {
+			return errors.New("Missing commit message!")
+		}
+
 		// Determine name to store database as
 		if pushName == "" {
 			pushName = filepath.Base(file)
@@ -46,6 +51,7 @@ var pushCmd = &cobra.Command{
 		resp, _, errs := rq.New().Post(cloud+"/db_upload").
 			Type("multipart").
 			Set("Branch", branch).
+			Set("Message", pushMsg).
 			Set("ModTime", fi.ModTime().Format(time.RFC3339)).
 			Set("Name", pushName).
 			SendFile(file).
@@ -71,5 +77,7 @@ func init() {
 	RootCmd.AddCommand(pushCmd)
 	pushCmd.Flags().StringVar(&branch, "branch", "master",
 		"Remote branch the database will be uploaded to")
+	pushCmd.Flags().StringVar(&pushMsg, "message", "",
+		"(Required) Commit message for this upload")
 	pushCmd.Flags().StringVar(&pushName, "name", "", "Override for the database name")
 }
