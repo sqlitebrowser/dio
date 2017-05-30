@@ -11,6 +11,7 @@ import (
 	rq "github.com/parnurzeal/gorequest"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var pushDB string
@@ -37,9 +38,31 @@ var pushCmd = &cobra.Command{
 			return err
 		}
 
+		// Grab author name & email from ~/.dio.yaml config file, but allow command line flags to override them
+		var pushAuthor, pushEmail string
+		u, ok := viper.Get("author").(string)
+		if ok {
+			pushAuthor = u
+		}
+		v, ok := viper.Get("email").(string)
+		if ok {
+			pushEmail = v
+		}
+		if name != "" {
+			pushAuthor = name
+		}
+		if email != "" {
+			pushEmail = email
+		}
+
+		// Author name and email are required
+		if pushAuthor == "" || pushEmail == "" {
+			return errors.New("Both author name and email are required!")
+		}
+
 		// Ensure commit message has been provided
 		if msg == "" {
-			return errors.New("Missing commit message!")
+			return errors.New("Commit message is required!")
 		}
 
 		// Determine name to store database as
@@ -54,11 +77,9 @@ var pushCmd = &cobra.Command{
 			Set("Message", msg).
 			Set("ModTime", fi.ModTime().Format(time.RFC3339)).
 			Set("Database", pushDB).
+			Set("Author", pushAuthor).
+			Set("Email", pushEmail).
 			SendFile(file)
-		if name != "" && email != "" {
-			req.Set("Author", name)
-			req.Set("Email", email)
-		}
 		resp, _, errs := req.End()
 		if errs != nil {
 			log.Print("Errors when uploading database to the cloud:")

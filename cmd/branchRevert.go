@@ -55,7 +55,7 @@ var branchRevertCmd = &cobra.Command{
 				resp.StatusCode, resp.Status))
 		}
 
-		fmt.Println("Branch revertion succeeded")
+		fmt.Println("Branch reverted")
 		return nil
 	},
 }

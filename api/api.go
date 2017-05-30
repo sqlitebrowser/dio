@@ -584,12 +584,12 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	dbName := r.Request.Header.Get("Database")
 	email := r.Request.Header.Get("Email")
 	msg := r.Request.Header.Get("Message")
-	modTime := r.Request.Header.Get("Modtime")
+	modTime := r.Request.Header.Get("Modtime") // Optional
 
 	// TODO: Validate the inputs
 
 	// Sanity check the inputs
-	if dbName == "" || msg == "" {
+	if authorName == "" || email == "" || dbName == "" || msg == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -634,17 +634,8 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 
 	// Construct a commit structure pointing to the tree
 	var c commit
-	if authorName != "" {
-		c.AuthorName = authorName
-	} else {
-		c.AuthorName = "Justin Clift" // TODO: This is a temporary value.  Get rid of the need for it.
-	}
-	if email != "" {
-		c.AuthorEmail = email
-	} else {
-		c.AuthorEmail = "justin@postgresql.org" // TODO: This is a temporary value.  Get rid of the need for it.
-	}
-
+	c.AuthorName = authorName
+	c.AuthorEmail = email
 	c.Message = msg
 	c.Timestamp = time.Now()
 	c.Tree = t.ID
