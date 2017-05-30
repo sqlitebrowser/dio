@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 
 	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
@@ -51,10 +52,17 @@ var branchListCmd = &cobra.Command{
 			return err
 		}
 
+		// Sort the list alphabetically
+		var sortedKeys []string
+		for k := range list {
+			sortedKeys = append(sortedKeys, k)
+		}
+		sort.Strings(sortedKeys)
+
 		// Display the list of branches
 		fmt.Printf("Branches for %s:\n\n", file)
-		for i, j := range list {
-			fmt.Printf("* %s : commit %s\n", i, j)
+		for _, i := range sortedKeys {
+			fmt.Printf("* %s : commit %s\n", i, list[i])
 		}
 		fmt.Println()
 		return nil
