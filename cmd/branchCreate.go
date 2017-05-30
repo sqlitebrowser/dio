@@ -65,6 +65,6 @@ var branchCreateCmd = &cobra.Command{
 
 func init() {
 	branchCmd.AddCommand(branchCreateCmd)
-	branchCreateCmd.Flags().StringVar(&branch, "branch", "master", "Remote branch to operate on")
+	branchCreateCmd.Flags().StringVar(&branch, "branch", "", "Name of remote branch to create")
 	branchCreateCmd.Flags().StringVar(&commit, "commit", "", "Commit ID for the new branch head")
 }

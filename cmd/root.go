@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-var branch, cfgFile, cloud, commit string
+var branch, cfgFile, cloud, commit, tag string
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{

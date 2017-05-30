@@ -61,5 +61,5 @@ var branchRemoveCmd = &cobra.Command{
 
 func init() {
 	branchCmd.AddCommand(branchRemoveCmd)
-	branchRemoveCmd.Flags().StringVar(&branch, "branch", "master", "Remote branch to operate on")
+	branchRemoveCmd.Flags().StringVar(&branch, "branch", "", "Name of remote branch to remove")
 }
