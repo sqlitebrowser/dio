@@ -38,6 +38,7 @@ func main() {
 	ws.Route(ws.GET("/branch_list").To(branchList))
 	ws.Route(ws.POST("/branch_remove").To(branchRemove))
 	ws.Route(ws.POST("/branch_revert").To(branchRevert))
+	ws.Route(ws.POST("/branch_update").To(branchUpdate))
 	ws.Route(ws.GET("/db_download").To(dbDownload))
 	ws.Route(ws.GET("/db_list").To(dbList))
 	ws.Route(ws.POST("/db_upload").To(dbUpload))
@@ -436,6 +437,51 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	a := branches[branchName]
 	a.Commit = commit
 	branches[branchName] = a
+	err = storeBranches(dbName, branches)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func branchUpdate(r *rest.Request, w *rest.Response) {
+	// Retrieve the database and branch names
+	dbName := r.Request.Header.Get("database")
+	branchDesc := r.Request.Header.Get("desc")
+	branchName := r.Request.Header.Get("branch")
+
+	// Sanity check the inputs
+	if dbName == "" || branchName == "" || branchDesc == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// TODO: Validate the inputs
+
+	// Ensure the requested database is in our system
+	if !dbExists(dbName) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Load the existing branch heads from disk
+	branches, err := getBranches(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure the branch exists in the database
+	b, ok := branches[branchName]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Update the branch
+	b.Description = branchDesc
+	branches[branchName] = b
 	err = storeBranches(dbName, branches)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

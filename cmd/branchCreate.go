@@ -13,7 +13,7 @@ import (
 // Creates a branch for a database
 var branchCreateCmd = &cobra.Command{
 	Use:   "create [database name]",
-	Short: "Creates a branch for a database",
+	Short: "Create a branch for a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given
 		if len(args) == 0 {
@@ -61,7 +61,7 @@ var branchCreateCmd = &cobra.Command{
 				resp.StatusCode, resp.Status))
 		}
 
-		fmt.Println("Branch creation succeeded")
+		fmt.Printf("Branch '%s' created\n", branch)
 		return nil
 	},
 }
