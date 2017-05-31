@@ -13,7 +13,7 @@ import (
 
 // Downloads a database from a DBHub.io cloud.
 var pullCmd = &cobra.Command{
-	Use:   "pull [database file]",
+	Use:   "pull [database name]",
 	Short: "Download a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given

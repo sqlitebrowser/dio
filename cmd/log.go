@@ -14,7 +14,7 @@ import (
 
 // Retrieves the commit history for a database branch
 var branchLog = &cobra.Command{
-	Use:   "log",
+	Use:   "log [database name]",
 	Short: "Displays the history for a database branch",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given

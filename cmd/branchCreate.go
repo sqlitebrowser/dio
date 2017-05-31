@@ -12,7 +12,7 @@ import (
 
 // Creates a branch for a database
 var branchCreateCmd = &cobra.Command{
-	Use:   "create [database name]",
+	Use:   "create [database name] --branch xxx --commit yyy",
 	Short: "Create a branch for a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given

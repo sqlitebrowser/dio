@@ -15,7 +15,7 @@ var tagDate string // Optional
 
 // Creates a tag for a database
 var tagCreateCmd = &cobra.Command{
-	Use:   "create [database] --tag xxx --commit yyy",
+	Use:   "create [database name] --tag xxx --commit yyy",
 	Short: "Create a tag for a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given

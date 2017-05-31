@@ -12,7 +12,7 @@ import (
 
 // Returns the name of the default branch for a database
 var branchDefaultGetCmd = &cobra.Command{
-	Use:   "get",
+	Use:   "get [database name]",
 	Short: "Get the default branch name for a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given

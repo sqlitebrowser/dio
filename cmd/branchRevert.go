@@ -12,7 +12,7 @@ import (
 
 // Reverts a database to a prior commit in its history
 var branchRevertCmd = &cobra.Command{
-	Use:   "revert",
+	Use:   "revert [database name] --branch xxx --commit yyy",
 	Short: "Resets a database branch back to a previous commit",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given

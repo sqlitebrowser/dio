@@ -14,7 +14,7 @@ import (
 
 // Displays the list of branches for a remote database
 var branchListCmd = &cobra.Command{
-	Use:   "list",
+	Use:   "list [database name]",
 	Short: "List the branches for your database on a DBHub.io cloud",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given

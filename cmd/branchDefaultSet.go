@@ -12,7 +12,7 @@ import (
 
 // Sets the default branch for a database
 var branchDefaultSetCmd = &cobra.Command{
-	Use:   "set",
+	Use:   "set [database name] --branch xxx",
 	Short: "Set the default branch for a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given
