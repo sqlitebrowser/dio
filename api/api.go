@@ -445,6 +445,8 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// Updates the description for a branch
+// Can be tested with: $ dio branch update a.db --branch foo --description "An AMAZING! description"
 func branchUpdate(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
 	dbName := r.Request.Header.Get("database")
