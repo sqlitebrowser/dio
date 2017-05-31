@@ -12,7 +12,7 @@ import (
 
 // Removes a tag from a database
 var tagRemoveCmd = &cobra.Command{
-	Use:   "remove",
+	Use:   "remove [database name] --tag xxx",
 	Short: "Remove a tag from a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given
@@ -51,7 +51,7 @@ var tagRemoveCmd = &cobra.Command{
 				resp.StatusCode, resp.Status))
 		}
 
-		fmt.Println("Tag remove succeeded")
+		fmt.Printf("Tag '%s' removed\n", tag)
 		return nil
 	},
 }

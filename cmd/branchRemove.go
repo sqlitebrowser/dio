@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -12,9 +13,14 @@ import (
 
 // Removes a branch from a database
 var branchRemoveCmd = &cobra.Command{
-	Use:   "remove",
+	Use:   "remove [database name] --branch xxx",
 	Short: "Removes a branch from a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var errorInfo struct {
+			Condition string   `json:"error_condition"`
+			Tags      []string `json:"tags"`
+		}
+
 		// Ensure a database file was given
 		if len(args) == 0 {
 			return errors.New("No database file specified")
@@ -32,7 +38,7 @@ var branchRemoveCmd = &cobra.Command{
 
 		// Remove the branch
 		file := args[0]
-		resp, _, errs := rq.New().Post(cloud+"/branch_remove").
+		resp, body, errs := rq.New().Post(cloud+"/branch_remove").
 			Set("branch", branch).
 			Set("database", file).
 			End()
@@ -48,13 +54,32 @@ var branchRemoveCmd = &cobra.Command{
 				return errors.New("Requested database or branch not found")
 			}
 			if resp.StatusCode == http.StatusConflict {
+				// Check for a message body indicating there would be isolated tags
+				err := json.Unmarshal([]byte(body), &errorInfo)
+				if err != nil {
+					return err
+				}
+				if errorInfo.Condition == "isolated_tags" {
+					// Yep, isolated tags would exist if this branch is removed.  Let the user know they'll need to
+					// remove the tags first
+					// TODO: Add some kind of --force option which removes the tags itself then removes the branch
+					e := "The following tags only exist on that branch.  You'll need to remove them first:\n\n"
+					for _, j := range errorInfo.Tags {
+						e += fmt.Sprintf(" * %s\n", j)
+					}
+					//e += fmt.Sprintf("\n")
+					return errors.New(e)
+				}
+
+				// Nope, it wasn't an "isolated tags" problem.  Lets assume it was a "try to delete the default branch"
+				// problem instead
 				return errors.New("Default branch can't be removed.  Change the default branch first")
 			}
 			return errors.New(fmt.Sprintf("Branch removal failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
 		}
 
-		fmt.Println("Branch remove succeeded")
+		fmt.Printf("Branch '%s' removed\n", branch)
 		return nil
 	},
 }
