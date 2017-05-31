@@ -13,25 +13,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type tagType string
-
-const (
-	SIMPLE    tagType = "simple"
-	ANNOTATED         = "annotated"
-)
-
-type tagEntry struct {
-	Commit      string
-	Date        time.Time
-	Message     string
-	TagType     tagType
-	TaggerEmail string
-	TaggerName  string
-}
-
 // Displays the list of tags for a remote database
 var tagListCmd = &cobra.Command{
-	Use:   "tags",
+	Use:   "tags [database name]",
 	Short: "Displays a list of tags for a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given

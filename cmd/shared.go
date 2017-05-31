@@ -25,6 +25,22 @@ type commitEntry struct {
 	Tree           string    `json:"tree"`
 }
 
+type tagType string
+
+const (
+	SIMPLE    tagType = "simple"
+	ANNOTATED         = "annotated"
+)
+
+type tagEntry struct {
+	Commit      string    `json:"commit"`
+	Date        time.Time `json:"date"`
+	Message     string    `json:"message"`
+	TagType     tagType   `json:"type"`
+	TaggerEmail string    `json:"email"`
+	TaggerName  string    `json:"name"`
+}
+
 // Retrieves the list of available databases from the remote cloud
 func getDBList() []dbListEntry {
 	resp, body, errs := rq.New().Get(cloud + "/db_list").End()
