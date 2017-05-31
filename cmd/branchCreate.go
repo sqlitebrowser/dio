@@ -12,7 +12,7 @@ import (
 
 // Creates a branch for a database
 var branchCreateCmd = &cobra.Command{
-	Use:   "create",
+	Use:   "create [database name]",
 	Short: "Creates a branch for a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given
@@ -35,11 +35,14 @@ var branchCreateCmd = &cobra.Command{
 
 		// Create the branch
 		file := args[0]
-		resp, _, errs := rq.New().Post(cloud+"/branch_create").
+		req := rq.New().Post(cloud+"/branch_create").
 			Set("branch", branch).
 			Set("commit", commit).
-			Set("database", file).
-			End()
+			Set("database", file)
+		if msg != "" {
+			req.Set("desc", msg)
+		}
+		resp, _, errs := req.End()
 		if errs != nil {
 			log.Print("Errors when creating branch:")
 			for _, err := range errs {
@@ -67,4 +70,5 @@ func init() {
 	branchCmd.AddCommand(branchCreateCmd)
 	branchCreateCmd.Flags().StringVar(&branch, "branch", "", "Name of remote branch to create")
 	branchCreateCmd.Flags().StringVar(&commit, "commit", "", "Commit ID for the new branch head")
+	branchCreateCmd.Flags().StringVar(&msg, "description", "", "Description of the branch")
 }

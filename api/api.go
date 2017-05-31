@@ -53,16 +53,17 @@ func main() {
 func branchCreate(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
 	dbName := r.Request.Header.Get("database")
+	branchDesc := r.Request.Header.Get("desc")
 	branchName := r.Request.Header.Get("branch")
 	commit := r.Request.Header.Get("commit")
 
 	// Sanity check the inputs
-	if dbName == "" || branchName == "" || commit == "" {
+	if dbName == "" || branchName == "" || commit == "" { // branchDesc can be empty as its optional
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	// TODO: Validate the database and branch names
+	// TODO: Validate the inputs
 
 	// Ensure the requested database is in our system
 	if !dbExists(dbName) {
@@ -84,11 +85,11 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 	}
 
 	// Ensure the requested commit exists in the database history
-	// This is important, because if we didn't do it then people could supply any commit ID.  Even one's belonging
-	// to completely unrelated databases, which they shouldn't have access to.
+	// This is important, because if we didn't do it then people could supply any commit ID.  Even one's (in our
+	// multi-user backend) belonging to completely unrelated databases, which they shouldn't have access to.
 	// By ensuring the requested commit is already part of the existing database history, we solve that problem.
 	commitExists := false
-	for _, ID := range branches {
+	for _, b := range branches {
 		// Because there seems to be no valid way of adding this condition in the loop declaration?
 		// Do I just need more coffee? :D
 		if commitExists == true {
@@ -96,13 +97,13 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 		}
 
 		// Check if the head commit of the branch matches the requested commit
-		if ID == commit {
+		if b.Commit == commit {
 			commitExists = true
 			continue
 		}
 
 		// It didn't, so walk the commit history looking for the commit there
-		c, err := getCommit(ID)
+		c, err := getCommit(b.Commit)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -127,7 +128,7 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 	}
 
 	// Create the new branch
-	branches[branchName] = commit
+	branches[branchName] = branchEntry{Commit: commit, Description: branchDesc}
 	err = storeBranches(dbName, branches)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -231,7 +232,7 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 	}
 
 	// Ensure the requested branch exists in the database
-	id, ok := branches[branchName]
+	b, ok := branches[branchName]
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -239,7 +240,7 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 
 	// Walk the commit history, assembling it into something useful
 	var history []commit
-	c, err := getCommit(id)
+	c, err := getCommit(b.Commit)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -392,7 +393,7 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	}
 
 	// Ensure the branch exists in the database
-	id, ok := branches[branchName]
+	b, ok := branches[branchName]
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -401,14 +402,14 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	// * Ensure the requested commit exists in the branch history *
 
 	// If the head commit of the branch already matches the requested commit, there's nothing to change
-	if id == commit {
+	if b.Commit == commit {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	// It didn't, so walk the branch history looking for the commit there
 	commitExists := false
-	c, err := getCommit(id)
+	c, err := getCommit(b.Commit)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -432,7 +433,9 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	}
 
 	// Update the branch
-	branches[branchName] = commit
+	a := branches[branchName]
+	a.Commit = commit
+	branches[branchName] = a
 	err = storeBranches(dbName, branches)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -484,7 +487,7 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 			}
 
 			// Gather the details of the head commit
-			c, err := getCommit(head)
+			c, err := getCommit(head.Commit)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -493,7 +496,7 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 			// If the requested commit matches the branch head, retrieve the matching database ID
 			var e dbTreeEntry
 			var t dbTree
-			if reqCommit == head {
+			if reqCommit == head.Commit {
 				t, err = getTree(c.Tree)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -546,14 +549,14 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 		}
 
 		// Retrieve the commit ID for the branch
-		commitID, ok := branches[branchName]
+		b, ok := branches[branchName]
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
 		// Retrieve the tree ID from the commit
-		c, err := getCommit(commitID)
+		c, err := getCommit(b.Commit)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -666,7 +669,7 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	c.Tree = t.ID
 
 	// Check if the database already exists
-	var branches map[string]string
+	var branches map[string]branchEntry
 	needDefBranch := false
 	if dbExists(dbName) {
 		// Load the existing branchHeads from disk
@@ -678,12 +681,12 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 
 		// Check if the desired branch already exists.  If it does, use its head commit as the parent for
 		// our new uploads commit
-		if id, ok := branches[branchName]; ok {
-			c.Parent = id
+		if b, ok := branches[branchName]; ok {
+			c.Parent = b.Commit
 		}
 	} else {
 		// No existing branches, so this will be the first
-		branches = make(map[string]string)
+		branches = make(map[string]branchEntry)
 
 		// We'll need to create the default branch value for the database later on too
 		needDefBranch = true
@@ -691,7 +694,9 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 
 	// Update the branch with the commit for this new database upload
 	c.ID = createCommitID(c)
-	branches[branchName] = c.ID
+	b := branches[branchName]
+	b.Commit = c.ID
+	branches[branchName] = b
 	err = storeDatabase(buf.Bytes())
 	if err != nil {
 		log.Printf("Error when writing database '%s' to disk: %v\n", dbName, err.Error())
@@ -817,20 +822,20 @@ func tagCreate(r *rest.Request, w *rest.Response) {
 	// to completely unrelated databases, which they shouldn't have access to.
 	// By ensuring the requested commit is already part of the existing database history, we solve that problem.
 	commitExists := false
-	for _, ID := range branches {
+	for _, b := range branches {
 		// Because there seems to be no valid way of adding this condition in the loop declaration?
 		if commitExists == true {
 			continue
 		}
 
 		// Check if the head commit of the branch matches the requested commit
-		if ID == commit {
+		if b.Commit == commit {
 			commitExists = true
 			continue
 		}
 
 		// It didn't, so walk the commit history looking for the commit there
-		c, err := getCommit(ID)
+		c, err := getCommit(b.Commit)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return

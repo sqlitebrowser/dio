@@ -67,12 +67,12 @@ func dbExists(dbName string) bool {
 // Load the branch heads for a database.
 // TODO: It might be better to have the default branch name be returned as part of this list, by indicating in the list
 // TODO  which of the branches is the default.
-func getBranches(dbName string) (map[string]string, error) {
+func getBranches(dbName string) (map[string]branchEntry, error) {
 	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", dbName, "branchHeads"))
 	if err != nil {
 		return nil, err
 	}
-	var i map[string]string
+	var i map[string]branchEntry
 	err = json.Unmarshal(b, &i)
 	if err != nil {
 		log.Printf("Something went wrong unserialising the branchHeads data: %v\n", err.Error())
@@ -121,7 +121,7 @@ func getDatabase(id string) ([]byte, error) {
 	return d, nil
 }
 
-// Load the tags (standard, non-annotated type) for a database.
+// Load the tags for a database.
 func getTags(dbName string) (map[string]tagEntry, error) {
 	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", dbName, "tags"))
 	if err != nil {
@@ -177,7 +177,7 @@ func listDatabases() ([]byte, error) {
 		if err != nil {
 			return []byte{}, err
 		}
-		c, err := getCommit(b[def])
+		c, err := getCommit(b[def].Commit)
 		if err != nil {
 			return []byte{}, err
 		}
@@ -208,7 +208,7 @@ func listDatabases() ([]byte, error) {
 }
 
 // Store the branch heads for a database.
-func storeBranches(dbName string, branches map[string]string) error {
+func storeBranches(dbName string, branches map[string]branchEntry) error {
 	path := filepath.Join(STORAGEDIR, "meta", dbName)
 	_, err := os.Stat(path)
 	if err != nil {

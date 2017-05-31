@@ -46,7 +46,8 @@ var branchListCmd = &cobra.Command{
 			return errors.New(fmt.Sprintf("Branch list failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
 		}
-		list := make(map[string]string)
+
+		list := make(map[string]branchEntry)
 		err := json.Unmarshal([]byte(body), &list)
 		if err != nil {
 			return err
@@ -62,9 +63,11 @@ var branchListCmd = &cobra.Command{
 		// Display the list of branches
 		fmt.Printf("Branches for %s:\n\n", file)
 		for _, i := range sortedKeys {
-			fmt.Printf("* %s : commit %s\n", i, list[i])
+			fmt.Printf("* %s - Commit: %s\n", i, list[i].Commit)
+			if list[i].Description != "" {
+				fmt.Printf("\n    %s\n\n", list[i].Description)
+			}
 		}
-		fmt.Println()
 		return nil
 	},
 }

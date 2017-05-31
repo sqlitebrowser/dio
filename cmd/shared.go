@@ -3,9 +3,27 @@ package cmd
 import (
 	"encoding/json"
 	"log"
+	"time"
 
 	rq "github.com/parnurzeal/gorequest"
 )
+
+type branchEntry struct {
+	Commit      string `json:"commit"`
+	Description string `json:"description"`
+}
+
+type commitEntry struct {
+	AuthorEmail    string    `json:"author_email"`
+	AuthorName     string    `json:"author_name"`
+	CommitterEmail string    `json:"committer_email"`
+	CommitterName  string    `json:"committer_name"`
+	ID             string    `json:"id"`
+	Message        string    `json:"message"`
+	Parent         string    `json:"parent"`
+	Timestamp      time.Time `json:"timestamp"`
+	Tree           string    `json:"tree"`
+}
 
 // Retrieves the list of available databases from the remote cloud
 func getDBList() []dbListEntry {

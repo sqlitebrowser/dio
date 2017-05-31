@@ -12,18 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type commitEntry struct {
-	AuthorEmail    string
-	AuthorName     string
-	CommitterEmail string
-	CommitterName  string
-	ID             string
-	Message        string
-	Parent         string
-	Timestamp      time.Time
-	Tree           string
-}
-
 // Retrieves the commit history for a database branch
 var branchLog = &cobra.Command{
 	Use:   "log",
@@ -59,6 +47,7 @@ var branchLog = &cobra.Command{
 			return errors.New(fmt.Sprintf("Branch history failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
 		}
+
 		var list []commitEntry
 		err := json.Unmarshal([]byte(body), &list)
 		if err != nil {
