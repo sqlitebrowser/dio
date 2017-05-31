@@ -57,10 +57,10 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 	dbName := r.Request.Header.Get("database")
 	branchDesc := r.Request.Header.Get("desc")
 	branchName := r.Request.Header.Get("branch")
-	commit := r.Request.Header.Get("commit")
+	commitID := r.Request.Header.Get("commit")
 
 	// Sanity check the inputs
-	if dbName == "" || branchName == "" || commit == "" { // branchDesc can be empty as its optional
+	if dbName == "" || branchName == "" || commitID == "" { // branchDesc can be empty as its optional
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -98,25 +98,15 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 			continue
 		}
 
-		// Check if the head commit of the branch matches the requested commit
-		if b.Commit == commit {
-			commitExists = true
-			continue
-		}
-
-		// It didn't, so walk the commit history looking for the commit there
-		c, err := getCommit(b.Commit)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+		// Walk the commit history looking for the commit
+		c := commit{Parent: b.Commit}
 		for c.Parent != "" {
 			c, err = getCommit(c.Parent)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			if c.ID == commit {
+			if c.ID == commitID {
 				// This commit in the history matches the requested commit, so we're good
 				commitExists = true
 			}
@@ -130,7 +120,7 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 	}
 
 	// Create the new branch
-	branches[branchName] = branchEntry{Commit: commit, Description: branchDesc}
+	branches[branchName] = branchEntry{Commit: commitID, Description: branchDesc}
 	err = storeBranches(dbName, branches)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -242,12 +232,7 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 
 	// Walk the commit history, assembling it into something useful
 	var history []commit
-	c, err := getCommit(b.Commit)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	history = append(history, c)
+	c := commit{Parent: b.Commit}
 	for c.Parent != "" {
 		c, err = getCommit(c.Parent)
 		if err != nil {
@@ -342,22 +327,7 @@ func branchRemove(r *rest.Request, w *rest.Response) {
 	// Walk the commit tree, assembling a list of which branches each tag is on
 	tagBranchList := make(map[string][]string)
 	for bName, bEntry := range branches {
-		c, err := getCommit(bEntry.Commit)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		for tagName, tagData := range tags {
-			if tagData.Commit == c.ID {
-				// This tag is on this commit, so add this branch to the tag's branch list
-				a, ok := tagBranchList[tagName]
-				if !ok {
-					a = []string{""}
-				}
-				a = append(a, bName)
-				tagBranchList[tagName] = a
-			}
-		}
+		c := commit{Parent: bEntry.Commit}
 		for c.Parent != "" {
 			c, err = getCommit(c.Parent)
 			if err != nil {
@@ -422,7 +392,7 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
 	dbName := r.Request.Header.Get("database")
 	branchName := r.Request.Header.Get("branch")
-	commit := r.Request.Header.Get("commit")
+	commitID := r.Request.Header.Get("commit")
 	tag := r.Request.Header.Get("tag")
 
 	// Sanity check the inputs
@@ -430,11 +400,11 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if commit == "" && tag == "" {
+	if commitID == "" && tag == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if commit != "" && tag != "" {
+	if commitID != "" && tag != "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -460,7 +430,7 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		commit = c.Commit
+		commitID = c.Commit
 	}
 
 	// Load the existing branch heads from disk
@@ -480,25 +450,21 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	// * Ensure the requested commit exists in the branch history *
 
 	// If the head commit of the branch already matches the requested commit, there's nothing to change
-	if b.Commit == commit {
+	if b.Commit == commitID {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	// It didn't, so walk the branch history looking for the commit there
 	commitExists := false
-	c, err := getCommit(b.Commit)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	c := commit{Parent: b.Commit}
 	for c.Parent != "" {
 		c, err = getCommit(c.Parent)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if c.ID == commit {
+		if c.ID == commitID {
 			// This commit in the branch history matches the requested commit, so we're good to proceed
 			commitExists = true
 		}
@@ -512,7 +478,7 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 
 	// Update the branch
 	a := branches[branchName]
-	a.Commit = commit
+	a.Commit = commitID
 	branches[branchName] = a
 	err = storeBranches(dbName, branches)
 	if err != nil {
@@ -611,31 +577,10 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 				continue
 			}
 
-			// Gather the details of the head commit
-			c, err := getCommit(head.Commit)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			// If the requested commit matches the branch head, retrieve the matching database ID
+			// Walk the branch history looking for the commit
 			var e dbTreeEntry
 			var t dbTree
-			if reqCommit == head.Commit {
-				t, err = getTree(c.Tree)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-				for _, e = range t.Entries {
-					if e.Name == dbName {
-						dbID = e.Sha256
-						commitExists = true
-					}
-				}
-			}
-
-			// The requested commit wasn't the branch head, so we walk the branch history looking for it
+			c := commit{Parent: head.Commit}
 			for c.Parent != "" {
 				c, err = getCommit(c.Parent)
 				if err != nil {
@@ -877,7 +822,7 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 // Note the URL encoded + sign (%2b) in the date argument above, as the + sign doesn't get through otherwise
 func tagCreate(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and tag names, and the commit ID
-	commit := r.Request.Header.Get("commit")      // Required
+	commitID := r.Request.Header.Get("commit")    // Required
 	date := r.Request.Header.Get("date")          // Optional
 	dbName := r.Request.Header.Get("database")    // Required
 	tEmail := r.Request.Header.Get("taggeremail") // Only for annotated commits
@@ -886,7 +831,7 @@ func tagCreate(r *rest.Request, w *rest.Response) {
 	tag := r.Request.Header.Get("tag")            // Required
 
 	// Ensure at least the minimum inputs were provided
-	if dbName == "" || tag == "" || commit == "" {
+	if dbName == "" || tag == "" || commitID == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -953,25 +898,15 @@ func tagCreate(r *rest.Request, w *rest.Response) {
 			continue
 		}
 
-		// Check if the head commit of the branch matches the requested commit
-		if b.Commit == commit {
-			commitExists = true
-			continue
-		}
-
-		// It didn't, so walk the commit history looking for the commit there
-		c, err := getCommit(b.Commit)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+		// Walk the commit history looking for the commit
+		c := commit{Parent: b.Commit}
 		for c.Parent != "" {
 			c, err = getCommit(c.Parent)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			if c.ID == commit {
+			if c.ID == commitID {
 				// This commit in the history matches the requested commit, so we're good
 				commitExists = true
 			}
@@ -989,7 +924,7 @@ func tagCreate(r *rest.Request, w *rest.Response) {
 	if isAnno == true {
 		// It's an annotated commit
 		t = tagEntry{
-			Commit:      commit,
+			Commit:      commitID,
 			Date:        tDate,
 			Message:     msg,
 			TagType:     ANNOTATED,
@@ -999,7 +934,7 @@ func tagCreate(r *rest.Request, w *rest.Response) {
 	} else {
 		// It's a simple commit
 		t = tagEntry{
-			Commit:      commit,
+			Commit:      commitID,
 			Date:        tDate,
 			Message:     "",
 			TagType:     SIMPLE,
