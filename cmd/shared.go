@@ -25,6 +25,11 @@ type commitEntry struct {
 	Tree           string    `json:"tree"`
 }
 
+var errorInfo struct {
+	Condition string   `json:"error_condition"`
+	Data      []string `json:"data"`
+}
+
 type tagType string
 
 const (

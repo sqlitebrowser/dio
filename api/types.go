@@ -46,6 +46,11 @@ type dbTreeEntry struct {
 	Size          int             `json:"size"`
 }
 
+var errorInfo struct {
+	Condition string   `json:"error_condition"`
+	Data      []string `json:"data"`
+}
+
 const STORAGEDIR = "/Users/jc/tmp/dioapistorage"
 
 type tagType string

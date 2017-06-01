@@ -315,7 +315,8 @@ func branchRemove(r *rest.Request, w *rest.Response) {
 		return
 	}
 
-	// * Check if any tags exist which are only on this branch.  If so, tell the client about it + don't nuke the branch
+	// * Check if any tags exist which are only on this branch.  If so, tell the client about it + don't nuke the
+	// branch *
 
 	// Grab the list of tags for the database
 	tags, err := getTags(dbName)
@@ -357,12 +358,8 @@ func branchRemove(r *rest.Request, w *rest.Response) {
 	}
 	if len(isolatedTags) > 0 {
 		// Assemble further error info, so the client can notify the user
-		var errorInfo struct {
-			Condition string   `json:"error_condition"`
-			Tags      []string `json:"tags"`
-		}
 		errorInfo.Condition = "isolated_tags"
-		errorInfo.Tags = isolatedTags
+		errorInfo.Data = isolatedTags
 
 		// Convert into json
 		j, err := json.MarshalIndent(errorInfo, "", " ")
@@ -474,6 +471,90 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	if commitExists != true {
 		w.WriteHeader(http.StatusNotFound)
 		return
+	}
+
+	// * Check if any tags exist which are only on this branch, and which would no longer point to a commit on the
+	// branch.  If so, tell the client about it + don't nuke the branch *
+
+	// Grab the list of tags for the database
+	tags, err := getTags(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Walk the commit tree, assembling a list of which branches each tag is on
+	tagBranchList := make(map[string][]string)
+	for bName, bEntry := range branches {
+		c := commit{Parent: bEntry.Commit}
+		for c.Parent != "" {
+			c, err = getCommit(c.Parent)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			for tagName, tagData := range tags {
+				if tagData.Commit == c.ID {
+					// This tag is on this commit, so add this branch to the tag's branch list
+					a, ok := tagBranchList[tagName]
+					if !ok {
+						a = []string{}
+					}
+					a = append(a, bName)
+					tagBranchList[tagName] = a
+				}
+			}
+		}
+	}
+
+	// Check if any are only on this branch
+	thisBranchTags := make(map[string]tagEntry)
+	for tagName, tagBranches := range tagBranchList {
+		if len(tagBranches) == 1 && tagBranches[0] == branchName {
+			t := tagEntry{Commit: tags[tagName].Commit}
+			thisBranchTags[tagName] = t // Unlike the branchRemove() function above, we grab the tag data too
+		}
+	}
+	if len(thisBranchTags) > 0 {
+		// Tags exist which are only on this branch.  So we walk the commits backwards from the selected branch head
+		// to the commit to be reverted to, checking of any of them match these tags.  If they do we need to let the
+		// caller know + abort the revert
+		var isolatedTags []string
+		c := commit{Parent: b.Commit}
+		for c.Parent != "" {
+			c, err = getCommit(c.Parent)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			for tName, tEntry := range thisBranchTags {
+				if tEntry.Commit == c.ID {
+					// The commits match, so store the tag name in order to warn the caller
+					isolatedTags = append(isolatedTags, tName)
+				}
+			}
+			// If we're on the last commit we need to check, trigger the loop finishing condition
+			if c.Parent == commitID {
+				c.Parent = ""
+			}
+		}
+		if len(isolatedTags) > 0 {
+			// Potentially isolated tags were found.  Assemble error info, so the client can notify the user
+			errorInfo.Condition = "isolated_tags"
+			errorInfo.Data = isolatedTags
+
+			// Convert into json
+			j, err := json.MarshalIndent(errorInfo, "", " ")
+			if err != nil {
+				log.Printf("Something went wrong serialising the error information: %v\n", err.Error())
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(j))
+			return
+		}
+
 	}
 
 	// Update the branch

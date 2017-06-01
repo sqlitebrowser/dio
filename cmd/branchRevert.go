@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -48,7 +49,7 @@ var branchRevertCmd = &cobra.Command{
 		} else {
 			req.Set("tag", tag)
 		}
-		resp, _, errs := req.End()
+		resp, body, errs := req.End()
 		if errs != nil {
 			log.Print("Errors when reverting branch:")
 			for _, err := range errs {
@@ -60,6 +61,25 @@ var branchRevertCmd = &cobra.Command{
 			if resp.StatusCode == http.StatusNotFound {
 				return errors.New("Requested database or commit not found")
 			}
+			if resp.StatusCode == http.StatusConflict {
+				// Check for a message body indicating there would be isolated tags
+				err := json.Unmarshal([]byte(body), &errorInfo)
+				if err != nil {
+					return err
+				}
+				if errorInfo.Condition == "isolated_tags" {
+					// Yep, isolated tags would exist if this branch is reverted.  Let the user know they'll need to
+					// remove the tags first
+					// TODO: Add some kind of --force option which removes the tags itself then removes the branch
+					e := "The following tags would become isolated by reverting to that commit. " +
+						"You'll need to remove them first:\n\n"
+					for _, j := range errorInfo.Data {
+						e += fmt.Sprintf(" * %s\n", j)
+					}
+					return errors.New(e)
+				}
+			}
+
 			return errors.New(fmt.Sprintf("Branch revertion failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
 		}

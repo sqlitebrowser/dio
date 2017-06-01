@@ -16,11 +16,6 @@ var branchRemoveCmd = &cobra.Command{
 	Use:   "remove [database name] --branch xxx",
 	Short: "Removes a branch from a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var errorInfo struct {
-			Condition string   `json:"error_condition"`
-			Tags      []string `json:"tags"`
-		}
-
 		// Ensure a database file was given
 		if len(args) == 0 {
 			return errors.New("No database file specified")
@@ -64,10 +59,9 @@ var branchRemoveCmd = &cobra.Command{
 					// remove the tags first
 					// TODO: Add some kind of --force option which removes the tags itself then removes the branch
 					e := "The following tags only exist on that branch.  You'll need to remove them first:\n\n"
-					for _, j := range errorInfo.Tags {
+					for _, j := range errorInfo.Data {
 						e += fmt.Sprintf(" * %s\n", j)
 					}
-					//e += fmt.Sprintf("\n")
 					return errors.New(e)
 				}
 
