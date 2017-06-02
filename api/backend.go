@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/jackc/pgx"
 )
 
 // Generate a stable SHA256 for a commit.
@@ -53,15 +55,23 @@ func createDBTreeID(entries []dbTreeEntry) string {
 }
 
 // Check if a database already exists.
-func dbExists(dbName string) bool {
-	path := filepath.Join(STORAGEDIR, "meta", dbName)
-	_, err := os.Stat(path)
+func dbExists(dbName string) (bool, error) {
+	dbQuery := `
+		SELECT count(dbID)
+		FROM sqlite_databases
+		WHERE dbName = ?`
+	var q int
+	err := pdb.QueryRow(dbQuery).Scan(&q)
 	if err != nil {
-		// As this is just experimental code, we'll assume a failure above means the db doesn't exist
-		// TODO: Proper handling for errors here.  It may not mean the file doesn't exist.
-		return false
+		log.Printf("Error when checking if database '%v' exists: %v\n", dbName, err)
+		return false, err
 	}
-	return true
+	if q == 0 {
+		// Database doesn't exist
+		return false, nil
+	}
+	// Database does exist
+	return true, nil
 }
 
 // Load the branch heads for a database.
@@ -82,18 +92,33 @@ func getBranches(dbName string) (map[string]branchEntry, error) {
 }
 
 // Retrieve the default branch name for a database.
-func getDefaultBranchName(dbName string) string {
-	if !dbExists(dbName) {
-		return "master" // Database doesn't exist, so use "master" as the initial default
+func getDefaultBranchName(dbName string) (string, error) {
+	db, err := dbExists(dbName)
+	if err != nil {
+		return "", err
+	}
+	if !db {
+		// Database doesn't exist, so use "master" as the initial default
+		return "master", nil
 	}
 
 	// Return the default branch name
-	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", dbName, "defaultBranch"))
+	dbQuery := `
+		SELECT dbDefaultBranch
+		FROM sqlite_databases
+		WHERE dbName = ?`
+	var branchName string
+	err = pdb.QueryRow(dbQuery).Scan(&branchName)
 	if err != nil {
-		log.Printf("Error when reading default branch for '%s': %v\n", dbName, err.Error())
-		return "master" // An error occurred reading the default branch name, so default to master
+		if err != pgx.ErrNoRows {
+			log.Printf("Error when retrieving default branch name for database '%v': %v\n", dbName, err)
+			return "", err
+		} else {
+			log.Printf("No default branch name exists for database '%s'. This shouldn't happen\n", dbName)
+			return "", err
+		}
 	}
-	return string(b[:])
+	return branchName, nil
 }
 
 // Reads a commit from disk.
@@ -172,7 +197,10 @@ func listDatabases() ([]byte, error) {
 	var dbs []dbListEntry
 	for _, i := range dirEntries {
 		// Get the size and last modified date of each of the databases from it's commit tree entry
-		def := getDefaultBranchName(i.Name())
+		def, err := getDefaultBranchName(i.Name())
+		if err != nil {
+			return []byte{}, err
+		}
 		b, err := getBranches(i.Name())
 		if err != nil {
 			return []byte{}, err
@@ -285,25 +313,18 @@ func storeDatabase(db []byte) error {
 
 // Stores the default branch name for a database.
 func storeDefaultBranchName(dbName string, branchName string) error {
-	path := filepath.Join(STORAGEDIR, "meta", dbName)
-	_, err := os.Stat(path)
+	dbQuery := `
+		UPDATE sqlite_databases
+		SET "dbDefaultBranch" = ?
+		WHERE "dbName" = ?`
+	commandTag, err := pdb.Exec(dbQuery, branchName, dbName)
 	if err != nil {
-		// As this is just experimental code, we'll assume a failure above means the dir needs creating
-		// TODO: Proper handling for errors here.  It may not mean the dir doesn't exist.
-		err := os.MkdirAll(filepath.Join(STORAGEDIR, "meta", dbName), os.ModeDir|0755)
-		if err != nil {
-			log.Printf("Something went wrong creating the database meta dir: %v\n", err.Error())
-			return err
-		}
-	}
-
-	var buf bytes.Buffer
-	buf.WriteString(branchName)
-	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "meta", dbName, "defaultBranch"), buf.Bytes(), os.ModePerm)
-	if err != nil {
-		log.Printf("Something went wrong writing the default branch name for '%s': %v\n", dbName,
-			err.Error())
+		log.Printf("Changing default branch for database '%v' to '%v' failed: %v\n", dbName, branchName, err)
 		return err
+	}
+	if numRows := commandTag.RowsAffected(); numRows != 1 {
+		log.Printf("Wrong number of rows (%v) affected during update: database: %v, new branch name: '%v'\n",
+			numRows, dbName, branchName)
 	}
 	return nil
 }

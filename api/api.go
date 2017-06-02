@@ -48,10 +48,11 @@ type PGInfo struct {
 // Our configuration info
 var (
 	conf TomlConfig
+	pdb  *pgx.ConnPool
 )
 
 func main() {
-	// Read our config settings from disk
+	// Read our config settings
 	userHome, err := homedir.Dir()
 	if err != nil {
 		log.Printf("User home directory couldn't be determined: %s", "\n")
@@ -65,7 +66,7 @@ func main() {
 
 	// Create the storage directories on disk
 	// TODO: Move these into the TOML config
-	err := os.MkdirAll(filepath.Join(STORAGEDIR, "files"), os.ModeDir|0755)
+	err = os.MkdirAll(filepath.Join(STORAGEDIR, "files"), os.ModeDir|0755)
 	if err != nil {
 		log.Printf("Something went wrong when creating the files dir: %v\n", err.Error())
 		return
@@ -86,7 +87,7 @@ func main() {
 	pgConfig.TLSConfig = nil
 	pgPoolConfig := pgx.ConnPoolConfig{*pgConfig, PGConnections, nil,
 		2 * time.Second}
-	pdb, err := pgx.NewConnPool(pgPoolConfig)
+	pdb, err = pgx.NewConnPool(pgPoolConfig)
 	if err != nil {
 		log.Printf("Couldn't connect to PostgreSQL server: %v\n", err)
 		os.Exit(1)
@@ -135,7 +136,12 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 	// TODO: Validate the inputs
 
 	// Ensure the requested database is in our system
-	if !dbExists(dbName) {
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -211,7 +217,12 @@ func branchDefaultChange(r *rest.Request, w *rest.Response) {
 	// TODO: Validate the database and branch names
 
 	// Ensure the requested database is in our system
-	if !dbExists(dbName) {
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -252,13 +263,22 @@ func branchDefaultGet(r *rest.Request, w *rest.Response) {
 	// TODO: Validate the database name
 
 	// Ensure the requested database is in our system
-	if !dbExists(dbName) {
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	// Return the default branch name
-	b := getDefaultBranchName(dbName)
+	b, err := getDefaultBranchName(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	w.Write([]byte(b))
 }
 
@@ -278,7 +298,12 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 	}
 
 	// Ensure the requested database is in our system
-	if !dbExists(dbName) {
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -326,7 +351,12 @@ func branchList(r *rest.Request, w *rest.Response) {
 	}
 
 	// Ensure the requested database is in our system
-	if !dbExists(dbName) {
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -358,7 +388,12 @@ func branchRemove(r *rest.Request, w *rest.Response) {
 	// TODO: Validate the database and branch names
 
 	// Ensure the requested database is in our system
-	if !dbExists(dbName) {
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -377,7 +412,12 @@ func branchRemove(r *rest.Request, w *rest.Response) {
 	}
 
 	// Ensure the branch isn't the default for the database
-	if branchName == getDefaultBranchName(dbName) {
+	defBranch, err := getDefaultBranchName(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if branchName == defBranch {
 		w.WriteHeader(http.StatusConflict)
 		return
 	}
@@ -476,7 +516,12 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	// TODO: Validate the database and branch names
 
 	// Ensure the requested database is in our system
-	if !dbExists(dbName) {
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -653,7 +698,12 @@ func branchUpdate(r *rest.Request, w *rest.Response) {
 	// TODO: Validate the inputs
 
 	// Ensure the requested database is in our system
-	if !dbExists(dbName) {
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -701,7 +751,12 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 	}
 
 	// Ensure the requested database is in our system
-	if !dbExists(dbName) {
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -763,7 +818,11 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 
 		// If no branch name was given, use the default for the database
 		if branchName == "" {
-			branchName = getDefaultBranchName(dbName)
+			branchName, err = getDefaultBranchName(dbName)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
 
 		// Retrieve the commit ID for the branch
@@ -841,8 +900,14 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	}
 
 	// If no branch name was given, use the default for the database
+	var err error
 	if branchName == "" {
-		branchName = getDefaultBranchName(dbName)
+		// TODO: This should probably be after the "if dbExists(dbName)" call later on
+		branchName, err = getDefaultBranchName(dbName)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Grab the uploaded database
@@ -889,7 +954,12 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	// Check if the database already exists
 	var branches map[string]branchEntry
 	needDefBranch := false
-	if dbExists(dbName) {
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if exists {
 		// Load the existing branchHeads from disk
 		branches, err = getBranches(dbName)
 		if err != nil {
@@ -1010,7 +1080,12 @@ func tagCreate(r *rest.Request, w *rest.Response) {
 	}
 
 	// Ensure the requested database is in our system
-	if !dbExists(dbName) {
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -1114,7 +1189,12 @@ func tagList(r *rest.Request, w *rest.Response) {
 	}
 
 	// Ensure the requested database is in our system
-	if !dbExists(dbName) {
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -1146,7 +1226,12 @@ func tagRemove(r *rest.Request, w *rest.Response) {
 	// TODO: Validate the inputs
 
 	// Ensure the requested database is in our system
-	if !dbExists(dbName) {
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
