@@ -13,11 +13,58 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	rest "github.com/emicklei/go-restful"
+	"github.com/jackc/pgx"
+	"github.com/minio/go-homedir"
+)
+
+// Number of connections to PostgreSQL to use
+const PGConnections = 5
+
+// Configuration file
+type TomlConfig struct {
+	Minio MinioInfo
+	Pg    PGInfo
+}
+
+// Minio connection parameters
+type MinioInfo struct {
+	AccessKey string `toml:"access_key"`
+	HTTPS     bool
+	Secret    string
+	Server    string
+}
+
+// PostgreSQL connection parameters
+type PGInfo struct {
+	Database string
+	Port     int
+	Password string
+	Server   string
+	Username string
+}
+
+// Our configuration info
+var (
+	conf TomlConfig
 )
 
 func main() {
+	// Read our config settings from disk
+	userHome, err := homedir.Dir()
+	if err != nil {
+		log.Printf("User home directory couldn't be determined: %s", "\n")
+		os.Exit(1)
+	}
+	configFile := filepath.Join(userHome, ".dbhub", "config.toml")
+	if _, err := toml.DecodeFile(configFile, &conf); err != nil {
+		log.Printf("Config file couldn't be parsed: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Create the storage directories on disk
+	// TODO: Move these into the TOML config
 	err := os.MkdirAll(filepath.Join(STORAGEDIR, "files"), os.ModeDir|0755)
 	if err != nil {
 		log.Printf("Something went wrong when creating the files dir: %v\n", err.Error())
@@ -28,6 +75,23 @@ func main() {
 		log.Printf("Something went wrong when creating the meta dir: %v\n", err.Error())
 		return
 	}
+
+	// Connect to PostgreSQL
+	pgConfig := new(pgx.ConnConfig)
+	pgConfig.Host = conf.Pg.Server
+	pgConfig.Port = uint16(conf.Pg.Port)
+	pgConfig.User = conf.Pg.Username
+	pgConfig.Password = conf.Pg.Password
+	pgConfig.Database = conf.Pg.Database
+	pgConfig.TLSConfig = nil
+	pgPoolConfig := pgx.ConnPoolConfig{*pgConfig, PGConnections, nil,
+		2 * time.Second}
+	pdb, err := pgx.NewConnPool(pgPoolConfig)
+	if err != nil {
+		log.Printf("Couldn't connect to PostgreSQL server: %v\n", err)
+		os.Exit(1)
+	}
+	log.Printf("Connected to PostgreSQL server: %v:%v\n", pgConfig.Host, pgConfig.Port)
 
 	// Create and start the API server
 	ws := new(rest.WebService)
@@ -48,6 +112,9 @@ func main() {
 	ws.Route(ws.POST("/tag_remove").To(tagRemove))
 	rest.Add(ws)
 	http.ListenAndServe(":8080", nil)
+
+	// Close connection to PostgreSQL
+	pdb.Close()
 }
 
 // Creates a new branch for a database.
