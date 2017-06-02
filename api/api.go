@@ -57,7 +57,7 @@ func main() {
 		log.Printf("User home directory couldn't be determined: %s", "\n")
 		os.Exit(1)
 	}
-	configFile := filepath.Join(userHome, ".dbhub", "config.toml")
+	configFile := filepath.Join(userHome, ".dbhub", "dio.toml")
 	if _, err := toml.DecodeFile(configFile, &conf); err != nil {
 		log.Printf("Config file couldn't be parsed: %v\n", err)
 		os.Exit(1)
