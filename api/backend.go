@@ -106,7 +106,7 @@ func getDefaultBranchName(dbName string) (string, error) {
 	dbQuery := `
 		SELECT dbDefaultBranch
 		FROM sqlite_databases
-		WHERE dbName = ?`
+		WHERE dbName = $1`
 	var branchName string
 	err = pdb.QueryRow(dbQuery).Scan(&branchName)
 	if err != nil {
@@ -269,10 +269,18 @@ func storeCommit(c commit) error {
 		log.Printf("Something went wrong when serialising the commit data: %v\n", err.Error())
 		return err
 	}
-	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "files", c.ID), j, os.ModePerm)
+
+	// Store the json in the database
+	dbQuery := `
+		INSERT INTO database_commits (commitHash, commitEntries)
+		VALUES ($1, $2)`
+	commandTag, err := pdb.Exec(dbQuery, c.ID, j)
 	if err != nil {
-		log.Printf("Something went wrong writing the commit file: %v\n", err.Error())
+		log.Printf("Inserting commit '%v' failed: %v\n", c.ID, err)
 		return err
+	}
+	if numRows := commandTag.RowsAffected(); numRows != 1 {
+		log.Printf("Wrong number of rows (%v) affected during insert: new commit hash: '%v'\n", numRows, c.ID)
 	}
 	return nil
 }
@@ -315,8 +323,8 @@ func storeDatabase(db []byte) error {
 func storeDefaultBranchName(dbName string, branchName string) error {
 	dbQuery := `
 		UPDATE sqlite_databases
-		SET "dbDefaultBranch" = ?
-		WHERE "dbName" = ?`
+		SET "dbDefaultBranch" = $1
+		WHERE "dbName" = $2`
 	commandTag, err := pdb.Exec(dbQuery, branchName, dbName)
 	if err != nil {
 		log.Printf("Changing default branch for database '%v' to '%v' failed: %v\n", dbName, branchName, err)
@@ -358,15 +366,24 @@ func storeTags(dbName string, tags map[string]tagEntry) error {
 
 // Store a tree.
 func storeTree(t dbTree) error {
-	j, err := json.MarshalIndent(t, "", " ")
+	// Convert the tree entries to json
+	j, err := json.MarshalIndent(t.Entries, "", " ")
 	if err != nil {
 		log.Printf("Something went wrong serialising the tree data: %v\n", err.Error())
 		return err
 	}
-	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "files", t.ID), j, os.ModePerm)
+
+	// Store the json in the database
+	dbQuery := `
+		INSERT INTO database_trees (treeHash, treeEntries)
+		VALUES ($1, $2)`
+	commandTag, err := pdb.Exec(dbQuery, t.ID, j)
 	if err != nil {
-		log.Printf("Something went wrong writing the tree file: %v\n", err.Error())
+		log.Printf("Inserting tree '%v' failed: %v\n", t.ID, err)
 		return err
+	}
+	if numRows := commandTag.RowsAffected(); numRows != 1 {
+		log.Printf("Wrong number of rows (%v) affected during insert: new tree hash: '%v'\n", numRows, t.ID)
 	}
 	return nil
 }
