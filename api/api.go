@@ -787,7 +787,7 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 
 				if reqCommit == c.ID {
 					// Found a match, so retrieve the database ID for the commit
-					t, err = getTree(c.Tree)
+					t, err = getTree(c.Tree.ID)
 					if err != nil {
 						w.WriteHeader(http.StatusInternalServerError)
 						return
@@ -835,7 +835,7 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 		treeID := c.Tree
 
 		// Retrieve the database ID from the tree
-		t, err := getTree(treeID)
+		t, err := getTree(treeID.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -943,7 +943,7 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	c.AuthorEmail = email
 	c.Message = msg
 	c.Timestamp = time.Now()
-	c.Tree = t.ID
+	c.Tree = t
 
 	// Check if the database already exists
 	var branches map[string]branchEntry

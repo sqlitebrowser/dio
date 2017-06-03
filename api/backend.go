@@ -209,7 +209,7 @@ func listDatabases() ([]byte, error) {
 		if err != nil {
 			return []byte{}, err
 		}
-		t, err := getTree(c.Tree)
+		t, err := getTree(c.Tree.ID)
 		if err != nil {
 			return []byte{}, err
 		}

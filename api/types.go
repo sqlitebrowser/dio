@@ -16,7 +16,7 @@ type commitEntry struct {
 	Message        string    `json:"message"`
 	Parent         string    `json:"parent"`
 	Timestamp      time.Time `json:"timestamp"`
-	Tree           string    `json:"tree"`
+	Tree           dbTree    `json:"tree"`
 }
 
 type dbListEntry struct {
