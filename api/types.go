@@ -7,7 +7,7 @@ type branchEntry struct {
 	Description string `json:"description"`
 }
 
-type commit struct {
+type commitEntry struct {
 	AuthorEmail    string    `json:"author_email"`
 	AuthorName     string    `json:"author_name"`
 	CommitterEmail string    `json:"committer_email"`
@@ -46,9 +46,13 @@ type dbTreeEntry struct {
 	Size          int             `json:"size"`
 }
 
-var errorInfo struct {
+type errorInfo struct {
 	Condition string   `json:"error_condition"`
 	Data      []string `json:"data"`
+}
+
+type CommitList struct {
+	Commits []commitEntry `json:"commits"`
 }
 
 const STORAGEDIR = "/Users/jc/tmp/dioapistorage"

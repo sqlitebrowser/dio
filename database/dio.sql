@@ -65,29 +65,10 @@ ALTER SEQUENCE "database_versions_verID_seq" OWNED BY database_versions."verID";
 --
 
 CREATE TABLE sqlite_databases (
-    "dbID" integer NOT NULL,
     "dbName" text NOT NULL,
-    "dbDefaultBranch" text
+    "dbDefaultBranch" text DEFAULT 'master'::text NOT NULL,
+    "commitList" jsonb NOT NULL
 );
-
-
---
--- Name: sqlite_databases_dbID_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE "sqlite_databases_dbID_seq"
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: sqlite_databases_dbID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE "sqlite_databases_dbID_seq" OWNED BY sqlite_databases."dbID";
 
 
 --
@@ -95,13 +76,6 @@ ALTER SEQUENCE "sqlite_databases_dbID_seq" OWNED BY sqlite_databases."dbID";
 --
 
 ALTER TABLE ONLY database_versions ALTER COLUMN "verID" SET DEFAULT nextval('"database_versions_verID_seq"'::regclass);
-
-
---
--- Name: sqlite_databases dbID; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY sqlite_databases ALTER COLUMN "dbID" SET DEFAULT nextval('"sqlite_databases_dbID_seq"'::regclass);
 
 
 --
@@ -113,19 +87,11 @@ ALTER TABLE ONLY database_versions
 
 
 --
--- Name: sqlite_databases sqlite_databases_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: sqlite_databases sqlite_databases_pkey; Type: CONSTRAINT; Schema: public; Owner: dbhub
 --
 
 ALTER TABLE ONLY sqlite_databases
-    ADD CONSTRAINT sqlite_databases_pkey PRIMARY KEY ("dbID");
-
-
---
--- Name: database_versions database_versions_dbID_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY database_versions
-    ADD CONSTRAINT "database_versions_dbID_fkey" FOREIGN KEY ("dbID") REFERENCES sqlite_databases("dbID") ON UPDATE CASCADE ON DELETE CASCADE;
+    ADD CONSTRAINT sqlite_databases_pkey PRIMARY KEY ("dbName");
 
 
 --

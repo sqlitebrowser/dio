@@ -16,7 +16,7 @@ import (
 )
 
 // Generate a stable SHA256 for a commit.
-func createCommitID(c commit) string {
+func createCommitID(c commitEntry) string {
 	var b bytes.Buffer
 	b.WriteString(fmt.Sprintf("tree %s\n", c.Tree))
 	if c.Parent != "" {
@@ -57,11 +57,11 @@ func createDBTreeID(entries []dbTreeEntry) string {
 // Check if a database already exists.
 func dbExists(dbName string) (bool, error) {
 	dbQuery := `
-		SELECT count(dbID)
+		SELECT count("dbName")
 		FROM sqlite_databases
-		WHERE dbName = ?`
+		WHERE "dbName" = $1`
 	var q int
-	err := pdb.QueryRow(dbQuery).Scan(&q)
+	err := pdb.QueryRow(dbQuery, dbName).Scan(&q)
 	if err != nil {
 		log.Printf("Error when checking if database '%v' exists: %v\n", dbName, err)
 		return false, err
@@ -104,9 +104,9 @@ func getDefaultBranchName(dbName string) (string, error) {
 
 	// Return the default branch name
 	dbQuery := `
-		SELECT dbDefaultBranch
+		SELECT "dbDefaultBranch"
 		FROM sqlite_databases
-		WHERE dbName = $1`
+		WHERE "dbName" = $1`
 	var branchName string
 	err = pdb.QueryRow(dbQuery).Scan(&branchName)
 	if err != nil {
@@ -122,8 +122,8 @@ func getDefaultBranchName(dbName string) (string, error) {
 }
 
 // Reads a commit from disk.
-func getCommit(id string) (commit, error) {
-	var c commit
+func getCommit(id string) (commitEntry, error) {
+	var c commitEntry
 	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "files", id))
 	if err != nil {
 		return c, err
@@ -263,18 +263,14 @@ func storeBranches(dbName string, branches map[string]branchEntry) error {
 }
 
 // Store a commit.
-func storeCommit(c commit) error {
-	j, err := json.MarshalIndent(c, "", " ")
-	if err != nil {
-		log.Printf("Something went wrong when serialising the commit data: %v\n", err.Error())
-		return err
-	}
-
-	// Store the json in the database
+func storeCommit(dbName string, c commitEntry) error {
 	dbQuery := `
-		INSERT INTO database_commits (commitHash, commitEntries)
-		VALUES ($1, $2)`
-	commandTag, err := pdb.Exec(dbQuery, c.ID, j)
+		INSERT INTO sqlite_databases ("dbName", "commitList")
+		VALUES ($1, $2)
+		ON CONFLICT ("dbName")
+			DO UPDATE
+			SET "commitList" = sqlite_databases."commitList" || $2`
+	commandTag, err := pdb.Exec(dbQuery, dbName, []commitEntry{c})
 	if err != nil {
 		log.Printf("Inserting commit '%v' failed: %v\n", c.ID, err)
 		return err
@@ -364,26 +360,26 @@ func storeTags(dbName string, tags map[string]tagEntry) error {
 	return nil
 }
 
-// Store a tree.
-func storeTree(t dbTree) error {
-	// Convert the tree entries to json
-	j, err := json.MarshalIndent(t.Entries, "", " ")
-	if err != nil {
-		log.Printf("Something went wrong serialising the tree data: %v\n", err.Error())
-		return err
-	}
-
-	// Store the json in the database
-	dbQuery := `
-		INSERT INTO database_trees (treeHash, treeEntries)
-		VALUES ($1, $2)`
-	commandTag, err := pdb.Exec(dbQuery, t.ID, j)
-	if err != nil {
-		log.Printf("Inserting tree '%v' failed: %v\n", t.ID, err)
-		return err
-	}
-	if numRows := commandTag.RowsAffected(); numRows != 1 {
-		log.Printf("Wrong number of rows (%v) affected during insert: new tree hash: '%v'\n", numRows, t.ID)
-	}
-	return nil
-}
+//// Store a tree.
+//func storeTree(t dbTree) error {
+//	// Convert the tree entries to json
+//	j, err := json.MarshalIndent(t.Entries, "", " ")
+//	if err != nil {
+//		log.Printf("Something went wrong serialising the tree data: %v\n", err.Error())
+//		return err
+//	}
+//
+//	// Store the json in the database
+//	dbQuery := `
+//		INSERT INTO database_trees (treeHash, treeEntries)
+//		VALUES ($1, $2)`
+//	commandTag, err := pdb.Exec(dbQuery, t.ID, j)
+//	if err != nil {
+//		log.Printf("Inserting tree '%v' failed: %v\n", t.ID, err)
+//		return err
+//	}
+//	if numRows := commandTag.RowsAffected(); numRows != 1 {
+//		log.Printf("Wrong number of rows (%v) affected during insert: new tree hash: '%v'\n", numRows, t.ID)
+//	}
+//	return nil
+//}

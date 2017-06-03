@@ -172,7 +172,7 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 		}
 
 		// Walk the commit history looking for the commit
-		c := commit{Parent: b.Commit}
+		c := commitEntry{Parent: b.Commit}
 		for c.Parent != "" {
 			c, err = getCommit(c.Parent)
 			if err != nil {
@@ -323,8 +323,8 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 	}
 
 	// Walk the commit history, assembling it into something useful
-	var history []commit
-	c := commit{Parent: b.Commit}
+	var history []commitEntry
+	c := commitEntry{Parent: b.Commit}
 	for c.Parent != "" {
 		c, err = getCommit(c.Parent)
 		if err != nil {
@@ -435,7 +435,7 @@ func branchRemove(r *rest.Request, w *rest.Response) {
 	// Walk the commit tree, assembling a list of which branches each tag is on
 	tagBranchList := make(map[string][]string)
 	for bName, bEntry := range branches {
-		c := commit{Parent: bEntry.Commit}
+		c := commitEntry{Parent: bEntry.Commit}
 		for c.Parent != "" {
 			c, err = getCommit(c.Parent)
 			if err != nil {
@@ -464,12 +464,9 @@ func branchRemove(r *rest.Request, w *rest.Response) {
 		}
 	}
 	if len(isolatedTags) > 0 {
-		// Assemble further error info, so the client can notify the user
-		errorInfo.Condition = "isolated_tags"
-		errorInfo.Data = isolatedTags
-
-		// Convert into json
-		j, err := json.MarshalIndent(errorInfo, "", " ")
+		// Potentially isolated tags were found.  Return the details to the API caller.
+		e := errorInfo{Condition: "isolated_tags", Data: isolatedTags}
+		j, err := json.MarshalIndent(e, "", " ")
 		if err != nil {
 			log.Printf("Something went wrong serialising the error information: %v\n", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
@@ -566,7 +563,7 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 
 	// It didn't, so walk the branch history looking for the commit there
 	commitExists := false
-	c := commit{Parent: b.Commit}
+	c := commitEntry{Parent: b.Commit}
 	for c.Parent != "" {
 		c, err = getCommit(c.Parent)
 		if err != nil {
@@ -598,7 +595,7 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	// Walk the commit tree, assembling a list of which branches each tag is on
 	tagBranchList := make(map[string][]string)
 	for bName, bEntry := range branches {
-		c := commit{Parent: bEntry.Commit}
+		c := commitEntry{Parent: bEntry.Commit}
 		for c.Parent != "" {
 			c, err = getCommit(c.Parent)
 			if err != nil {
@@ -632,7 +629,7 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 		// to the commit to be reverted to, checking of any of them match these tags.  If they do we need to let the
 		// caller know + abort the revert
 		var isolatedTags []string
-		c := commit{Parent: b.Commit}
+		c := commitEntry{Parent: b.Commit}
 		for c.Parent != "" {
 			c, err = getCommit(c.Parent)
 			if err != nil {
@@ -651,12 +648,9 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 			}
 		}
 		if len(isolatedTags) > 0 {
-			// Potentially isolated tags were found.  Assemble error info, so the client can notify the user
-			errorInfo.Condition = "isolated_tags"
-			errorInfo.Data = isolatedTags
-
-			// Convert into json
-			j, err := json.MarshalIndent(errorInfo, "", " ")
+			// Potentially isolated tags were found.  Return the details to the API caller.
+			e := errorInfo{Condition: "isolated_tags", Data: isolatedTags}
+			j, err := json.MarshalIndent(e, "", " ")
 			if err != nil {
 				log.Printf("Something went wrong serialising the error information: %v\n", err.Error())
 				w.WriteHeader(http.StatusInternalServerError)
@@ -783,7 +777,7 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 			// Walk the branch history looking for the commit
 			var e dbTreeEntry
 			var t dbTree
-			c := commit{Parent: head.Commit}
+			c := commitEntry{Parent: head.Commit}
 			for c.Parent != "" {
 				c, err = getCommit(c.Parent)
 				if err != nil {
@@ -944,7 +938,7 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	t.ID = createDBTreeID(t.Entries)
 
 	// Construct a commit structure pointing to the tree
-	var c commit
+	var c commitEntry
 	c.AuthorName = authorName
 	c.AuthorEmail = email
 	c.Message = msg
@@ -953,7 +947,6 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 
 	// Check if the database already exists
 	var branches map[string]branchEntry
-	needDefBranch := false
 	exists, err := dbExists(dbName)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -969,15 +962,15 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 
 		// Check if the desired branch already exists.  If it does, use its head commit as the parent for
 		// our new uploads commit
-		if b, ok := branches[branchName]; ok {
-			c.Parent = b.Commit
+		b, ok := branches[branchName]
+		if !ok {
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
+		c.Parent = b.Commit
 	} else {
 		// No existing branches, so this will be the first
 		branches = make(map[string]branchEntry)
-
-		// We'll need to create the default branch value for the database later on too
-		needDefBranch = true
 	}
 
 	// Update the branch with the commit for this new database upload
@@ -993,16 +986,8 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 		return
 	}
 
-	// Write the tree to disk
-	err = storeTree(t)
-	if err != nil {
-		log.Printf("Something went wrong when storing the tree file: %v\n", err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
 	// Write the commit to disk
-	err = storeCommit(c)
+	err = storeCommit(dbName, c)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -1013,15 +998,6 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
-	}
-
-	// Write the default branch name to disk
-	if needDefBranch {
-		err = storeDefaultBranchName(dbName, branchName)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
 	}
 
 	// Log the upload
@@ -1122,7 +1098,7 @@ func tagCreate(r *rest.Request, w *rest.Response) {
 		}
 
 		// Walk the commit history looking for the commit
-		c := commit{Parent: b.Commit}
+		c := commitEntry{Parent: b.Commit}
 		for c.Parent != "" {
 			c, err = getCommit(c.Parent)
 			if err != nil {
