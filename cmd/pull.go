@@ -28,16 +28,33 @@ var pullCmd = &cobra.Command{
 			return errors.New("Only one database can be downloaded at a time (for now)")
 		}
 
-		// Ensure we were given either a branch name or commit ID (and not both)
-		if pullCmdBranch == "" && pullCmdCommit == "" {
-			return errors.New("Either a branch name or commit ID must be given.")
-		}
+		// Ensure we weren't given conflicting info on what to pull down
 		if pullCmdBranch != "" && pullCmdCommit != "" {
-			return errors.New("Either a branch name or commit ID must be given.  Not both!")
+			return errors.New("Either a branch name or commit ID can be given.  Not both at the same time!")
+		}
+
+		// If neither a branch nor commit ID were given, use the head commit of the default branch
+		file := args[0]
+		if pullCmdBranch == "" && pullCmdCommit == "" {
+			var errs []error
+			var resp rq.Response
+			resp, pullCmdBranch, errs = rq.New().Get(cloud+"/branch_default_get").
+				Set("database", file).
+				End()
+			if errs != nil {
+				return errors.New("Could not determine default branch for database")
+			}
+			if resp.StatusCode != http.StatusOK {
+				if resp.StatusCode == http.StatusNotFound {
+					return errors.New("Requested database not found")
+				}
+				return errors.New(fmt.Sprintf(
+					"Retrieving default branch failed with an error: HTTP status %d - '%v'\n",
+					resp.StatusCode, resp.Status))
+			}
 		}
 
 		// Download the database file
-		file := args[0]
 		req := rq.New().Get(cloud+"/db_download").Set("database", file)
 		if pullCmdBranch != "" {
 			req.Set("branch", pullCmdBranch)
