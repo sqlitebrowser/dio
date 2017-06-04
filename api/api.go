@@ -879,7 +879,7 @@ func dbList(r *rest.Request, w *rest.Response) {
 func dbUpload(r *rest.Request, w *rest.Response) {
 	// Retrieve metadata from the post headers
 	authorName := r.Request.Header.Get("Author")
-	branchName := r.Request.Header.Get("Branch")
+	branchName := r.Request.Header.Get("Branch") // Optional
 	dbName := r.Request.Header.Get("Database")
 	email := r.Request.Header.Get("Email")
 	msg := r.Request.Header.Get("Message")

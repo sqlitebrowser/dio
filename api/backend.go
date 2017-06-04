@@ -77,38 +77,28 @@ func dbExists(dbName string) (bool, error) {
 // Load the branch heads for a database.
 // TODO: It might be better to have the default branch name be returned as part of this list, by indicating in the list
 // TODO  which of the branches is the default.
-func getBranches(dbName string) (map[string]branchEntry, error) {
-	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", dbName, "branchHeads"))
+func getBranches(dbName string) (branches map[string]branchEntry, err error) {
+	dbQuery := `
+		SELECT "branchHeads"
+		FROM sqlite_databases
+		WHERE "dbName" = $1`
+	err = pdb.QueryRow(dbQuery, dbName).Scan(&branches)
 	if err != nil {
+		log.Printf("Error when retrieving branch heads for database '%v': %v\n", dbName, err)
 		return nil, err
 	}
-	var i map[string]branchEntry
-	err = json.Unmarshal(b, &i)
-	if err != nil {
-		log.Printf("Something went wrong unserialising the branchHeads data: %v\n", err.Error())
-		return nil, err
-	}
-	return i, nil
+	return branches, nil
 }
 
 // Retrieve the default branch name for a database.
 func getDefaultBranchName(dbName string) (string, error) {
-	db, err := dbExists(dbName)
-	if err != nil {
-		return "", err
-	}
-	if !db {
-		// Database doesn't exist, so use "master" as the initial default
-		return "master", nil
-	}
-
 	// Return the default branch name
 	dbQuery := `
 		SELECT "dbDefaultBranch"
 		FROM sqlite_databases
 		WHERE "dbName" = $1`
 	var branchName string
-	err = pdb.QueryRow(dbQuery).Scan(&branchName)
+	err := pdb.QueryRow(dbQuery).Scan(&branchName)
 	if err != nil {
 		if err != pgx.ErrNoRows {
 			log.Printf("Error when retrieving default branch name for database '%v': %v\n", dbName, err)
@@ -237,27 +227,18 @@ func listDatabases() ([]byte, error) {
 
 // Store the branch heads for a database.
 func storeBranches(dbName string, branches map[string]branchEntry) error {
-	path := filepath.Join(STORAGEDIR, "meta", dbName)
-	_, err := os.Stat(path)
+	dbQuery := `
+		UPDATE sqlite_databases
+		SET "branchHeads" = $2
+		WHERE "dbName" = $1`
+	commandTag, err := pdb.Exec(dbQuery, dbName, branches)
 	if err != nil {
-		// As this is just experimental code, we'll assume a failure above means the dir needs creating
-		// TODO: Proper handling for errors here.  It may not mean the dir doesn't exist.
-		err := os.MkdirAll(filepath.Join(STORAGEDIR, "meta", dbName), os.ModeDir|0755)
-		if err != nil {
-			log.Printf("Something went wrong creating the database meta dir: %v\n", err.Error())
-			return err
-		}
-	}
-
-	j, err := json.MarshalIndent(branches, "", " ")
-	if err != nil {
-		log.Printf("Something went wrong serialising the branch data: %v\n", err.Error())
+		log.Printf("Storing branch heads for database '%v' failed: %v\n", dbName, err)
 		return err
 	}
-	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "meta", dbName, "branchHeads"), j, os.ModePerm)
-	if err != nil {
-		log.Printf("Something went wrong writing the branchHeads file: %v\n", err.Error())
-		return err
+	if numRows := commandTag.RowsAffected(); numRows != 1 {
+		log.Printf("Wrong number of rows (%v) affected when storing branch heads for database: '%v'\n", numRows,
+			dbName)
 	}
 	return nil
 }
