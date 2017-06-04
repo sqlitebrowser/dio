@@ -137,25 +137,17 @@ func getDatabase(id string) ([]byte, error) {
 }
 
 // Load the tags for a database.
-func getTags(dbName string) (map[string]tagEntry, error) {
-	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "meta", dbName, "tags"))
+func getTags(dbName string) (tags map[string]tagEntry, err error) {
+	dbQuery := `
+		SELECT tags
+		FROM sqlite_databases
+		WHERE "dbName" = $1`
+	err = pdb.QueryRow(dbQuery, dbName).Scan(&tags)
 	if err != nil {
-		_, ok := err.(*os.PathError)
-		if ok {
-			// There are no tags for the database yet
-			return make(map[string]tagEntry), nil
-		}
-
-		log.Printf("Something went wrong reading the tags data: %v\n", err.Error())
+		log.Printf("Error when retrieving branch heads for database '%v': %v\n", dbName, err)
 		return nil, err
 	}
-	var i map[string]tagEntry
-	err = json.Unmarshal(b, &i)
-	if err != nil {
-		log.Printf("Something went wrong unserialising the tags data: %v\n", err.Error())
-		return nil, err
-	}
-	return i, nil
+	return tags, nil
 }
 
 // Reads a tree from disk.
@@ -316,51 +308,17 @@ func storeDefaultBranchName(dbName string, branchName string) error {
 
 // Store the tags (standard, non-annotated type) for a database.
 func storeTags(dbName string, tags map[string]tagEntry) error {
-	path := filepath.Join(STORAGEDIR, "meta", dbName)
-	_, err := os.Stat(path)
+	dbQuery := `
+		UPDATE sqlite_databases
+		SET tags = $2
+		WHERE "dbName" = $1`
+	commandTag, err := pdb.Exec(dbQuery, dbName, tags)
 	if err != nil {
-		// As this is just experimental code, we'll assume a failure above means the dir needs creating
-		// TODO: Proper handling for errors here.  It may not mean the dir doesn't exist.
-		err := os.MkdirAll(filepath.Join(STORAGEDIR, "meta", dbName), os.ModeDir|0755)
-		if err != nil {
-			log.Printf("Something went wrong creating the database meta dir: %v\n", err.Error())
-			return err
-		}
-	}
-
-	j, err := json.MarshalIndent(tags, "", " ")
-	if err != nil {
-		log.Printf("Something went wrong serialising the branch data: %v\n", err.Error())
+		log.Printf("Storing tags for database '%v' failed: %v\n", dbName, err)
 		return err
 	}
-	err = ioutil.WriteFile(filepath.Join(STORAGEDIR, "meta", dbName, "tags"), j, os.ModePerm)
-	if err != nil {
-		log.Printf("Something went wrong writing the tags file: %v\n", err.Error())
-		return err
+	if numRows := commandTag.RowsAffected(); numRows != 1 {
+		log.Printf("Wrong number of rows (%v) affected when storing tags for database: '%v'\n", numRows, dbName)
 	}
 	return nil
 }
-
-//// Store a tree.
-//func storeTree(t dbTree) error {
-//	// Convert the tree entries to json
-//	j, err := json.MarshalIndent(t.Entries, "", " ")
-//	if err != nil {
-//		log.Printf("Something went wrong serialising the tree data: %v\n", err.Error())
-//		return err
-//	}
-//
-//	// Store the json in the database
-//	dbQuery := `
-//		INSERT INTO database_trees (treeHash, treeEntries)
-//		VALUES ($1, $2)`
-//	commandTag, err := pdb.Exec(dbQuery, t.ID, j)
-//	if err != nil {
-//		log.Printf("Inserting tree '%v' failed: %v\n", t.ID, err)
-//		return err
-//	}
-//	if numRows := commandTag.RowsAffected(); numRows != 1 {
-//		log.Printf("Wrong number of rows (%v) affected during insert: new tree hash: '%v'\n", numRows, t.ID)
-//	}
-//	return nil
-//}
