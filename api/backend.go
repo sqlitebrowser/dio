@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx"
+	"github.com/pkg/errors"
 )
 
 // Generate a stable SHA256 for a commit.
@@ -112,16 +113,29 @@ func getDefaultBranchName(dbName string) (string, error) {
 }
 
 // Reads a commit from disk.
-func getCommit(id string) (commitEntry, error) {
-	var c commitEntry
-	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "files", id))
+func getCommit(dbName string, id string) (commitEntry, error) {
+	// Retrieve all of the commits from the database
+	// TODO: We can probably directly retrieve the desired commit from PG using a jsonb operator.  eg @> 'something'
+	dbQuery := `
+		SELECT "commitList"
+		FROM sqlite_databases
+		WHERE "dbName" = $1`
+	var list []commitEntry
+	err := pdb.QueryRow(dbQuery, dbName).Scan(&list)
 	if err != nil {
-		return c, err
+		log.Printf("Error when retrieving commit list for database '%v': %v\n", dbName, err)
+		return commitEntry{}, err
 	}
-	err = json.Unmarshal(b, &c)
-	if err != nil {
-		log.Printf("Something went wrong unserialising a commit's data: %v\n", err.Error())
-		return c, err
+
+	// Return the individual commit we want
+	var c commitEntry
+	for _, j := range list {
+		if j.ID == id {
+			c = j
+		}
+	}
+	if c.ID == "" {
+		return c, errors.New("Requested commit not found")
 	}
 	return c, nil
 }
@@ -187,7 +201,7 @@ func listDatabases() ([]byte, error) {
 		if err != nil {
 			return []byte{}, err
 		}
-		c, err := getCommit(b[def].Commit)
+		c, err := getCommit(i.Name(), b[def].Commit)
 		if err != nil {
 			return []byte{}, err
 		}
