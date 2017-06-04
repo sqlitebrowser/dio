@@ -893,17 +893,6 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 		return
 	}
 
-	// If no branch name was given, use the default for the database
-	var err error
-	if branchName == "" {
-		// TODO: This should probably be after the "if dbExists(dbName)" call later on
-		branchName, err = getDefaultBranchName(dbName)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	}
-
 	// Grab the uploaded database
 	tempFile, _, err := r.Request.FormFile("file1")
 	if err != nil {
@@ -953,15 +942,23 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 		return
 	}
 	if exists {
-		// Load the existing branchHeads from disk
+		// Load the existing branchHeads for the database
 		branches, err = getBranches(dbName)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		// Check if the desired branch already exists.  If it does, use its head commit as the parent for
-		// our new uploads commit
+		// If no branch name was given, use the default for the database
+		if branchName == "" {
+			branchName, err = getDefaultBranchName(dbName)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+
+		// Ensure the desired branch already exists.  Use its head commit as the parent for our new uploads' commit
 		b, ok := branches[branchName]
 		if !ok {
 			w.WriteHeader(http.StatusBadRequest)
@@ -971,6 +968,16 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	} else {
 		// No existing branches, so this will be the first
 		branches = make(map[string]branchEntry)
+
+		// Set the default branch name for the database
+		if branchName == "" {
+			branchName = "master"
+		}
+		err := storeDefaultBranchName(dbName, branchName)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Update the branch with the commit for this new database upload
