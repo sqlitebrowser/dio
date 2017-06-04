@@ -765,7 +765,6 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 		for _, head := range branches {
 			// Walk the branch history looking for the commit
 			var e dbTreeEntry
-			var t dbTree
 			c := commitEntry{Parent: head.Commit}
 			for c.Parent != "" {
 				c, err = getCommit(dbName, c.Parent)
@@ -776,12 +775,7 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 
 				if reqCommit == c.ID {
 					// Found a match, so retrieve the database ID for the commit
-					t, err = getTree(c.Tree.ID)
-					if err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					}
-					for _, e = range t.Entries {
+					for _, e = range c.Tree.Entries {
 						if e.Name == dbName {
 							dbID = e.Sha256
 							commitExists = true
@@ -816,21 +810,14 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 			return
 		}
 
-		// Retrieve the tree ID from the commit
+		// Retrieve the database ID from the commit
 		c, err := getCommit(dbName, b.Commit)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		treeID := c.Tree
-
-		// Retrieve the database ID from the tree
-		t, err := getTree(treeID.ID)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		for _, e := range t.Entries {
+		dbID = c.Tree.Entries[0].Sha256
+		for _, e := range c.Tree.Entries {
 			if e.Name == dbName {
 				dbID = e.Sha256
 			}
@@ -847,9 +834,14 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	defer func() {
+		db.Close()
+	}()
+	var buf bytes.Buffer
+	buf.ReadFrom(db)
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", dbName))
 	w.Header().Set("Content-Type", "application/x-sqlite3")
-	w.Write(db)
+	w.Write(buf.Bytes())
 }
 
 // Get the list of databases.
@@ -865,7 +857,7 @@ func dbList(r *rest.Request, w *rest.Response) {
 }
 
 // Upload a database.
-// Can be tested with: dio push
+// Can be tested with: dio push a.db
 func dbUpload(r *rest.Request, w *rest.Response) {
 	// Retrieve metadata from the post headers
 	authorName := r.Request.Header.Get("Author")

@@ -6,10 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/jackc/pgx"
@@ -91,27 +89,6 @@ func getBranches(dbName string) (branches map[string]branchEntry, err error) {
 	return branches, nil
 }
 
-// Retrieve the default branch name for a database.
-func getDefaultBranchName(dbName string) (string, error) {
-	// Return the default branch name
-	dbQuery := `
-		SELECT "dbDefaultBranch"
-		FROM sqlite_databases
-		WHERE "dbName" = $1`
-	var branchName string
-	err := pdb.QueryRow(dbQuery).Scan(&branchName)
-	if err != nil {
-		if err != pgx.ErrNoRows {
-			log.Printf("Error when retrieving default branch name for database '%v': %v\n", dbName, err)
-			return "", err
-		} else {
-			log.Printf("No default branch name exists for database '%s'. This shouldn't happen\n", dbName)
-			return "", err
-		}
-	}
-	return branchName, nil
-}
-
 // Reads a commit from disk.
 func getCommit(dbName string, id string) (commitEntry, error) {
 	// Retrieve all of the commits from the database
@@ -132,6 +109,7 @@ func getCommit(dbName string, id string) (commitEntry, error) {
 	for _, j := range list {
 		if j.ID == id {
 			c = j
+			break
 		}
 	}
 	if c.ID == "" {
@@ -140,14 +118,37 @@ func getCommit(dbName string, id string) (commitEntry, error) {
 	return c, nil
 }
 
-// Reads a database from disk.
-func getDatabase(id string) ([]byte, error) {
-	d, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "files", id))
+// Retrieves a database from Minio.
+func getDatabase(sha string) (io.ReadCloser, error) {
+	bkt := sha[0:6]
+	id := sha[6:]
+	db, err := minioClient.GetObject(bkt, id)
 	if err != nil {
-		log.Printf("Error reading file: '%s': %v\n", id, err.Error())
-		return []byte{}, err
+		log.Printf("Error retrieving DB from Minio: %v\n", err)
+		return nil, errors.New("Error retrieving database from internal storage")
 	}
-	return d, nil
+	return db, nil
+}
+
+// Retrieve the default branch name for a database.
+func getDefaultBranchName(dbName string) (string, error) {
+	// Return the default branch name
+	dbQuery := `
+		SELECT "dbDefaultBranch"
+		FROM sqlite_databases
+		WHERE "dbName" = $1`
+	var branchName string
+	err := pdb.QueryRow(dbQuery, dbName).Scan(&branchName)
+	if err != nil {
+		if err != pgx.ErrNoRows {
+			log.Printf("Error when retrieving default branch name for database '%v': %v\n", dbName, err)
+			return "", err
+		} else {
+			log.Printf("No default branch name exists for database '%s'. This shouldn't happen\n", dbName)
+			return "", err
+		}
+	}
+	return branchName, nil
 }
 
 // Load the tags for a database.
@@ -164,62 +165,30 @@ func getTags(dbName string) (tags map[string]tagEntry, err error) {
 	return tags, nil
 }
 
-// Reads a tree from disk.
-func getTree(id string) (dbTree, error) {
-	var t dbTree
-	b, err := ioutil.ReadFile(filepath.Join(STORAGEDIR, "files", id))
-	if err != nil {
-		log.Printf("Error reading file: '%s': %v\n", id, err.Error())
-		return t, err
-	}
-	err = json.Unmarshal(b, &t)
-	if err != nil {
-		log.Printf("Something went wrong unserialising a commit's data: %v\n", err.Error())
-		return t, err
-	}
-	return t, nil
-}
-
 // Returns the list of available databases.
 func listDatabases() ([]byte, error) {
-	// For now, just use the entries in the "meta" directory as the list
-	p := filepath.Join(STORAGEDIR, "meta")
-	dirEntries, err := ioutil.ReadDir(p)
+	dbQuery := `
+		SELECT "dbName"
+		FROM sqlite_databases`
+	rows, err := pdb.Query(dbQuery)
 	if err != nil {
-		// As this is just experimental code, we'll assume a failure above means the db doesn't exist
-		log.Printf("Error when reading database list: %v\n", err)
-		return []byte{}, err
+		log.Printf("Database query failed: %v\n", err)
+		return nil, err
 	}
+	defer rows.Close()
 	var dbs []dbListEntry
-	for _, i := range dirEntries {
-		// Get the size and last modified date of each of the databases from it's commit tree entry
-		def, err := getDefaultBranchName(i.Name())
+	for rows.Next() {
+		var oneRow dbListEntry
+		err = rows.Scan(&oneRow.Database)
 		if err != nil {
-			return []byte{}, err
+			log.Printf("Error retrieving database list for user: %v\n", err)
+			return nil, err
 		}
-		b, err := getBranches(i.Name())
-		if err != nil {
-			return []byte{}, err
-		}
-		c, err := getCommit(i.Name(), b[def].Commit)
-		if err != nil {
-			return []byte{}, err
-		}
-		t, err := getTree(c.Tree.ID)
-		if err != nil {
-			return []byte{}, err
-		}
-		var lastMod time.Time
-		var dbSize int
-		for _, j := range t.Entries {
-			if j.Name == i.Name() {
-				lastMod = j.Last_Modified
-				dbSize = j.Size
-			}
-		}
-		d := dbListEntry{Database: i.Name(), LastModified: lastMod, Size: dbSize}
-		dbs = append(dbs, d)
+		dbs = append(dbs, oneRow)
 	}
+
+	// TODO: For the real code, we'll want to extract the last modified date and file size of (say) the latest revision
+	// TODO  of each database
 
 	// Convert into json
 	j, err := json.MarshalIndent(dbs, "", " ")
@@ -273,31 +242,33 @@ func storeDatabase(db []byte) error {
 	// Create the database file if it doesn't already exist
 	a := sha256.Sum256(db)
 	sha := hex.EncodeToString(a[:])
-	path := filepath.Join(STORAGEDIR, "files", sha)
-	f, err := os.Stat(path)
+	bkt := sha[0:6]
+	id := sha[6:]
+
+	// If a Minio bucket with the desired name doesn't already exist, create it
+	found, err := minioClient.BucketExists(bkt)
 	if err != nil {
-		// As this is just experimental code, we'll assume a failure above means the file needs creating
-		// TODO: Proper handling for errors here.  It may not mean the file doesn't exist.
-		err = ioutil.WriteFile(path, db, os.ModePerm)
+		log.Printf("Error when checking if Minio bucket '%s' already exists: %v\n", bkt, err)
+		return err
+	}
+	if !found {
+		err := minioClient.MakeBucket(bkt, "us-east-1")
 		if err != nil {
-			log.Printf("Something went wrong writing the database file: %v\n", err.Error())
+			log.Printf("Error creating Minio bucket '%v': %v\n", bkt, err)
 			return err
 		}
-		return nil
 	}
 
-	// The file already exists.
-	// Check if the file size matches the buffer size we're intending on writing, and skip it if so
-	// (Obviously this is just a super lightweight check, not a real world approach)
-	// TODO: Add real world checks to ensure the file contents are identical.  Maybe read the file contents into
-	// TODO  memory, then binary compare them?  Prob not great for memory efficiency, but it would likely do as a
-	// TODO  first go for something accurate.
-	if len(db) != int(f.Size()) {
-		err = ioutil.WriteFile(path, db, os.ModePerm)
-		if err != nil {
-			log.Printf("Something went wrong writing the database file: %v\n", err.Error())
-			return err
-		}
+	// Store the SQLite database file in Minio
+	dbSize, err := minioClient.PutObject(bkt, id, bytes.NewReader(db), "application/x-sqlite3")
+	if err != nil {
+		log.Printf("Storing file in Minio failed: %v\n", err)
+		return err
+	}
+	// Sanity check.  Make sure the # of bytes written is equal to the size of the buffer we were given
+	if len(db) != int(dbSize) {
+		log.Printf("Something went wrong storing the database file: %v\n", err.Error())
+		return err
 	}
 	return nil
 }

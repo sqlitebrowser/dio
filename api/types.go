@@ -55,8 +55,6 @@ type CommitList struct {
 	Commits []commitEntry `json:"commits"`
 }
 
-const STORAGEDIR = "/Users/jc/tmp/dioapistorage"
-
 type tagType string
 
 const (
