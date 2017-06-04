@@ -162,12 +162,6 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 	// By ensuring the requested commit is already part of the existing database history, we solve that problem.
 	commitExists := false
 	for _, b := range branches {
-		// Because there seems to be no valid way of adding this condition in the loop declaration?
-		// Do I just need more coffee? :D
-		if commitExists == true {
-			continue
-		}
-
 		// Walk the commit history looking for the commit
 		c := commitEntry{Parent: b.Commit}
 		for c.Parent != "" {
@@ -179,6 +173,7 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 			if c.ID == commitID {
 				// This commit in the history matches the requested commit, so we're good
 				commitExists = true
+				break
 			}
 		}
 	}
@@ -570,6 +565,7 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 		if c.ID == commitID {
 			// This commit in the branch history matches the requested commit, so we're good to proceed
 			commitExists = true
+			break
 		}
 	}
 
@@ -767,10 +763,6 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 		// Ensure the commit exists in the database history
 		commitExists := false
 		for _, head := range branches {
-			if commitExists == true {
-				continue
-			}
-
 			// Walk the branch history looking for the commit
 			var e dbTreeEntry
 			var t dbTree
@@ -793,6 +785,7 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 						if e.Name == dbName {
 							dbID = e.Sha256
 							commitExists = true
+							break
 						}
 					}
 				}
@@ -1096,22 +1089,22 @@ func tagCreate(r *rest.Request, w *rest.Response) {
 	// By ensuring the requested commit is already part of the existing database history, we solve that problem.
 	commitExists := false
 	for _, b := range branches {
-		// Because there seems to be no valid way of adding this condition in the loop declaration?
-		if commitExists == true {
-			continue
-		}
-
 		// Walk the commit history looking for the commit
 		c := commitEntry{Parent: b.Commit}
 		for c.Parent != "" {
 			c, err = getCommit(dbName, c.Parent)
 			if err != nil {
+				if err.Error() == "Requested commit not found" {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			if c.ID == commitID {
 				// This commit in the history matches the requested commit, so we're good
 				commitExists = true
+				break
 			}
 		}
 	}
