@@ -17,6 +17,7 @@ import (
 	rest "github.com/emicklei/go-restful"
 	"github.com/jackc/pgx"
 	"github.com/minio/go-homedir"
+	"github.com/minio/minio-go"
 )
 
 // Number of connections to PostgreSQL to use
@@ -47,8 +48,9 @@ type PGInfo struct {
 
 // Our configuration info
 var (
-	conf TomlConfig
-	pdb  *pgx.ConnPool
+	conf        TomlConfig
+	minioClient *minio.Client
+	pdb         *pgx.ConnPool
 )
 
 func main() {
@@ -62,19 +64,6 @@ func main() {
 	if _, err := toml.DecodeFile(configFile, &conf); err != nil {
 		log.Printf("Config file couldn't be parsed: %v\n", err)
 		os.Exit(1)
-	}
-
-	// Create the storage directories on disk
-	// TODO: Move these into the TOML config
-	err = os.MkdirAll(filepath.Join(STORAGEDIR, "files"), os.ModeDir|0755)
-	if err != nil {
-		log.Printf("Something went wrong when creating the files dir: %v\n", err.Error())
-		return
-	}
-	err = os.MkdirAll(filepath.Join(STORAGEDIR, "meta"), os.ModeDir|0755)
-	if err != nil {
-		log.Printf("Something went wrong when creating the meta dir: %v\n", err.Error())
-		return
 	}
 
 	// Connect to PostgreSQL
@@ -93,6 +82,14 @@ func main() {
 		os.Exit(1)
 	}
 	log.Printf("Connected to PostgreSQL server: %v:%v\n", pgConfig.Host, pgConfig.Port)
+
+	// Connect to Minio
+	minioClient, err = minio.New(conf.Minio.Server, conf.Minio.AccessKey, conf.Minio.Secret, conf.Minio.HTTPS)
+	if err != nil {
+		log.Printf("Problem with Minio server configuration: %v\n", err.Error())
+		return
+	}
+	log.Printf("Minio server config ok. Address: %v\n", conf.Minio.Server)
 
 	// Create and start the API server
 	ws := new(rest.WebService)
@@ -174,7 +171,7 @@ func branchCreate(r *rest.Request, w *rest.Response) {
 		// Walk the commit history looking for the commit
 		c := commitEntry{Parent: b.Commit}
 		for c.Parent != "" {
-			c, err = getCommit(c.Parent)
+			c, err = getCommit(dbName, c.Parent)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -326,7 +323,7 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 	var history []commitEntry
 	c := commitEntry{Parent: b.Commit}
 	for c.Parent != "" {
-		c, err = getCommit(c.Parent)
+		c, err = getCommit(dbName, c.Parent)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -437,7 +434,7 @@ func branchRemove(r *rest.Request, w *rest.Response) {
 	for bName, bEntry := range branches {
 		c := commitEntry{Parent: bEntry.Commit}
 		for c.Parent != "" {
-			c, err = getCommit(c.Parent)
+			c, err = getCommit(dbName, c.Parent)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -565,7 +562,7 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	commitExists := false
 	c := commitEntry{Parent: b.Commit}
 	for c.Parent != "" {
-		c, err = getCommit(c.Parent)
+		c, err = getCommit(dbName, c.Parent)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -597,7 +594,7 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 	for bName, bEntry := range branches {
 		c := commitEntry{Parent: bEntry.Commit}
 		for c.Parent != "" {
-			c, err = getCommit(c.Parent)
+			c, err = getCommit(dbName, c.Parent)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -631,7 +628,7 @@ func branchRevert(r *rest.Request, w *rest.Response) {
 		var isolatedTags []string
 		c := commitEntry{Parent: b.Commit}
 		for c.Parent != "" {
-			c, err = getCommit(c.Parent)
+			c, err = getCommit(dbName, c.Parent)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -779,7 +776,7 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 			var t dbTree
 			c := commitEntry{Parent: head.Commit}
 			for c.Parent != "" {
-				c, err = getCommit(c.Parent)
+				c, err = getCommit(dbName, c.Parent)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					return
@@ -827,7 +824,7 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 		}
 
 		// Retrieve the tree ID from the commit
-		c, err := getCommit(b.Commit)
+		c, err := getCommit(dbName, b.Commit)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -1107,7 +1104,7 @@ func tagCreate(r *rest.Request, w *rest.Response) {
 		// Walk the commit history looking for the commit
 		c := commitEntry{Parent: b.Commit}
 		for c.Parent != "" {
-			c, err = getCommit(c.Parent)
+			c, err = getCommit(dbName, c.Parent)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
