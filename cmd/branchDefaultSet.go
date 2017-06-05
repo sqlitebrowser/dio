@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var branchDefaultBranch string
+
 // Sets the default branch for a database
 var branchDefaultSetCmd = &cobra.Command{
 	Use:   "set [database name] --branch xxx",
@@ -25,10 +27,15 @@ var branchDefaultSetCmd = &cobra.Command{
 			return errors.New("Only one database can be changed at a time (for now)")
 		}
 
+		// Ensure a branch name was given
+		if branchDefaultBranch == "" {
+			return errors.New("No branch name given")
+		}
+
 		// Set the default branch
 		file := args[0]
 		resp, _, errs := rq.New().Post(cloud+"/branch_default_change").
-			Set("branch", branch).
+			Set("branch", branchDefaultBranch).
 			Set("database", file).
 			End()
 		if errs != nil {
@@ -47,13 +54,13 @@ var branchDefaultSetCmd = &cobra.Command{
 				resp.StatusCode, resp.Status))
 		}
 
-		fmt.Println("Setting default branch succeeded")
+		fmt.Printf("Branch '%s' set as default for '%s'\n", branchDefaultBranch, file)
 		return nil
 	},
 }
 
 func init() {
 	branchDefaultCmd.AddCommand(branchDefaultSetCmd)
-	branchDefaultSetCmd.Flags().StringVar(&branch, "branch", "master",
-		"Remote branch to operate on")
+	branchDefaultSetCmd.Flags().StringVar(&branchDefaultBranch, "branch", "",
+		"Remote branch to set as default")
 }
