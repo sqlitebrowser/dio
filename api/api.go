@@ -284,7 +284,7 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 	// TODO: Validate the database and branch names
 
 	// Sanity check the inputs
-	if dbName == "" || branchName == "" {
+	if dbName == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -307,6 +307,15 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 		return
 	}
 
+	// If no branch name was given, use the database default
+	if branchName == "" {
+		branchName, err = getDefaultBranchName(dbName)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+
 	// Ensure the requested branch exists in the database
 	b, ok := branches[branchName]
 	if !ok {
@@ -315,7 +324,11 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 	}
 
 	// Walk the commit history, assembling it into something useful
-	var history []commitEntry
+	var history struct {
+		Branch  string
+		Entries []commitEntry
+	}
+	history.Branch = branchName
 	c := commitEntry{Parent: b.Commit}
 	for c.Parent != "" {
 		c, err = getCommit(dbName, c.Parent)
@@ -323,7 +336,7 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		history = append(history, c)
+		history.Entries = append(history.Entries, c)
 	}
 	w.WriteAsJson(history)
 }
