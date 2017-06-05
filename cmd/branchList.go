@@ -63,9 +63,9 @@ var branchListCmd = &cobra.Command{
 		// Display the list of branches
 		fmt.Printf("Branches for %s:\n\n", file)
 		for _, i := range sortedKeys {
-			fmt.Printf("* %s - Commit: %s\n", i, list[i].Commit)
+			fmt.Printf("  * %s - Commit: %s\n", i, list[i].Commit)
 			if list[i].Description != "" {
-				fmt.Printf("\n    %s\n\n", list[i].Description)
+				fmt.Printf("\n      %s\n\n", list[i].Description)
 			}
 		}
 		return nil

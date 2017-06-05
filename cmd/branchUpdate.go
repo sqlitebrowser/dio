@@ -11,6 +11,7 @@ import (
 )
 
 var branchUpdateBranch string
+var descDel *bool
 
 // Updates the description text for a branch
 var branchUpdateCmd = &cobra.Command{
@@ -31,17 +32,21 @@ var branchUpdateCmd = &cobra.Command{
 		if branchUpdateBranch == "" {
 			return errors.New("No branch name given")
 		}
-		if msg == "" {
+		if msg == "" && *descDel == false {
 			return errors.New("No description text given")
 		}
 
 		// Update the branch
 		file := args[0]
-		resp, _, errs := rq.New().Post(cloud+"/branch_update").
+		req := rq.New().Post(cloud+"/branch_update").
 			Set("branch", branchUpdateBranch).
-			Set("desc", msg).
-			Set("database", file).
-			End()
+			Set("database", file)
+		if msg != "" {
+			req.Set("desc", msg)
+		} else {
+			req.Set("del", "true")
+		}
+		resp, _, errs := req.End()
 		if errs != nil {
 			log.Print("Errors when updating branch description:")
 			for _, err := range errs {
@@ -59,7 +64,6 @@ var branchUpdateCmd = &cobra.Command{
 
 		fmt.Println("Description updated")
 		return nil
-
 	},
 }
 
@@ -67,5 +71,7 @@ func init() {
 	branchCmd.AddCommand(branchUpdateCmd)
 	branchUpdateCmd.Flags().StringVar(&branchUpdateBranch, "branch", "",
 		"Name of remote branch to create")
+	descDel = branchUpdateCmd.Flags().BoolP("delete", "d", false,
+		"Delete the branch description")
 	branchUpdateCmd.Flags().StringVar(&msg, "description", "", "Description of the branch")
 }

@@ -674,15 +674,29 @@ func branchUpdate(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
 	dbName := r.Request.Header.Get("database")
 	branchDesc := r.Request.Header.Get("desc")
+	delDesc := r.Request.Header.Get("del")
 	branchName := r.Request.Header.Get("branch")
 
 	// Sanity check the inputs
-	if dbName == "" || branchName == "" || branchDesc == "" {
+	if dbName == "" || branchName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if branchDesc == "" && delDesc == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	// TODO: Validate the inputs
+	if delDesc != "" {
+		switch delDesc {
+		case "true":
+			branchDesc = ""
+		default:
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	}
 
 	// Ensure the requested database is in our system
 	exists, err := dbExists(dbName)
