@@ -258,6 +258,23 @@ func listLicences() ([]byte, error) {
 	return j, nil
 }
 
+// Remove an available licence from our system.
+func removeLicence(lic string) error {
+	dbQuery := `
+		DELETE FROM database_licences
+		WHERE "friendlyName" = $1`
+	commandTag, err := pdb.Exec(dbQuery, lic)
+	if err != nil {
+		log.Printf("Removing licence '%v' failed: %v\n", lic, err)
+		return err
+	}
+	if numRows := commandTag.RowsAffected(); numRows != 1 {
+		log.Printf("Wrong number of rows (%v) affected when removing licence from database: '%v'\n",
+			numRows, lic)
+	}
+	return nil
+}
+
 // Store the branch heads for a database.
 func storeBranches(dbName string, branches map[string]branchEntry) error {
 	dbQuery := `

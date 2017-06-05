@@ -107,6 +107,7 @@ func main() {
 	ws.Route(ws.POST("/db_upload").To(dbUpload))
 	ws.Route(ws.POST("/licence_add").To(licenceAdd))
 	ws.Route(ws.GET("/licence_list").To(licenceList))
+	ws.Route(ws.POST("/licence_remove").To(licenceRemove))
 	ws.Route(ws.POST("/tag_create").To(tagCreate))
 	ws.Route(ws.GET("/tag_list").To(tagList))
 	ws.Route(ws.POST("/tag_remove").To(tagRemove))
@@ -1093,6 +1094,39 @@ func licenceList(r *rest.Request, w *rest.Response) {
 		return
 	}
 	w.Write(licList)
+}
+
+// Removes a licence from the list of available licences.
+// Can be tested with: $ dio licence remove somelicence
+func licenceRemove(r *rest.Request, w *rest.Response) {
+	lic := r.Request.Header.Get("licence")
+
+	// Sanity check the inputs
+	if lic == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// TODO: Validate the inputs
+
+	// Ensure the requested license is in our system
+	exists, err := licExists(lic)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Remove the licence
+	err = removeLicence(lic)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Creates a new tag for a database.

@@ -18,7 +18,7 @@ var licenceAddCmd = &cobra.Command{
 	Use:   "add [licence name]",
 	Short: "Add a license to the list of available licences on the server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Ensure a licence abbreviation
+		// Ensure a licence friendly name is present
 		if len(args) == 0 {
 			return errors.New("Human friendly licence name is needed.  eg CC0-BY-1.0")
 		}
