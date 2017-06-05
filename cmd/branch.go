@@ -7,7 +7,7 @@ import (
 // branchCmd represents the branch command
 var branchCmd = &cobra.Command{
 	Use:   "branch",
-	Short: "Manipulate branches for a database",
+	Short: "Work with branches for a database",
 }
 
 func init() {

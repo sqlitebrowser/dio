@@ -105,6 +105,7 @@ func main() {
 	ws.Route(ws.GET("/db_download").To(dbDownload))
 	ws.Route(ws.GET("/db_list").To(dbList))
 	ws.Route(ws.POST("/db_upload").To(dbUpload))
+	ws.Route(ws.POST("/licence_add").To(licenceAdd))
 	ws.Route(ws.POST("/tag_create").To(tagCreate))
 	ws.Route(ws.GET("/tag_list").To(tagList))
 	ws.Route(ws.POST("/tag_remove").To(tagRemove))
@@ -905,7 +906,7 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	// Grab the uploaded database
 	tempFile, _, err := r.Request.FormFile("file1")
 	if err != nil {
-		log.Printf("Uploading file failed: %v\n", err)
+		log.Printf("Uploading database file failed: %v\n", err)
 		return
 	}
 	defer tempFile.Close()
@@ -1028,6 +1029,57 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 
 	// Send a 201 "Created" response, along with the location of the URL for working with the (new) database
 	w.AddHeader("Location", "/"+dbName)
+	w.WriteHeader(http.StatusCreated)
+}
+
+// Adds a licence to the system, so it can be selected in subsequent calls.
+func licenceAdd(r *rest.Request, w *rest.Response) {
+	lName := r.Request.Header.Get("name")
+	srcURL := r.Request.Header.Get("source") // Optional
+
+	// Ensure a licence friendly name was provided
+	if lName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// TODO: Validate the inputs
+
+	// Grab the uploaded licence
+	tempFile, _, err := r.Request.FormFile("file1")
+	if err != nil {
+		log.Printf("Uploading licence file failed: %v\n", err)
+		return
+	}
+	defer tempFile.Close()
+	var buf bytes.Buffer
+	lSize, err := io.Copy(&buf, tempFile)
+	if err != nil {
+		log.Printf("Error: %v\n", err)
+		return
+	}
+	if lSize == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Ensure the new human friendly licence name isn't already used
+	exists, err := licExists(lName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if exists {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	// Add the licence to our system
+	err = storeLicence(lName, buf.Bytes(), srcURL)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusCreated)
 }
 

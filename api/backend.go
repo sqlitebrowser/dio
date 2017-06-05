@@ -169,6 +169,27 @@ func getTags(dbName string) (tags map[string]tagEntry, err error) {
 	return tags, nil
 }
 
+// Check if a licence already exists.
+// TODO: We'll probably need some way to check if a licence already exists via sha256 as well.
+func licExists(lName string) (bool, error) {
+	dbQuery := `
+		SELECT count("friendlyName")
+		FROM database_licences
+		WHERE "friendlyName" = $1`
+	var q int
+	err := pdb.QueryRow(dbQuery, lName).Scan(&q)
+	if err != nil {
+		log.Printf("Error when checking if licence '%v' exists: %v\n", lName, err)
+		return false, err
+	}
+	if q == 0 {
+		// Licence doesn't exist
+		return false, nil
+	}
+	// Licence does exist
+	return true, nil
+}
+
 // Returns the list of available databases.
 func listDatabases() ([]byte, error) {
 	dbQuery := `
@@ -291,6 +312,24 @@ func storeDefaultBranchName(dbName string, branchName string) error {
 	if numRows := commandTag.RowsAffected(); numRows != 1 {
 		log.Printf("Wrong number of rows (%v) affected during update: database: %v, new branch name: '%v'\n",
 			numRows, dbName, branchName)
+	}
+	return nil
+}
+
+// Store a licence.
+func storeLicence(lName string, lTxt []byte, srcURL string) error {
+	sha := sha256.Sum256(lTxt)
+	dbQuery := `
+		INSERT INTO database_licences ("friendlyName", sha256, "licenceText", "sourceURL")
+		VALUES ($1, $2, $3, $4)`
+	commandTag, err := pdb.Exec(dbQuery, lName, hex.EncodeToString(sha[:]), lTxt, srcURL)
+	if err != nil {
+		log.Printf("Inserting licence '%v' in database failed: %v\n", lName, err)
+		return err
+	}
+	if numRows := commandTag.RowsAffected(); numRows != 1 {
+		log.Printf("Wrong number of rows (%v) affected during insert: licence name: '%v'\n", numRows,
+			lName)
 	}
 	return nil
 }
