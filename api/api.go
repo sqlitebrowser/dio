@@ -917,6 +917,7 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	c.Tree = t
 
 	// Check if the database already exists
+	needDefaultBranchCreated := false
 	var branches map[string]branchEntry
 	exists, err := dbExists(dbName)
 	if err != nil {
@@ -955,11 +956,7 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 		if branchName == "" {
 			branchName = "master"
 		}
-		err := storeDefaultBranchName(dbName, branchName)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+		needDefaultBranchCreated = true
 	}
 
 	// Update the branch with the commit for this new database upload
@@ -987,6 +984,15 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
+	}
+
+	// If this is a new database, we store the default branch name too
+	if needDefaultBranchCreated {
+		err := storeDefaultBranchName(dbName, branchName)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Log the upload
