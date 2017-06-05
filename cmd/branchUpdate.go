@@ -62,7 +62,12 @@ var branchUpdateCmd = &cobra.Command{
 				resp.StatusCode, resp.Status))
 		}
 
-		fmt.Println("Description updated")
+		// Inform the user
+		if *descDel {
+			fmt.Println("Description deleted")
+		} else {
+			fmt.Println("Description updated")
+		}
 		return nil
 	},
 }
