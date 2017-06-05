@@ -50,19 +50,20 @@ var branchRemoveCmd = &cobra.Command{
 			}
 			if resp.StatusCode == http.StatusConflict {
 				// Check for a message body indicating there would be isolated tags
-				err := json.Unmarshal([]byte(body), &errorInfo)
+				var e errorInfo
+				err := json.Unmarshal([]byte(body), &e)
 				if err != nil {
 					return err
 				}
-				if errorInfo.Condition == "isolated_tags" {
+				if e.Condition == "isolated_tags" {
 					// Yep, isolated tags would exist if this branch is removed.  Let the user know they'll need to
 					// remove the tags first
 					// TODO: Add some kind of --force option which removes the tags itself then removes the branch
-					e := "The following tags only exist on that branch.  You'll need to remove them first:\n\n"
-					for _, j := range errorInfo.Data {
-						e += fmt.Sprintf(" * %s\n", j)
+					m := "The following tags only exist on that branch.  You'll need to remove them first:\n\n"
+					for _, j := range e.Data {
+						m += fmt.Sprintf(" * %s\n", j)
 					}
-					return errors.New(e)
+					return errors.New(m)
 				}
 
 				// Nope, it wasn't an "isolated tags" problem.  Lets assume it was a "try to delete the default branch"
