@@ -162,6 +162,10 @@ func getTags(dbName string) (tags map[string]tagEntry, err error) {
 		log.Printf("Error when retrieving branch heads for database '%v': %v\n", dbName, err)
 		return nil, err
 	}
+	if tags == nil {
+		// If there aren't any tags yet, return an empty set instead of nil
+		tags = make(map[string]tagEntry)
+	}
 	return tags, nil
 }
 

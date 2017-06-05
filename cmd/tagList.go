@@ -68,12 +68,12 @@ var tagListCmd = &cobra.Command{
 		fmt.Printf("Tags for %s:\n\n", file)
 		for _, i := range sortedKeys {
 			if list[i].TagType == SIMPLE {
-				fmt.Printf("* %s : commit %s\n", i, list[i].Commit)
+				fmt.Printf("  * %s : commit %s\n", i, list[i].Commit)
 			} else {
-				fmt.Printf("* %s : commit %s\n\n", i, list[i].Commit)
-				fmt.Printf("    Author: %s <%s>\n", list[i].TaggerName, list[i].TaggerEmail)
-				fmt.Printf("    Date: %s\n", list[i].Date.Format(time.RFC3339))
-				fmt.Printf("    Message: %s\n\n", list[i].Message)
+				fmt.Printf("  * %s : commit %s\n\n", i, list[i].Commit)
+				fmt.Printf("      Author: %s <%s>\n", list[i].TaggerName, list[i].TaggerEmail)
+				fmt.Printf("      Date: %s\n", list[i].Date.Format(time.UnixDate))
+				fmt.Printf("      Message: %s\n", list[i].Message)
 			}
 		}
 		fmt.Println()
