@@ -19,6 +19,10 @@ type commitEntry struct {
 	Tree           dbTree    `json:"tree"`
 }
 
+type CommitList struct {
+	Commits []commitEntry `json:"commits"`
+}
+
 type dbListEntry struct {
 	Database     string    `json:"database"`
 	LastModified time.Time `json:"last_modified"`
@@ -51,8 +55,10 @@ type errorInfo struct {
 	Data      []string `json:"data"`
 }
 
-type CommitList struct {
-	Commits []commitEntry `json:"commits"`
+type licenceEntry struct {
+	Name   string
+	Sha256 string
+	URL    string
 }
 
 type tagType string

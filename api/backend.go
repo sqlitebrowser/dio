@@ -225,6 +225,39 @@ func listDatabases() ([]byte, error) {
 	return j, nil
 }
 
+// Returns the list of available licences.
+func listLicences() ([]byte, error) {
+	dbQuery := `
+		SELECT "friendlyName", sha256, "sourceURL"
+		FROM database_licences
+		ORDER BY "friendlyName"`
+	rows, err := pdb.Query(dbQuery)
+	if err != nil {
+		log.Printf("Database query failed: %v\n", err)
+		return nil, err
+	}
+	defer rows.Close()
+	var lics []licenceEntry
+	for rows.Next() {
+		var oneRow licenceEntry
+		err = rows.Scan(&oneRow.Name, &oneRow.Sha256, &oneRow.URL)
+		if err != nil {
+			log.Printf("Error retrieving licence list: %v\n", err)
+			return nil, err
+		}
+		lics = append(lics, oneRow)
+	}
+
+	// Convert into json
+	j, err := json.MarshalIndent(lics, "", " ")
+	if err != nil {
+		log.Printf("Something went wrong serialising the licence data: %v\n", err.Error())
+		return []byte{}, err
+	}
+
+	return j, nil
+}
+
 // Store the branch heads for a database.
 func storeBranches(dbName string, branches map[string]branchEntry) error {
 	dbQuery := `

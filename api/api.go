@@ -106,6 +106,7 @@ func main() {
 	ws.Route(ws.GET("/db_list").To(dbList))
 	ws.Route(ws.POST("/db_upload").To(dbUpload))
 	ws.Route(ws.POST("/licence_add").To(licenceAdd))
+	ws.Route(ws.GET("/licence_list").To(licenceList))
 	ws.Route(ws.POST("/tag_create").To(tagCreate))
 	ws.Route(ws.GET("/tag_list").To(tagList))
 	ws.Route(ws.POST("/tag_remove").To(tagRemove))
@@ -1081,6 +1082,17 @@ func licenceAdd(r *rest.Request, w *rest.Response) {
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
+}
+
+// Get the list of licences.
+// Can be tested with: dio licence list
+func licenceList(r *rest.Request, w *rest.Response) {
+	licList, err := listLicences()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Write(licList)
 }
 
 // Creates a new tag for a database.
