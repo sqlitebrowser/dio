@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-var pushDB string
+var pushCmdBranch, pushCmdDB, pushCmdEmail, pushCmdMsg, pushCmdName string
 
 // Uploads a database to a DBHub.io cloud.
 var pushCmd = &cobra.Command{
@@ -48,11 +48,11 @@ var pushCmd = &cobra.Command{
 		if ok {
 			pushEmail = v
 		}
-		if name != "" {
-			pushAuthor = name
+		if pushCmdName != "" {
+			pushAuthor = pushCmdName
 		}
-		if email != "" {
-			pushEmail = email
+		if pushCmdEmail != "" {
+			pushEmail = pushCmdEmail
 		}
 
 		// Author name and email are required
@@ -61,22 +61,22 @@ var pushCmd = &cobra.Command{
 		}
 
 		// Ensure commit message has been provided
-		if msg == "" {
+		if pushCmdMsg == "" {
 			return errors.New("Commit message is required!")
 		}
 
 		// Determine name to store database as
-		if pushDB == "" {
-			pushDB = filepath.Base(file)
+		if pushCmdDB == "" {
+			pushCmdDB = filepath.Base(file)
 		}
 
 		// Send the file
 		req := rq.New().Post(cloud+"/db_upload").
 			Type("multipart").
-			Set("Branch", branch).
-			Set("Message", msg).
+			Set("Branch", pushCmdBranch).
+			Set("Message", pushCmdMsg).
 			Set("ModTime", fi.ModTime().Format(time.RFC3339)).
-			Set("Database", pushDB).
+			Set("Database", pushCmdDB).
 			Set("Author", pushAuthor).
 			Set("Email", pushEmail).
 			SendFile(file)
@@ -93,18 +93,18 @@ var pushCmd = &cobra.Command{
 				resp.StatusCode, resp.Status))
 		}
 		fmt.Printf("%s - Database upload successful.  Name: %s, size: %d, branch: %s\n", cloud,
-			pushDB, fi.Size(), branch)
+			pushCmdDB, fi.Size(), pushCmdBranch)
 		return nil
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(pushCmd)
-	pushCmd.Flags().StringVar(&branch, "branch", "master",
+	pushCmd.Flags().StringVar(&pushCmdBranch, "branch", "master",
 		"Remote branch the database will be uploaded to")
-	pushCmd.Flags().StringVar(&email, "email", "", "Email address of the author")
-	pushCmd.Flags().StringVar(&msg, "message", "",
+	pushCmd.Flags().StringVar(&pushCmdEmail, "email", "", "Email address of the author")
+	pushCmd.Flags().StringVar(&pushCmdMsg, "message", "",
 		"(Required) Commit message for this upload")
-	pushCmd.Flags().StringVar(&name, "author", "", "Author name")
-	pushCmd.Flags().StringVar(&pushDB, "dbname", "", "Override for the database name")
+	pushCmd.Flags().StringVar(&pushCmdName, "author", "", "Author name")
+	pushCmd.Flags().StringVar(&pushCmdDB, "dbname", "", "Override for the database name")
 }
