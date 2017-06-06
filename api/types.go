@@ -13,6 +13,7 @@ type commitEntry struct {
 	CommitterEmail string    `json:"committer_email"`
 	CommitterName  string    `json:"committer_name"`
 	ID             string    `json:"id"`
+	Licence        string    `json:"licence"` // Only used for passing info from the API server to the client
 	Message        string    `json:"message"`
 	Parent         string    `json:"parent"`
 	Timestamp      time.Time `json:"timestamp"`

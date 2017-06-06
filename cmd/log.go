@@ -79,9 +79,12 @@ func init() {
 func createCommitText(c commitEntry) string {
 	s := fmt.Sprintf("  commit %s\n", c.ID)
 	s += fmt.Sprintf("  Author: %s <%s>\n", c.AuthorName, c.AuthorEmail)
-	s += fmt.Sprintf("  Date: %v\n\n", c.Timestamp.Format(time.UnixDate))
+	s += fmt.Sprintf("  Date: %v\n", c.Timestamp.Format(time.UnixDate))
+	if c.Licence != "" {
+		s += fmt.Sprintf("  Licence: %s\n", c.Licence)
+	}
 	if c.Message != "" {
-		s += fmt.Sprintf("      %s\n", c.Message)
+		s += fmt.Sprintf("\n      %s\n", c.Message)
 	}
 	return s
 }
