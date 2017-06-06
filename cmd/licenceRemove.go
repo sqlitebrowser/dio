@@ -13,7 +13,7 @@ import (
 // Removes a licence from the system.
 var licenceRemoveCmd = &cobra.Command{
 	Use:   "remove [licence name]",
-	Short: "Removes a license from the list of known licences on the server",
+	Short: "Removes a licence from the list of known licences on the server",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a licence friendly name is present
 		if len(args) == 0 {

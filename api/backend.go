@@ -418,3 +418,44 @@ func storeTags(dbName string, tags map[string]tagEntry) error {
 	}
 	return nil
 }
+
+// Update a known licence.
+func updateLicence(lName string, newName string, srcURL string) error {
+	var dbQuery string
+
+	// Update the source URL.  We do this before potentially changing the name, because if the name gets changed
+	// first then this update will fail (lName won't match any more)
+	if srcURL != "" {
+		dbQuery = `
+			UPDATE database_licences
+			SET "sourceURL" = $2
+			WHERE "friendlyName" = $1`
+		commandTag, err := pdb.Exec(dbQuery, lName, srcURL)
+		if err != nil {
+			log.Printf("Updating licence URL from '%s' to '%s' failed: %v\n", lName, srcURL, err)
+			return err
+		}
+		if numRows := commandTag.RowsAffected(); numRows != 1 {
+			log.Printf("Wrong number of rows (%v) affected when updating URL of licence '%s'\n",
+				numRows, lName)
+		}
+	}
+
+	// Update the friendly name
+	if newName != "" {
+		dbQuery = `
+			UPDATE database_licences
+			SET "friendlyName" = $2
+			WHERE "friendlyName" = $1`
+		commandTag, err := pdb.Exec(dbQuery, lName, newName)
+		if err != nil {
+			log.Printf("Updating licence name from '%s' to '%s' failed: %v\n", lName, newName, err)
+			return err
+		}
+		if numRows := commandTag.RowsAffected(); numRows != 1 {
+			log.Printf("Wrong number of rows (%v) affected when updating name of licence '%s'\n",
+				numRows, lName)
+		}
+	}
+	return nil
+}

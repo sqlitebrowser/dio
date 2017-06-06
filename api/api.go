@@ -109,6 +109,7 @@ func main() {
 	ws.Route(ws.GET("/licence_get").To(licenceGet))
 	ws.Route(ws.GET("/licence_list").To(licenceList))
 	ws.Route(ws.POST("/licence_remove").To(licenceRemove))
+	ws.Route(ws.POST("/licence_update").To(licenceUpdate))
 	ws.Route(ws.POST("/tag_create").To(tagCreate))
 	ws.Route(ws.GET("/tag_list").To(tagList))
 	ws.Route(ws.POST("/tag_remove").To(tagRemove))
@@ -1141,7 +1142,7 @@ func licenceRemove(r *rest.Request, w *rest.Response) {
 
 	// TODO: Validate the inputs
 
-	// Ensure the requested license is in our system
+	// Ensure the requested licence is in our system
 	exists, err := licExists(lic)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -1154,6 +1155,45 @@ func licenceRemove(r *rest.Request, w *rest.Response) {
 
 	// Remove the licence
 	err = removeLicence(lic)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Updates the friendly name or source URL (or both) for a known licence.
+// Can be tested with: $ dio licence update CC0-1.0 --new-name some-name --source-url "https://example.org"
+func licenceUpdate(r *rest.Request, w *rest.Response) {
+	lName := r.Request.Header.Get("name")
+	newName := r.Request.Header.Get("newname") // Optional (either newname or source must be given)
+	srcURL := r.Request.Header.Get("source")   // Optional (either newname or source must be given)
+
+	// Sanity check the inputs
+	if lName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if newName == "" && srcURL == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// TODO: Validate the inputs
+
+	// Ensure the requested licence is in our system
+	exists, err := licExists(lName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Update the licence
+	err = updateLicence(lName, newName, srcURL)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

@@ -16,7 +16,7 @@ var licenceAddFile, licenceAddURL string
 // Adds a licence to the list of known licences on the server
 var licenceAddCmd = &cobra.Command{
 	Use:   "add [licence name]",
-	Short: "Add a license to the list of known licences on a DBHub.io cloud",
+	Short: "Add a licence to the list of known licences on a DBHub.io cloud",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a licence friendly name is present
 		if len(args) == 0 {
@@ -68,7 +68,7 @@ var licenceAddCmd = &cobra.Command{
 func init() {
 	licenceCmd.AddCommand(licenceAddCmd)
 	licenceAddCmd.Flags().StringVar(&licenceAddFile, "licence-file", "",
-		"Path to a file containing the license as text")
+		"Path to a file containing the licence as text")
 	licenceAddCmd.Flags().StringVar(&licenceAddURL, "source-url", "",
 		"Optional reference URL for the licence")
 }

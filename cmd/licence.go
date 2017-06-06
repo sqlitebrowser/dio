@@ -7,7 +7,7 @@ import (
 // licenceCmd represents the licence command
 var licenceCmd = &cobra.Command{
 	Use:   "licence",
-	Short: "Work with licenses for a database",
+	Short: "Work with licences for a database",
 }
 
 func init() {
