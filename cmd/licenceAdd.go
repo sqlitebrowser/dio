@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var licenceFile, sourceURL string
+var licenceAddFile, licenceAddURL string
 
 // Adds a licence to the list of known licences on the server
 var licenceAddCmd = &cobra.Command{
@@ -27,10 +27,10 @@ var licenceAddCmd = &cobra.Command{
 		}
 
 		// Ensure a licence file was specified, and that it exists
-		if licenceFile == "" {
+		if licenceAddFile == "" {
 			return errors.New("A file containing the licence text is required")
 		}
-		_, err := os.Stat(licenceFile)
+		_, err := os.Stat(licenceAddFile)
 		if err != nil {
 			return err
 		}
@@ -40,9 +40,9 @@ var licenceAddCmd = &cobra.Command{
 		req := rq.New().Post(cloud+"/licence_add").
 			Type("multipart").
 			Set("name", name).
-			SendFile(licenceFile)
-		if sourceURL != "" {
-			req.Set("source", sourceURL)
+			SendFile(licenceAddFile)
+		if licenceAddURL != "" {
+			req.Set("source", licenceAddURL)
 		}
 		resp, _, errs := req.End()
 		if errs != nil {
@@ -67,8 +67,8 @@ var licenceAddCmd = &cobra.Command{
 
 func init() {
 	licenceCmd.AddCommand(licenceAddCmd)
-	licenceAddCmd.Flags().StringVar(&licenceFile, "licence-file", "",
+	licenceAddCmd.Flags().StringVar(&licenceAddFile, "licence-file", "",
 		"Path to a file containing the license as text")
-	licenceAddCmd.Flags().StringVar(&sourceURL, "source-url", "",
+	licenceAddCmd.Flags().StringVar(&licenceAddURL, "source-url", "",
 		"Optional reference URL for the licence")
 }
