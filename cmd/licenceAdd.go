@@ -13,10 +13,10 @@ import (
 
 var licenceFile, sourceURL string
 
-// Adds a licence to the list of available licences on the server
+// Adds a licence to the list of known licences on the server
 var licenceAddCmd = &cobra.Command{
 	Use:   "add [licence name]",
-	Short: "Add a license to the list of available licences on the server",
+	Short: "Add a license to the list of known licences on a DBHub.io cloud",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a licence friendly name is present
 		if len(args) == 0 {

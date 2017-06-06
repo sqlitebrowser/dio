@@ -106,6 +106,7 @@ func main() {
 	ws.Route(ws.GET("/db_list").To(dbList))
 	ws.Route(ws.POST("/db_upload").To(dbUpload))
 	ws.Route(ws.POST("/licence_add").To(licenceAdd))
+	ws.Route(ws.GET("/licence_get").To(licenceGet))
 	ws.Route(ws.GET("/licence_list").To(licenceList))
 	ws.Route(ws.POST("/licence_remove").To(licenceRemove))
 	ws.Route(ws.POST("/tag_create").To(tagCreate))
@@ -1035,6 +1036,9 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 }
 
 // Adds a licence to the system, so it can be selected in subsequent calls.
+// Can be tested with:
+// $ dio licence add CC0-1.0 --source-url "https://creativecommons.org/publicdomain/zero/1.0/legalcode" \
+//     --licence-file default_licences/CC0-1.0.txt
 func licenceAdd(r *rest.Request, w *rest.Response) {
 	lName := r.Request.Header.Get("name")
 	srcURL := r.Request.Header.Get("source") // Optional
@@ -1083,6 +1087,34 @@ func licenceAdd(r *rest.Request, w *rest.Response) {
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
+}
+
+// Download a licence file.
+// Can be tested with: $ dio licence get CC0-1.0
+func licenceGet(r *rest.Request, w *rest.Response) {
+	lName := r.Request.Header.Get("name")
+
+	// TODO: Validate the database and branch names
+
+	// Sanity check the inputs
+	if lName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Return the licence to the caller
+	lic, err := getLicence(lName)
+	if err != nil {
+		if err.Error() == "Licence text not found" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.txt", lName))
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte(lic))
 }
 
 // Get the list of licences.

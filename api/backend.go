@@ -151,6 +151,24 @@ func getDefaultBranchName(dbName string) (string, error) {
 	return branchName, nil
 }
 
+// Returns the text for a given licence.
+func getLicence(lName string) (lText string, err error) {
+	dbQuery := `
+		SELECT "licenceText"
+		FROM database_licences
+		WHERE "friendlyName" = $1`
+	err = pdb.QueryRow(dbQuery, lName).Scan(&lText)
+	if err != nil {
+		log.Printf("Error when retrieving licence '%s' from database: %v\n", lName, err)
+		return "", err
+	}
+	if lName == "" {
+		// The requested licence text wasn't found
+		return "", errors.New("Licence text not found")
+	}
+	return lText, nil
+}
+
 // Load the tags for a database.
 func getTags(dbName string) (tags map[string]tagEntry, err error) {
 	dbQuery := `

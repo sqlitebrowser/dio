@@ -12,7 +12,7 @@ import (
 // Displays a list of the available licences.
 var licenceListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "Displays a list of the default licences",
+	Short: "Displays a list of the known licences",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Retrieve the licence list
 		resp, body, errs := rq.New().Get(cloud + "/licence_list").End()
