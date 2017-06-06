@@ -24,8 +24,10 @@ type CommitList struct {
 }
 
 type dbListEntry struct {
+	Branch       string    `json:"default_branch"`
 	Database     string    `json:"database"`
 	LastModified time.Time `json:"last_modified"`
+	Licence      string    `json:"licence"`
 	Size         int       `json:"size"`
 }
 

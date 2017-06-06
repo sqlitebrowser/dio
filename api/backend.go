@@ -169,6 +169,21 @@ func getLicence(lName string) (lText string, err error) {
 	return lText, nil
 }
 
+// Returns the friendly name of the licence matching a given sha256.
+func getLicenceFromSha256(sha256 string) (lName string, err error) {
+	dbQuery := `
+		SELECT "friendlyName"
+		FROM database_licences
+		WHERE sha256 = $1`
+	err = pdb.QueryRow(dbQuery, sha256).Scan(&lName)
+	if err != nil {
+		log.Printf("Error when retrieving friendly name for licence sha256 '%s' from database: %v\n",
+			sha256, err)
+		return "", err
+	}
+	return lName, nil
+}
+
 // Returns the sha256 for a given licence.
 func getLicenceSha256(lName string) (sha256 string, err error) {
 	dbQuery := `
@@ -228,19 +243,40 @@ func licExists(lName string) (bool, error) {
 
 // Returns the list of available databases.
 func listDatabases() ([]byte, error) {
+	// Grab the list of databases, and the licence, size, and last_modified date of the latest commit on it's
+	// default branch.
+	// Note - This query was NOT fun to figure out. :/
 	dbQuery := `
-		SELECT "dbName"
-		FROM sqlite_databases`
+		WITH commitinfo AS (
+			SELECT "dbName" AS db,
+				"dbDefaultBranch" AS branch,
+				"branchHeads"->"dbDefaultBranch"->'commit' AS commitid,
+				"commitList" AS commitlist
+			FROM sqlite_databases
+		),
+		details AS (
+			SELECT db, branch, commitid, jsonb_array_elements(commitlist) AS commitentry
+			FROM commitinfo
+		)
+		SELECT db, branch, commitentry#>'{tree, entries, 0}' AS dbdetails
+		FROM details
+		WHERE details.commitid = details.commitentry#>'{id}'
+		ORDER BY commitentry#>'{tree, entries, 0}'#>'{last_modified}' DESC`
 	rows, err := pdb.Query(dbQuery)
 	if err != nil {
 		log.Printf("Database query failed: %v\n", err)
 		return nil, err
 	}
 	defer rows.Close()
-	var dbs []dbListEntry
+	type dbInfo struct {
+		Database  string      `json:"database_name"`
+		DefBranch string      `json:"default_branch"`
+		Details   dbTreeEntry `json:"database_details"`
+	}
+	var dbs []dbInfo
 	for rows.Next() {
-		var oneRow dbListEntry
-		err = rows.Scan(&oneRow.Database)
+		var oneRow dbInfo
+		err = rows.Scan(&oneRow.Database, &oneRow.DefBranch, &oneRow.Details)
 		if err != nil {
 			log.Printf("Error retrieving database list for user: %v\n", err)
 			return nil, err
@@ -248,16 +284,32 @@ func listDatabases() ([]byte, error) {
 		dbs = append(dbs, oneRow)
 	}
 
-	// TODO: For the real code, we'll want to extract the last modified date and file size of (say) the latest revision
-	// TODO  of each database
+	// Convert the database entries into a []dbListEntry, for passing back to the caller
+	var dbList []dbListEntry
+	for _, d := range dbs {
+		var lName string
+		if d.Details.Licence != "" {
+			lName, err = getLicenceFromSha256(d.Details.Licence)
+			if err != nil {
+				return []byte{}, err
+			}
+		}
+		oneDB := dbListEntry{
+			Branch:       d.DefBranch,
+			Database:     d.Database,
+			LastModified: d.Details.Last_Modified,
+			Licence:      lName,
+			Size:         d.Details.Size,
+		}
+		dbList = append(dbList, oneDB)
+	}
 
-	// Convert into json
-	j, err := json.MarshalIndent(dbs, "", " ")
+	// Return the database details to the caller
+	j, err := json.MarshalIndent(dbList, "", " ")
 	if err != nil {
 		log.Printf("Something went wrong serialising the branch data: %v\n", err.Error())
 		return []byte{}, err
 	}
-
 	return j, nil
 }
 
