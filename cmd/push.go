@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-var pushCmdBranch, pushCmdDB, pushCmdEmail, pushCmdMsg, pushCmdName string
+var pushCmdBranch, pushCmdDB, pushCmdEmail, pushCmdLicence, pushCmdMsg, pushCmdName string
 
 // Uploads a database to a DBHub.io cloud.
 var pushCmd = &cobra.Command{
@@ -73,13 +73,16 @@ var pushCmd = &cobra.Command{
 		// Send the file
 		req := rq.New().Post(cloud+"/db_upload").
 			Type("multipart").
-			Set("Branch", pushCmdBranch).
-			Set("Message", pushCmdMsg).
-			Set("ModTime", fi.ModTime().Format(time.RFC3339)).
-			Set("Database", pushCmdDB).
-			Set("Author", pushAuthor).
-			Set("Email", pushEmail).
+			Set("branch", pushCmdBranch).
+			Set("message", pushCmdMsg).
+			Set("modTime", fi.ModTime().Format(time.RFC3339)).
+			Set("database", pushCmdDB).
+			Set("author", pushAuthor).
+			Set("email", pushEmail).
 			SendFile(file)
+		if pushCmdLicence != "" {
+			req.Set("licence", pushCmdLicence)
+		}
 		resp, _, errs := req.End()
 		if errs != nil {
 			log.Print("Errors when uploading database to the cloud:")
@@ -92,8 +95,14 @@ var pushCmd = &cobra.Command{
 			return errors.New(fmt.Sprintf("Upload failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
 		}
-		fmt.Printf("%s - Database upload successful.  Name: %s, size: %d, branch: %s\n", cloud,
-			pushCmdDB, fi.Size(), pushCmdBranch)
+		fmt.Printf("Database uploaded to %s\n\n", cloud)
+		fmt.Printf("  * Name: %s\n", pushCmdDB)
+		fmt.Printf("    Branch: %s\n", pushCmdBranch)
+		if pushCmdLicence != "" {
+			fmt.Printf("    Licence: %s\n", pushCmdLicence)
+		}
+		fmt.Printf("    Size: %d bytes\n", fi.Size())
+		fmt.Printf("    Commit message: %s\n\n", pushCmdMsg)
 		return nil
 	},
 }
@@ -102,9 +111,11 @@ func init() {
 	RootCmd.AddCommand(pushCmd)
 	pushCmd.Flags().StringVar(&pushCmdBranch, "branch", "master",
 		"Remote branch the database will be uploaded to")
+	pushCmd.Flags().StringVar(&pushCmdDB, "dbname", "", "Override for the database name")
 	pushCmd.Flags().StringVar(&pushCmdEmail, "email", "", "Email address of the author")
+	pushCmd.Flags().StringVar(&pushCmdLicence, "licence", "",
+		"The licence for the database, as per 'dio licence list'")
 	pushCmd.Flags().StringVar(&pushCmdMsg, "message", "",
 		"(Required) Commit message for this upload")
 	pushCmd.Flags().StringVar(&pushCmdName, "author", "", "Author name")
-	pushCmd.Flags().StringVar(&pushCmdDB, "dbname", "", "Override for the database name")
 }

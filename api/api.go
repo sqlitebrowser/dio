@@ -889,15 +889,16 @@ func dbList(r *rest.Request, w *rest.Response) {
 }
 
 // Upload a database.
-// Can be tested with: dio push a.db
+// Can be tested with: $ dio push a.db --message "An example commit message"
 func dbUpload(r *rest.Request, w *rest.Response) {
 	// Retrieve metadata from the post headers
-	authorName := r.Request.Header.Get("Author")
-	branchName := r.Request.Header.Get("Branch") // Optional
-	dbName := r.Request.Header.Get("Database")
-	email := r.Request.Header.Get("Email")
-	msg := r.Request.Header.Get("Message")
-	modTime := r.Request.Header.Get("Modtime") // Optional
+	authorName := r.Request.Header.Get("author")
+	branchName := r.Request.Header.Get("branch") // Optional
+	dbName := r.Request.Header.Get("database")
+	email := r.Request.Header.Get("email")
+	lName := r.Request.Header.Get("licence") // Optional
+	msg := r.Request.Header.Get("message")
+	modTime := r.Request.Header.Get("modtime") // Optional
 
 	// TODO: Validate the inputs
 
@@ -925,8 +926,8 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	// Create a dbTree entry for the individual database file
 	var e dbTreeEntry
 	e.AType = DATABASE
-	e.Sha256 = hex.EncodeToString(sha[:])
 	e.Name = dbName
+	e.Sha256 = hex.EncodeToString(sha[:])
 	e.Last_Modified, err = time.Parse(time.RFC3339, modTime)
 	if err != nil {
 		log.Println(err.Error())
@@ -934,6 +935,13 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 		return
 	}
 	e.Size = buf.Len()
+	if lName != "" {
+		e.Licence, err = getLicenceSha256(lName)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
 
 	// Create a dbTree structure for the database entry
 	var t dbTree

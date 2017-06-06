@@ -17,7 +17,7 @@ import (
 // Generate a stable SHA256 for a commit.
 func createCommitID(c commitEntry) string {
 	var b bytes.Buffer
-	b.WriteString(fmt.Sprintf("tree %s\n", c.Tree))
+	b.WriteString(fmt.Sprintf("tree %s\n", c.Tree.ID))
 	if c.Parent != "" {
 		b.WriteString(fmt.Sprintf("parent %s\n", c.Parent))
 	}
@@ -167,6 +167,24 @@ func getLicence(lName string) (lText string, err error) {
 		return "", errors.New("Licence text not found")
 	}
 	return lText, nil
+}
+
+// Returns the sha256 for a given licence.
+func getLicenceSha256(lName string) (sha256 string, err error) {
+	dbQuery := `
+		SELECT sha256
+		FROM database_licences
+		WHERE "friendlyName" = $1`
+	err = pdb.QueryRow(dbQuery, lName).Scan(&sha256)
+	if err != nil {
+		log.Printf("Error when retrieving sha256 for licence '%s' from database: %v\n", lName, err)
+		return "", err
+	}
+	if lName == "" {
+		// The requested licence wasn't found
+		return "", errors.New("Licence not found")
+	}
+	return sha256, nil
 }
 
 // Load the tags for a database.
