@@ -19,5 +19,6 @@
 # dio binary
 dio
 
-# Exclude database files used in testing
+# Exclude database and licence files used in testing
 *.db
+*-LICENCE

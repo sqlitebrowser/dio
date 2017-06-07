@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"time"
 
 	rq "github.com/parnurzeal/gorequest"
 	"github.com/pkg/errors"
@@ -81,17 +84,48 @@ var pullCmd = &cobra.Command{
 				resp.StatusCode, resp.Status))
 		}
 
+		// Extract the database and licence from the API servers' response
+		var dbAndLicence struct {
+			DBFile       []byte
+			LastModified time.Time
+			LicName      string
+			LicText      []byte
+		}
+		err := json.Unmarshal([]byte(body), &dbAndLicence)
+		if err != nil {
+			return err
+		}
+
 		// Write the database file to disk
-		err := ioutil.WriteFile(file, []byte(body), 0644)
+		err = ioutil.WriteFile(file, dbAndLicence.DBFile, 0644)
+		if err != nil {
+			return err
+		}
+		err = os.Chtimes(file, time.Now(), dbAndLicence.LastModified)
 		if err != nil {
 			return err
 		}
 		if pullCmdBranch != "" {
-			fmt.Printf("%s - Database '%s' downloaded.  Size: %d, branch: %s\n", cloud, file, len(body),
-				pullCmdBranch)
+			fmt.Printf("Database '%s' downloaded from %s.  Branch: '%s'.  Size: %d bytes\n", file,
+				cloud, pullCmdBranch, len(dbAndLicence.DBFile))
 		} else {
-			fmt.Printf("%s - Database '%s' downloaded.  Size: %d, commit: %s\n", cloud, file, len(body),
-				pullCmdCommit)
+			fmt.Printf("Database '%s' downloaded from %s.  Size: %d bytes\nCommit: %s\n", file,
+				cloud, len(dbAndLicence.DBFile), pullCmdCommit)
+		}
+
+		// If a licence was returned along with the database, write it to disk as well
+		if len(dbAndLicence.LicText) > 0 {
+			licFile := file + "-LICENCE"
+			err = ioutil.WriteFile(licFile, dbAndLicence.LicText, 0644)
+			if err != nil {
+				return err
+			}
+			err = os.Chtimes(licFile, time.Now(), dbAndLicence.LastModified)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("This database is using the %s licence.  A copy has been created as %s.\n",
+				dbAndLicence.LicName, licFile)
 		}
 		return nil
 	},

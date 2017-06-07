@@ -750,8 +750,7 @@ func branchUpdate(r *rest.Request, w *rest.Response) {
 }
 
 // Download a database
-// Can be tested with: curl -OJ 'http://localhost:8080/db_download?database=a.db&branch=master'
-// or curl -OJ 'http://localhost:8080/db_download?database=a.db&commit=xxx'
+// Can be tested with: $ dio pull a.db, $ dio pull a.db --branch xxx, or $ dio pull a.db --commit yyy
 func dbDownload(r *rest.Request, w *rest.Response) {
 	// Retrieve the database and branch names
 	dbName := r.Request.Header.Get("database")
@@ -785,7 +784,8 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 	}
 
 	// Determine the database commit ID
-	var dbID string
+	var dbID, dbLicence string
+	var dbLastMod time.Time
 	if reqCommit != "" {
 		// * It was given by the user *
 
@@ -807,6 +807,8 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 					for _, e = range c.Tree.Entries {
 						if e.Name == dbName {
 							dbID = e.Sha256
+							dbLastMod = e.Last_Modified
+							dbLicence = e.Licence
 							commitExists = true
 							break
 						}
@@ -849,6 +851,8 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 		for _, e := range c.Tree.Entries {
 			if e.Name == dbName {
 				dbID = e.Sha256
+				dbLastMod = e.Last_Modified
+				dbLicence = e.Licence
 			}
 		}
 		if dbID == "" {
@@ -857,7 +861,22 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 		}
 	}
 
-	// Send the database
+	// Retrieve the licence for the database
+	var lName, lText string
+	if dbLicence != "" {
+		lName, err = getLicenceFromSha256(dbLicence)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		lText, err = getLicence(lName)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Retrieve the database
 	db, err := getDatabase(dbID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -868,9 +887,26 @@ func dbDownload(r *rest.Request, w *rest.Response) {
 	}()
 	var buf bytes.Buffer
 	buf.ReadFrom(db)
+
+	// Send the data back to the caller
+	var dbAndLicence struct {
+		DBFile       []byte
+		LastModified time.Time
+		LicName      string
+		LicText      []byte
+	}
+	dbAndLicence.DBFile = buf.Bytes()
+	dbAndLicence.LastModified = dbLastMod
+	dbAndLicence.LicName = lName
+	dbAndLicence.LicText = []byte(lText)
+	responseData, err := json.MarshalIndent(dbAndLicence, "", " ")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", dbName))
 	w.Header().Set("Content-Type", "application/x-sqlite3")
-	w.Write(buf.Bytes())
+	w.Write(responseData)
 }
 
 // Get the list of databases.
