@@ -104,6 +104,7 @@ func main() {
 	ws.Route(ws.POST("/branch_update").To(branchUpdate))
 	ws.Route(ws.GET("/db_download").To(dbDownload))
 	ws.Route(ws.GET("/db_list").To(dbList))
+	ws.Route(ws.POST("/db_update").To(dbUpdate))
 	ws.Route(ws.POST("/db_upload").To(dbUpload))
 	ws.Route(ws.POST("/licence_add").To(licenceAdd))
 	ws.Route(ws.GET("/licence_get").To(licenceGet))
@@ -883,6 +884,145 @@ func dbList(r *rest.Request, w *rest.Response) {
 	w.Write(dbList)
 }
 
+// Upload the details for a database.
+// Can be tested with: $ dio update a.db --new-licence "CC0-1.0"
+func dbUpdate(r *rest.Request, w *rest.Response) {
+	branchName := r.Request.Header.Get("branch") // Optional
+	dbName := r.Request.Header.Get("database")
+	lName := r.Request.Header.Get("licence")
+	msg := r.Request.Header.Get("message") // Optional
+
+	// TODO: Validate the inputs
+
+	// Sanity check the inputs
+	if dbName == "" || lName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Make sure the database exists in our system
+	exists, err := dbExists(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Make sure the licence exists in our system
+	le, err := licExists(lName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !le {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// If no branch name was given, use the default for the database
+	if branchName == "" {
+		branchName, err = getDefaultBranchName(dbName)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Make sure the desired branch exists
+	branches, err := getBranches(dbName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	branchHead, ok := branches[branchName]
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Create a new commit entry, copying the details of the existing one
+	prevCommit, err := getCommit(dbName, branchHead.Commit)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// The tree entry for the database file
+	newTreeEntry := dbTreeEntry{
+		AType:         prevCommit.Tree.Entries[0].AType,
+		Last_Modified: prevCommit.Tree.Entries[0].Last_Modified,
+		Name:          prevCommit.Tree.Entries[0].Name,
+		Sha256:        prevCommit.Tree.Entries[0].Sha256,
+		Size:          prevCommit.Tree.Entries[0].Size,
+	}
+	newTreeEntry.Licence, err = getLicenceSha256(lName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// If the new licence is the same as the old licence, abort
+	if newTreeEntry.Licence == prevCommit.Tree.Entries[0].Licence {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	// The dbTree structure for the database tree entry
+	var newTree dbTree
+	newTree.Entries = append(newTree.Entries, newTreeEntry)
+	newTree.ID = createDBTreeID(newTree.Entries)
+
+	// The commit entry holding the tree
+	c := commitEntry{
+		AuthorName:  prevCommit.AuthorName,
+		AuthorEmail: prevCommit.AuthorEmail,
+		Parent:      prevCommit.ID,
+		Timestamp:   time.Now(),
+		Tree:        newTree,
+	}
+	if msg != "" {
+		c.Message = msg
+	} else {
+		if prevCommit.Tree.Entries[0].Licence != "" {
+			// Create a commit message about the change from the old licence to the new one
+			oldLic, err := getLicenceFromSha256(prevCommit.Tree.Entries[0].Licence)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			c.Message = fmt.Sprintf("Licence changed from %s to %s", oldLic, lName)
+		} else {
+			// There wasn't a licence applied previously, so make a commit message just mentioning the
+			// new licence in the change
+			c.Message = fmt.Sprintf("Licence changed to %s", lName)
+		}
+	}
+	c.ID = createCommitID(c)
+
+	// Write the commit to PG
+	err = storeCommit(dbName, c)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Write the updated branch heads to PG
+	branchHead.Commit = c.ID
+	branches[branchName] = branchHead
+	err = storeBranches(dbName, branches)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Log the upload
+	log.Printf("Database '%s' updated.  New licence: '%s'\n", dbName, lName)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // Upload a database.
 // Can be tested with: $ dio push a.db --message "An example commit message"
 func dbUpload(r *rest.Request, w *rest.Response) {
@@ -1058,9 +1198,6 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	// Log the upload
 	log.Printf("Database uploaded.  Name: '%s', size: %d bytes, branch: '%s'\n", dbName, buf.Len(),
 		branchName)
-
-	// Send a 201 "Created" response, along with the location of the URL for working with the (new) database
-	w.AddHeader("Location", "/"+dbName)
 	w.WriteHeader(http.StatusCreated)
 }
 

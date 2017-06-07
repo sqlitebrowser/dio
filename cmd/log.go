@@ -93,7 +93,7 @@ func createCommitText(c commitEntry, licList map[string]string) string {
 		s += fmt.Sprintf("  Licence: %s\n", licList[c.Tree.Entries[0].Licence])
 	}
 	if c.Message != "" {
-		s += fmt.Sprintf("\n      %s\n", c.Message)
+		s += fmt.Sprintf("\n    %s\n", c.Message)
 	}
 	return s
 }
