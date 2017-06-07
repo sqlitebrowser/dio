@@ -91,26 +91,21 @@ func getBranches(dbName string) (branches map[string]branchEntry, err error) {
 
 // Reads a commit from disk.
 func getCommit(dbName string, id string) (commitEntry, error) {
-	// Retrieve all of the commits from the database
-	// TODO: We can probably directly retrieve the desired commit from PG using a jsonb operator.  eg @> 'something'
+	// Retrieve the requested commit from the database
 	dbQuery := `
-		SELECT "commitList"
-		FROM sqlite_databases
-		WHERE "dbName" = $1`
-	var list []commitEntry
-	err := pdb.QueryRow(dbQuery, dbName).Scan(&list)
+		WITH commitList AS (
+			SELECT jsonb_array_elements("commitList") AS commits
+			FROM sqlite_databases
+			WHERE "dbName" = $1
+		)
+		SELECT commits
+		FROM commitList
+		WHERE commits @> '{"id":"` + id + `"}'` // TODO: Is there a better way than using string smashing for this?
+	var c commitEntry
+	err := pdb.QueryRow(dbQuery, dbName).Scan(&c)
 	if err != nil {
 		log.Printf("Error when retrieving commit list for database '%v': %v\n", dbName, err)
 		return commitEntry{}, err
-	}
-
-	// Return the individual commit we want
-	var c commitEntry
-	for _, j := range list {
-		if j.ID == id {
-			c = j
-			break
-		}
 	}
 	if c.ID == "" {
 		return c, errors.New("Requested commit not found")
