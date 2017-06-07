@@ -30,10 +30,6 @@ var branchLog = &cobra.Command{
 		}
 
 		// Retrieve the branch history
-		var history struct {
-			Branch  string
-			Entries []commitEntry
-		}
 		file := args[0]
 		resp, body, errs := rq.New().Get(cloud+"/branch_history").
 			Set("branch", logBranch).
@@ -53,15 +49,28 @@ var branchLog = &cobra.Command{
 			return errors.New(fmt.Sprintf("Branch history failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
 		}
+		var history branchEntries
 		err := json.Unmarshal([]byte(body), &history)
 		if err != nil {
 			return err
 		}
 
+		// Retrieve the list of known licences
+		l, err := getLicences()
+		if err != nil {
+			return err
+		}
+
+		// Map the license sha256's to their friendly name for easy lookup
+		licList := make(map[string]string)
+		for _, j := range l {
+			licList[j.Sha256] = j.Name
+		}
+
 		// Display the branch history
 		fmt.Printf("Branch \"%s\" history for %s:\n\n", history.Branch, file)
 		for _, j := range history.Entries {
-			fmt.Printf(createCommitText(j))
+			fmt.Printf(createCommitText(j, licList))
 			if j.Message != "" {
 				fmt.Println()
 			}
@@ -76,12 +85,12 @@ func init() {
 }
 
 // Creates the user visible commit text for a commit.
-func createCommitText(c commitEntry) string {
+func createCommitText(c commitEntry, licList map[string]string) string {
 	s := fmt.Sprintf("  commit %s\n", c.ID)
 	s += fmt.Sprintf("  Author: %s <%s>\n", c.AuthorName, c.AuthorEmail)
 	s += fmt.Sprintf("  Date: %v\n", c.Timestamp.Format(time.UnixDate))
-	if c.Licence != "" {
-		s += fmt.Sprintf("  Licence: %s\n", c.Licence)
+	if c.Tree.Entries[0].Licence != "" {
+		s += fmt.Sprintf("  Licence: %s\n", licList[c.Tree.Entries[0].Licence])
 	}
 	if c.Message != "" {
 		s += fmt.Sprintf("\n      %s\n", c.Message)

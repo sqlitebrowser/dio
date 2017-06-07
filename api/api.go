@@ -329,11 +329,7 @@ func branchHistory(r *rest.Request, w *rest.Response) {
 	}
 
 	// Walk the commit history, assembling it into something useful
-	var history struct {
-		Branch  string
-		Entries []commitEntry
-	}
-	history.Branch = branchName
+	history := branchEntries{Branch: branchName}
 	c := commitEntry{Parent: b.Commit}
 	for c.Parent != "" {
 		c, err = getCommit(dbName, c.Parent)

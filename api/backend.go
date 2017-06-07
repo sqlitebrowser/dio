@@ -109,13 +109,6 @@ func getCommit(dbName string, id string) (commitEntry, error) {
 	for _, j := range list {
 		if j.ID == id {
 			c = j
-			if j.Tree.Entries[0].Licence != "" {
-				// If present, pass the licence name back to the client
-				c.Licence, err = getLicenceFromSha256(j.Tree.Entries[0].Licence)
-				if err != nil {
-					return commitEntry{}, err
-				}
-			}
 			break
 		}
 	}
