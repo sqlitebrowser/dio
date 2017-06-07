@@ -918,40 +918,7 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 	}
 	sha := sha256.Sum256(buf.Bytes())
 
-	// Create a dbTree entry for the individual database file
-	var e dbTreeEntry
-	e.AType = DATABASE
-	e.Name = dbName
-	e.Sha256 = hex.EncodeToString(sha[:])
-	e.Last_Modified, err = time.Parse(time.RFC3339, modTime)
-	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	e.Size = buf.Len()
-	if lName != "" {
-		e.Licence, err = getLicenceSha256(lName)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	}
-
-	// Create a dbTree structure for the database entry
-	var t dbTree
-	t.Entries = append(t.Entries, e)
-	t.ID = createDBTreeID(t.Entries)
-
-	// Construct a commit structure pointing to the tree
-	var c commitEntry
-	c.AuthorName = authorName
-	c.AuthorEmail = email
-	c.Message = msg
-	c.Timestamp = time.Now()
-	c.Tree = t
-
-	// Check if the database already exists
+	// Check if the database already exists in our system
 	needDefaultBranchCreated := false
 	var branches map[string]branchEntry
 	exists, err := dbExists(dbName)
@@ -975,14 +942,6 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 				return
 			}
 		}
-
-		// Ensure the desired branch already exists.  Use its head commit as the parent for our new uploads' commit
-		b, ok := branches[branchName]
-		if !ok {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		c.Parent = b.Commit
 	} else {
 		// No existing branches, so this will be the first
 		branches = make(map[string]branchEntry)
@@ -992,6 +951,72 @@ func dbUpload(r *rest.Request, w *rest.Response) {
 			branchName = "master"
 		}
 		needDefaultBranchCreated = true
+	}
+
+	// Create a dbTree entry for the individual database file
+	var e dbTreeEntry
+	e.AType = DATABASE
+	e.Name = dbName
+	e.Sha256 = hex.EncodeToString(sha[:])
+	e.Last_Modified, err = time.Parse(time.RFC3339, modTime)
+	if err != nil {
+		log.Println(err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	e.Size = buf.Len()
+	if lName == "" {
+		// No licence was specified by the client, so check if the database is already in the system and
+		// already has one.  If so, we use that.
+		if exists {
+			headBranch, ok := branches[branchName]
+			if !ok {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			headCommit, err := getCommit(dbName, headBranch.Commit)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+
+			}
+			if headCommit.Tree.Entries[0].Licence != "" {
+				// The previous commit for the database had a licence, so we use that for this commit
+				// too
+				e.Licence = headCommit.Tree.Entries[0].Licence
+			}
+		}
+	} else {
+		// A licence was specified by the client, so use that
+		e.Licence, err = getLicenceSha256(lName)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Create a dbTree structure for the database entry
+	var t dbTree
+	t.Entries = append(t.Entries, e)
+	t.ID = createDBTreeID(t.Entries)
+
+	// Construct a commit structure pointing to the tree
+	var c commitEntry
+	c.AuthorName = authorName
+	c.AuthorEmail = email
+	c.Message = msg
+	c.Timestamp = time.Now()
+	c.Tree = t
+
+	// If the database already exists, use the head commit for the appropriate branch as the parent for our new
+	// uploads' commit
+	if exists {
+		b, ok := branches[branchName]
+		if !ok {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		c.Parent = b.Commit
 	}
 
 	// Update the branch with the commit for this new database upload
