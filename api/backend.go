@@ -205,7 +205,7 @@ func getTags(dbName string) (tags map[string]tagEntry, err error) {
 		WHERE "dbName" = $1`
 	err = pdb.QueryRow(dbQuery, dbName).Scan(&tags)
 	if err != nil {
-		log.Printf("Error when retrieving branch heads for database '%v': %v\n", dbName, err)
+		log.Printf("Error when retrieving tags for database '%v': %v\n", dbName, err)
 		return nil, err
 	}
 	if tags == nil {
