@@ -16,7 +16,7 @@ import (
 	"github.com/BurntSushi/toml"
 	rest "github.com/emicklei/go-restful"
 	"github.com/jackc/pgx"
-	"github.com/minio/go-homedir"
+	"github.com/mitchellh/go-homedir"
 	"github.com/minio/minio-go"
 )
 

@@ -22,3 +22,6 @@ dio
 # Exclude database and licence files used in testing
 *.db
 *-LICENCE
+
+# Go vendor directory
+vendor

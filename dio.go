@@ -1,6 +1,6 @@
 package main
 
-import "github.com/justinclift/dio/cmd"
+import "github.com/sqlitebrowser/dio/cmd"
 
 func main() {
 	cmd.Execute()
