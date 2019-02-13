@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx"
+	"github.com/minio/minio-go"
 	"github.com/pkg/errors"
 )
 
@@ -418,7 +419,8 @@ func storeDatabase(db []byte) error {
 	}
 
 	// Store the SQLite database file in Minio
-	dbSize, err := minioClient.PutObject(bkt, id, bytes.NewReader(db), "application/x-sqlite3")
+	dbSize, err := minioClient.PutObject(bkt, id, bytes.NewReader(db), -1,
+		minio.PutObjectOptions{ContentType: "application/x-sqlite3"})
 	if err != nil {
 		log.Printf("Storing file in Minio failed: %v\n", err)
 		return err
