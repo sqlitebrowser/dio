@@ -118,7 +118,7 @@ func getCommit(dbName string, id string) (commitEntry, error) {
 func getDatabase(sha string) (io.ReadCloser, error) {
 	bkt := sha[0:6]
 	id := sha[6:]
-	db, err := minioClient.GetObject(bkt, id)
+	db, err := minioClient.GetObject(bkt, id, minio.GetObjectOptions{})
 	if err != nil {
 		log.Printf("Error retrieving DB from Minio: %v\n", err)
 		return nil, errors.New("Error retrieving database from internal storage")
