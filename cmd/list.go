@@ -3,7 +3,6 @@ package cmd
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -20,9 +19,9 @@ var listCmd = &cobra.Command{
 		// TODO: In the real code, we'd likely include things like # stars and fork count too
 
 		// Load our self signed CA chain
+		// TODO: Read the certificate from a proper location
 		ourCAPool := x509.NewCertPool()
 		chainFile, err := ioutil.ReadFile("/home/jc/git_repos/src/github.com/sqlitebrowser/dbhub.io/docker/certs/ca-chain-docker.cert.pem")
-		//chainFile, err := ioutil.ReadFile(com.Conf.DB4S.CAChain)
 		if err != nil {
 			fmt.Printf("Error opening Certificate Authority chain file: %v\n", err)
 			return err
@@ -34,38 +33,15 @@ var listCmd = &cobra.Command{
 		}
 
 		// Load a client certificate file
-		certFile, err := ioutil.ReadFile("/home/jc/default.cert.pem")
-		if err != nil {
-			fmt.Printf("Error opening Certificate Authority chain file: %v\n", err)
-			return err
-		}
-
-		//// Decode the client certificate (PEM format)
-		cert, _ := pem.Decode(certFile)
-		if cert == nil || cert.Type != "CERTIFICATE" {
-			return errors.New("file didn't contain a certificate")
-		}
-
-		//fmt.Printf("PEM Block found of type: %v\n", cert.Type)
-
-		//_, err = x509.ParseCertificate(cert.Bytes)
-		//foo, err := x509.ParseCertificate(certFile)
-		foo, err := x509.ParseCertificate(cert.Bytes)
+		// TODO: Read the certificate from a proper location
+		cert, err := tls.LoadX509KeyPair("/home/jc/default.cert.pem", "/home/jc/default.cert.pem")
 		if err != nil {
 			return err
 		}
-
-		var userCert []tls.Certificate
-
-		var oneCert tls.Certificate
-		oneCert.Leaf = foo
-
-		//userCert = append(userCert, &foo)
 
 		// Load our self signed CA Cert chain, and set TLS1.2 as minimum
 		newTLSConfig := &tls.Config{
-			//ClientAuth:               tls.RequireAndVerifyClientCert,
-			Certificates:             userCert,
+			Certificates:             []tls.Certificate{cert},
 			ClientCAs:                ourCAPool,
 			MinVersion:               tls.VersionTLS12,
 			PreferServerCipherSuites: true,
@@ -77,8 +53,7 @@ var listCmd = &cobra.Command{
 		resp, _, errs := rq.New().
 		//resp, body, errs := rq.New().
 			TLSClientConfig(newTLSConfig).
-			//TLSClientConfig(&tls.Config{ InsecureSkipVerify: true}).
-			Get(cloud + "/dbist").
+			Get(cloud + "/default").
 			End()
 		if errs != nil {
 			e := fmt.Sprintln("Errors when retrieving the database list:")
