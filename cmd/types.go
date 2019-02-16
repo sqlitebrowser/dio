@@ -29,11 +29,16 @@ type CommitList struct {
 }
 
 type dbListEntry struct {
-	Branch       string    `json:"default_branch"`
-	Database     string    `json:"database"`
-	LastModified time.Time `json:"last_modified"`
-	Licence      string    `json:"licence"`
-	Size         int       `json:"size"`
+	CommitID     string `json:"commit_id"`
+	DefBranch    string `json:"default_branch"`
+	LastModified string `json:"last_modified"`
+	Licence      string `json:"licence"`
+	Name         string `json:"name"`
+	Public       bool   `json:"public"`
+	SHA256       string `json:"sha256"`
+	Size         int    `json:"size"`
+	Type         string `json:"type"`
+	URL          string `json:"url"`
 }
 
 type dbTreeEntryType string
