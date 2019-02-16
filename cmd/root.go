@@ -36,7 +36,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
 		"config file (default is $HOME/.dio.yaml)")
-	RootCmd.PersistentFlags().StringVar(&cloud, "cloud", "http://localhost:8080",
+	RootCmd.PersistentFlags().StringVar(&cloud, "cloud", "https://docker-dev.dbhub.io:5550",
 		"Address of the DBHub.io cloud")
 }
 
