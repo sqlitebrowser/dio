@@ -15,6 +15,7 @@ import (
 
 var (
 	branch, cfgFile, cloud, commit, email, name, msg, tag string
+	certUser, certServer                                  string
 	TLSConfig                                             tls.Config
 )
 
@@ -72,6 +73,12 @@ func init() {
 		MinVersion:               tls.VersionTLS12,
 		PreferServerCipherSuites: true,
 		RootCAs:                  ourCAPool,
+	}
+
+	// Extract the username and server from the TLS certificate
+	certUser, certServer, err = getUserAndServer()
+	if err != nil {
+		fmt.Println(err)
 	}
 }
 

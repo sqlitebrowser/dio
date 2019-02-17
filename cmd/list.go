@@ -9,15 +9,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Displays a list of the databases on the DBHub.io server.
+// Displays the list of databases on DBHub.io for the user.
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "Returns a list of available databases",
+	Short: "Returns the list of your databases on DBHub.io",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// TODO: Include things like # stars and fork count too
+		// TODO: Add parameter for listing the (public) databases of other user(s) too
 
-		// Retrieve the database list from the cloud
-		resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/default").End()
+		// Retrieve the database list for the user
+		resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(fmt.Sprintf("%s/%s", cloud, certUser)).End()
 		if errs != nil {
 			e := fmt.Sprintln("Errors when retrieving the database list:")
 			for _, err := range errs {
