@@ -24,9 +24,9 @@ var licenceListCmd = &cobra.Command{
 		}
 		fmt.Printf("Licences on %s\n\n", cloud)
 		for _, j := range licList {
-			fmt.Printf("  * Name: %s\n", j.Name)
+			fmt.Printf("  * Name: %s\n", j.FullName)
 			fmt.Printf("    Source URL: %s\n", j.URL)
-			fmt.Printf("    SHA256: %s\n\n", j.Sha256)
+			fmt.Printf("    SHA256: %s\n\n", j.SHA256)
 		}
 		return nil
 	},

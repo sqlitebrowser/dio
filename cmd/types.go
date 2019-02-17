@@ -54,12 +54,12 @@ type dbTree struct {
 	Entries []dbTreeEntry `json:"entries"`
 }
 type dbTreeEntry struct {
-	AType         dbTreeEntryType `json:"type"`
-	Last_Modified time.Time       `json:"last_modified"`
-	Licence       string          `json:"licence"`
-	Name          string          `json:"name"`
-	Sha256        string          `json:"sha256"`
-	Size          int             `json:"size"`
+	AType        dbTreeEntryType `json:"type"`
+	LastModified time.Time       `json:"last_modified"`
+	Licence      string          `json:"licence"`
+	Name         string          `json:"name"`
+	Sha256       string          `json:"sha256"`
+	Size         int             `json:"size"`
 }
 
 type errorInfo struct {
@@ -68,9 +68,10 @@ type errorInfo struct {
 }
 
 type licenceEntry struct {
-	Name   string
-	Sha256 string
-	URL    string
+	FullName string `json:"full_name"`
+	SHA256   string `json:"sha256"`
+	Type     string `json:"type"`
+	URL      string `json:"url"`
 }
 
 type tagType string

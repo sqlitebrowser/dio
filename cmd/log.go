@@ -21,12 +21,12 @@ var branchLog = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given
 		if len(args) == 0 {
-			return errors.New("No database file specified")
+			return errors.New("no database file specified")
 		}
 		// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
 		// TODO  into a for loop
 		if len(args) > 1 {
-			return errors.New("Only one database can be worked with at a time (for now)")
+			return errors.New("only one database can be worked with at a time (for now)")
 		}
 
 		// Retrieve the branch history
@@ -40,11 +40,11 @@ var branchLog = &cobra.Command{
 			for _, err := range errs {
 				log.Print(err.Error())
 			}
-			return errors.New("Error when retrieving branch history")
+			return errors.New("error when retrieving branch history")
 		}
 		if resp.StatusCode != http.StatusOK {
 			if resp.StatusCode == http.StatusNotFound {
-				return errors.New("Requested database or branch not found")
+				return errors.New("requested database or branch not found")
 			}
 			return errors.New(fmt.Sprintf("Branch history failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
@@ -64,7 +64,7 @@ var branchLog = &cobra.Command{
 		// Map the license sha256's to their friendly name for easy lookup
 		licList := make(map[string]string)
 		for _, j := range l {
-			licList[j.Sha256] = j.Name
+			licList[j.SHA256] = j.FullName
 		}
 
 		// Display the branch history
