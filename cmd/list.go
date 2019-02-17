@@ -17,10 +17,7 @@ var listCmd = &cobra.Command{
 		// TODO: Include things like # stars and fork count too
 
 		// Retrieve the database list from the cloud
-		resp, body, errs := rq.New().
-			TLSClientConfig(&TLSConfig).
-			Get(cloud + "/default").
-			End()
+		resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/default").End()
 		if errs != nil {
 			e := fmt.Sprintln("Errors when retrieving the database list:")
 			for _, err := range errs {

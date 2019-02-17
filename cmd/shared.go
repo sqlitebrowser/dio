@@ -8,10 +8,9 @@ import (
 	rq "github.com/parnurzeal/gorequest"
 )
 
-func getLicences() (list []licenceEntry, err error) {
+func getLicences() (list map[string]licenceEntry, err error) {
 	// Retrieve the database list from the cloud
-	resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).
-		Get(cloud + "/licence/list").End()
+	resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/licence/list").End()
 	if errs != nil {
 		e := fmt.Sprintln("errors when retrieving the licence list:")
 		for _, err := range errs {
@@ -22,13 +21,9 @@ func getLicences() (list []licenceEntry, err error) {
 	defer resp.Body.Close()
 
 	// Convert the JSON response to our licence entry structure
-	l := make(map[string]licenceEntry)
-	err = json.Unmarshal([]byte(body), &l)
+	err = json.Unmarshal([]byte(body), &list)
 	if err != nil {
 		return list, errors.New(fmt.Sprintf("error retrieving licence list: '%v'\n", err.Error()))
-	}
-	for _, entry := range l {
-		list = append(list, entry)
 	}
 	return list, err
 }
