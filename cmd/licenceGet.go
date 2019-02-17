@@ -47,12 +47,17 @@ var licenceGetCmd = &cobra.Command{
 		}
 
 		// Write the licence to disk
-		// TODO: Change file extension to match mime type
-		err := ioutil.WriteFile(lic+".txt", []byte(body), 0644)
+		var ext string
+		if resp.Header.Get("Content-Type") == "text/html" {
+			ext = "html"
+		} else {
+			ext = "txt"
+		}
+		err := ioutil.WriteFile(fmt.Sprintf("%s.%s", lic, ext), []byte(body), 0644)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Licence '%s.txt' downloaded from %s.\n", lic, cloud)
+		fmt.Printf("Licence '%s.%s' downloaded from %s.\n", lic, ext, cloud)
 		return nil
 	},
 }
