@@ -21,15 +21,16 @@ var licenceGetCmd = &cobra.Command{
 			return errors.New("No licence name specified")
 		}
 		// TODO: Allow giving multiple licence names on the command line.  Hopefully just needs turning this
-		// TODO  into a for loop
+		// TODO  into a for loop.
+		// TODO: The key word "all" should be a short cut for downloading all of the licences
 		if len(args) > 1 {
 			return errors.New("Only one licence can be downloaded at a time (for now)")
 		}
 
 		// Download the licence text
 		lic := args[0]
-		resp, body, errs := rq.New().Get(cloud+"/licence_get").
-			Set("name", lic).End()
+		resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/licence/get").
+			Query(fmt.Sprintf("licence=%s", lic)).End()
 		if errs != nil {
 			log.Print("Errors when downloading licence text:")
 			for _, err := range errs {
@@ -39,13 +40,14 @@ var licenceGetCmd = &cobra.Command{
 		}
 		if resp.StatusCode != http.StatusOK {
 			if resp.StatusCode == http.StatusNotFound {
-				return errors.New("Requested licence not found")
+				return errors.New(fmt.Sprintf("Requested licence '%s' not found on %s", lic, cloud))
 			}
 			return errors.New(fmt.Sprintf("Download failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
 		}
 
 		// Write the licence to disk
+		// TODO: Change file extension to match mime type
 		err := ioutil.WriteFile(lic+".txt", []byte(body), 0644)
 		if err != nil {
 			return err
