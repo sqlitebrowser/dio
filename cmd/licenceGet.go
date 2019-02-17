@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 
 	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
@@ -20,12 +21,34 @@ var licenceGetCmd = &cobra.Command{
 		if len(args) == 0 {
 			return errors.New("No licence name specified")
 		}
-		// TODO: The key word "all" should be a short cut for downloading all of the licences.  When implemented, make
-		//       sure to add info about the all keyword to the help text
+		// TODO: When implemented, make sure to add info about the all keyword to the help text
+
+		// Check for the presence of "all" as a licence name
+		var licenceList []string
+		var allFound bool
+		for _, j := range args {
+			if strings.ToLower(j) == "all" {
+				allFound = true
+			}
+		}
+
+		// If the all keyword was given, then assemble the full licence list.  Otherwise just use whatever was given
+		// on the command line
+		if allFound {
+			l, err := getLicences()
+			if err != nil {
+				return errors.New(fmt.Sprintf("error when retrieving list of all licences: %s", err))
+			}
+			for i := range l {
+				licenceList = append(licenceList, i)
+			}
+		} else {
+			licenceList = args
+		}
 
 		// Download the licence text
 		dlStatus := make(map[string]string)
-		for _, lic := range args {
+		for _, lic := range licenceList {
 			resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/licence/get").
 				Query(fmt.Sprintf("licence=%s", lic)).End()
 			if errs != nil {
