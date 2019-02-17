@@ -83,11 +83,11 @@ var licenceGetCmd = &cobra.Command{
 		}
 
 		// Display the status of the individual licence downloads
-		fmt.Printf("Licence downloading completed from: %s\n\n", cloud)
+		fmt.Printf("Downloading licences from: %s...\n\n", cloud)
 		for i, j := range dlStatus {
 			fmt.Printf("  * %s: %s\n", i, j)
 		}
-		fmt.Println()
+		fmt.Println("\nCompleted")
 		return nil
 	},
 }
