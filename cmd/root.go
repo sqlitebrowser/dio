@@ -3,7 +3,6 @@ package cmd
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -11,11 +10,13 @@ import (
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/text/message"
 )
 
 var (
 	branch, cfgFile, cloud, commit, email, name, msg, tag string
 	certUser, certServer                                  string
+	fmt                                                   *message.Printer
 	TLSConfig                                             tls.Config
 )
 
@@ -41,6 +42,9 @@ func Execute() {
 }
 
 func init() {
+	// Use alternative fmt library
+	fmt = message.NewPrinter(message.MatchLanguage("en"))
+
 	cobra.OnInitialize(initConfig)
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
 		"config file (default is $HOME/.dio/config.yaml)")

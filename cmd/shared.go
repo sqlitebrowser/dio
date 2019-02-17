@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 
 	rq "github.com/parnurzeal/gorequest"

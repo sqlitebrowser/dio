@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 
 	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"

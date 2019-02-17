@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -115,6 +114,7 @@ var pullCmd = &cobra.Command{
 				}
 			}
 		}
+
 		fmt.Printf("Database '%s' downloaded.  Size: %d bytes\n", file, len(body))
 
 		//if pullCmdBranch != "" {
