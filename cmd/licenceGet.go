@@ -21,7 +21,6 @@ var licenceGetCmd = &cobra.Command{
 		if len(args) == 0 {
 			return errors.New("No licence name specified")
 		}
-		// TODO: When implemented, make sure to add info about the all keyword to the help text
 
 		// Check for the presence of "all" as a licence name
 		var licenceList []string
