@@ -9,6 +9,7 @@ type branchEntries struct {
 
 type branchEntry struct {
 	Commit      string `json:"commit"`
+	CommitCount int    `json:"commit_count"`
 	Description string `json:"description"`
 }
 
