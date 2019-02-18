@@ -41,6 +41,9 @@ var listCmd = &cobra.Command{
 		fmt.Printf("Databases on %s\n\n", cloud)
 		for _, j := range list {
 			fmt.Printf("  * Database: %s\n", j.Name)
+			if j.OneLineDesc != "" {
+				fmt.Printf("      Description: %s\n", j.OneLineDesc)
+			}
 			fmt.Printf("      Default branch: %s\n", j.DefBranch)
 			fmt.Printf("      Size: %d bytes\n", j.Size)
 			if j.Licence != "" {
