@@ -3,6 +3,7 @@ package cmd
 import (
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -13,9 +14,13 @@ import (
 	"github.com/spf13/viper"
 )
 
-var pushCmdBranch, pushCmdDB, pushCmdEmail, pushCmdLicence, pushCmdMsg, pushCmdName string
+var (
+	pushCmdBranch, pushCmdDB, pushCmdEmail  string
+	pushCmdLicence, pushCmdMsg, pushCmdName string
+	pushCmdForce, pushCmdPublic             bool
+)
 
-// Uploads a database to a DBHub.io cloud.
+// Uploads a database to DBHub.io.
 var pushCmd = &cobra.Command{
 	Use:   "push [database file]",
 	Short: "Upload a database",
@@ -37,7 +42,7 @@ var pushCmd = &cobra.Command{
 			return err
 		}
 
-		// Grab author name & email from ~/.dio.yaml config file, but allow command line flags to override them
+		// Grab author name & email from the dio config file, but allow command line flags to override them
 		var pushAuthor, pushEmail string
 		u, ok := viper.Get("author").(string)
 		if ok {
@@ -70,17 +75,25 @@ var pushCmd = &cobra.Command{
 		}
 
 		// Send the file
-		req := rq.New().Post(cloud+"/db_upload").
+		dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, file)
+		req := rq.New().TLSClientConfig(&TLSConfig).Post(dbURL).
 			Type("multipart").
-			Set("branch", pushCmdBranch).
-			Set("message", pushCmdMsg).
-			Set("modTime", fi.ModTime().Format(time.RFC3339)).
-			Set("database", pushCmdDB).
-			Set("author", pushAuthor).
-			Set("email", pushEmail).
-			SendFile(file)
+			Query(fmt.Sprintf("branch=%s", url.QueryEscape(pushCmdBranch))).
+			Query(fmt.Sprintf("commitmsg=%s", url.QueryEscape(pushCmdMsg))).
+			Query(fmt.Sprintf("lastmodified=%s", url.QueryEscape(fi.ModTime().Format(time.RFC3339)))).
+
+			//TBD Query(fmt.Sprintf("commit=%s", pushCmdCommit)).
+			//TBD Query(fmt.Sprintf("sourceurl=%s", pushCmdSrcURL)).
+
+			Query(fmt.Sprintf("public=%v", pushCmdPublic)).
+			Query(fmt.Sprintf("force=%v", pushCmdForce)).
+			//Set("database", pushCmdDB).
+			//Set("author", pushAuthor).
+			//Set("email", pushEmail).
+			SendFile(file, "", "file1")
 		if pushCmdLicence != "" {
-			req.Set("licence", pushCmdLicence)
+			req.Query(fmt.Sprintf("licence=%s", url.QueryEscape(pushCmdLicence)))
+			//req.Set("licence", pushCmdLicence)
 		}
 		resp, _, errs := req.End()
 		if errs != nil {
@@ -108,13 +121,15 @@ var pushCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(pushCmd)
+	//pushCmd.Flags().StringVar(&pushCmdName, "author", "", "Author name")
 	pushCmd.Flags().StringVar(&pushCmdBranch, "branch", "master",
 		"Remote branch the database will be uploaded to")
-	pushCmd.Flags().StringVar(&pushCmdDB, "dbname", "", "Override for the database name")
-	pushCmd.Flags().StringVar(&pushCmdEmail, "email", "", "Email address of the author")
+	//pushCmd.Flags().StringVar(&pushCmdDB, "dbname", "", "Override for the database name")
+	//pushCmd.Flags().StringVar(&pushCmdEmail, "email", "", "Email address of the author")
+	pushCmd.Flags().BoolVar(&pushCmdForce, "force", false, "Overwrite existing commit history?")
 	pushCmd.Flags().StringVar(&pushCmdLicence, "licence", "",
-		"The licence for the database, as per 'dio licence list'")
+		"The licence (ID) for the database, as per 'dio licence list'")
 	pushCmd.Flags().StringVar(&pushCmdMsg, "message", "",
 		"(Required) Commit message for this upload")
-	pushCmd.Flags().StringVar(&pushCmdName, "author", "", "Author name")
+	pushCmd.Flags().BoolVar(&pushCmdPublic, "public", false, "Should the database be public?")
 }

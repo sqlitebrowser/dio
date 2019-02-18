@@ -35,6 +35,7 @@ type dbListEntry struct {
 	Licence      string `json:"licence"`
 	Name         string `json:"name"`
 	Public       bool   `json:"public"`
+	RepoModified string `json:"repo_modified"`
 	SHA256       string `json:"sha256"`
 	Size         int    `json:"size"`
 	Type         string `json:"type"`

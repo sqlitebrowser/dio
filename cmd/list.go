@@ -48,7 +48,8 @@ var listCmd = &cobra.Command{
 			} else {
 				fmt.Println("      Licence: Not specified")
 			}
-			fmt.Printf("      Last Modified: %s\n\n", j.LastModified)
+			fmt.Printf("      File last modified: %s\n", j.LastModified)
+			fmt.Printf("      Repository last updated: %s\n\n", j.RepoModified)
 		}
 		return nil
 	},
