@@ -122,10 +122,27 @@ var pullCmd = &cobra.Command{
 		// We store metadata for all databases in a ".dio" directory in the current directory.  Each downloaded database
 		// has it's metadata stored in a folder (named the same as the database) in this directory.
 
-		// Check if a folder in the .dio directory exists with the same name as the database just downloaded
+		// Create a folder to hold metadata, if it doesn't yet exist
 		if _, err = os.Stat(filepath.Join(".dio", file)); os.IsNotExist(err) {
-			// If not, then create it
 			err = os.MkdirAll(filepath.Join(".dio", file), 0770)
+			if err != nil {
+				return err
+			}
+		}
+
+		// If the server provided the commit id, save it in the metadata directory
+		if commit := resp.Header.Get("Commit-ID"); commit != "" {
+			mdFile := filepath.Join(".dio", file, "commit")
+			err = ioutil.WriteFile(mdFile, []byte(commit), 0644)
+			if err != nil {
+				return err
+			}
+		}
+
+		// If the server provided the branch name, save it in the metadata directory
+		if branch := resp.Header.Get("Branch"); branch != "" {
+			mdFile := filepath.Join(".dio", file, "branch")
+			err = ioutil.WriteFile(mdFile, []byte(branch), 0644)
 			if err != nil {
 				return err
 			}
