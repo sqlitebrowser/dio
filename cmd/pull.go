@@ -4,7 +4,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -113,6 +115,57 @@ var pullCmd = &cobra.Command{
 					}
 				}
 			}
+		}
+
+		// TODO: * Download the metadata for the database, and save it in a subdirectory of the local .dio directory *
+
+		// We store metadata for all databases in a ".dio" directory in the current directory.  Each downloaded database
+		// has it's metadata stored in a folder (named the same as the database) in this directory.
+
+		// Check if a folder in the .dio directory exists with the same name as the database just downloaded
+		if _, err = os.Stat(filepath.Join(".dio", file)); os.IsNotExist(err) {
+			// If not, then create it
+			err = os.MkdirAll(filepath.Join(".dio", file), 0770)
+			if err != nil {
+				return err
+			}
+		}
+
+		// TODO: Check if the database metadata (metadata.json) file already exists in the subdirectory
+			// If it does, we'll probably need to figure out some way to merge things, so it doesn't muck up any
+			// locally created branches (should we support those? probably yes)
+
+		// TODO: Update the push code to use this newly saved metadata
+
+		// TODO: We'll probably need to write (on the server) decently in depth validation code for the commit data,
+		//       for when a client sends (--force enabled) new metadata to the server.  Otherwise, if the commit
+		//       history is badly formed it could lead to bad crap happening.
+
+		// Download the database metadata
+		var mdBody string
+		resp, mdBody, errs = rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/metadata/get").
+			Query(fmt.Sprintf("username=%s", url.QueryEscape(certUser))).
+			Query(fmt.Sprintf("folder=%s", "/")).
+			Query(fmt.Sprintf("dbname=%s", url.QueryEscape(file))).
+			End()
+
+		if errs != nil {
+			log.Print("Errors when downloading database metadata:")
+			for _, err := range errs {
+				log.Print(err.Error())
+			}
+			return errors.New("Error when downloading database metadata")
+		}
+		if resp.StatusCode != http.StatusOK {
+			return errors.New(fmt.Sprintf("Metadata download failed with an error: HTTP status %d - '%v'\n",
+				resp.StatusCode, resp.Status))
+		}
+
+		// Write the metadata file to disk
+		mdFile := filepath.Join(".dio", file, "metadata.json")
+		err = ioutil.WriteFile(mdFile, []byte(mdBody), 0644)
+		if err != nil {
+			return err
 		}
 
 		fmt.Printf("Database '%s' downloaded.  Size: %d bytes\n", file, len(body))

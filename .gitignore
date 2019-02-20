@@ -13,14 +13,15 @@
 # Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
 .glide/
 
-# Exclude Gogland project files
+# Exclude Goland project files
 .idea
 
 # dio binary
 dio
 
-# Exclude database and licence files used in testing
+# Exclude database, metadata and licence files used in testing
 *.db
+.dio
 *-LICENCE
 
 # Go vendor directory
