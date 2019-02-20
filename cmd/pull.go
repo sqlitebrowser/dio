@@ -130,19 +130,19 @@ var pullCmd = &cobra.Command{
 			}
 		}
 
-		// If the server provided the commit id, save it in the metadata directory
-		if commit := resp.Header.Get("Commit-ID"); commit != "" {
-			mdFile := filepath.Join(".dio", file, "commit")
-			err = ioutil.WriteFile(mdFile, []byte(commit), 0644)
+		// If the server provided the branch name, save it in the metadata directory
+		if branch := resp.Header.Get("Branch"); branch != "" {
+			mdFile := filepath.Join(".dio", file, "branch")
+			err = ioutil.WriteFile(mdFile, []byte(branch), 0644)
 			if err != nil {
 				return err
 			}
 		}
 
-		// If the server provided the branch name, save it in the metadata directory
-		if branch := resp.Header.Get("Branch"); branch != "" {
-			mdFile := filepath.Join(".dio", file, "branch")
-			err = ioutil.WriteFile(mdFile, []byte(branch), 0644)
+		// If the server provided the commit id, save it in the metadata directory
+		if commit := resp.Header.Get("Commit-ID"); commit != "" {
+			mdFile := filepath.Join(".dio", file, "commit")
+			err = ioutil.WriteFile(mdFile, []byte(commit), 0644)
 			if err != nil {
 				return err
 			}

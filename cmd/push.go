@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -15,9 +16,10 @@ import (
 )
 
 var (
-	pushCmdBranch, pushCmdDB, pushCmdEmail  string
-	pushCmdLicence, pushCmdMsg, pushCmdName string
-	pushCmdForce, pushCmdPublic             bool
+	pushCmdBranch, pushCmdCommit, pushCmdDB  string
+	pushCmdEmail, pushCmdLicence, pushCmdMsg string
+	pushCmdName                              string
+	pushCmdForce, pushCmdPublic              bool
 )
 
 // Uploads a database to DBHub.io.
@@ -74,6 +76,28 @@ var pushCmd = &cobra.Command{
 			pushCmdDB = filepath.Base(file)
 		}
 
+		// Load the branch name and commit id from saved metadata, if they exist
+		if _, err = os.Stat(filepath.Join(".dio", file, "branch")); err == nil {
+			b, err := ioutil.ReadFile(filepath.Join(".dio", file, "branch"))
+			if err != nil {
+				return err
+			}
+			pushCmdBranch = string(b)
+		}
+		if _, err = os.Stat(filepath.Join(".dio", file, "commit")); err == nil {
+			c, err := ioutil.ReadFile(filepath.Join(".dio", file, "commit"))
+			if err != nil {
+				return err
+			}
+			pushCmdCommit = string(c)
+		}
+
+		// TODO: Extract the new commit id from the servers response, then update the metadata on disk with it
+
+		//fmt.Printf("Branch name: %s\n", pushCmdBranch)
+		//fmt.Printf("Commit: %s\n", pushCmdCommit)
+
+
 		// Send the file
 		dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, file)
 		req := rq.New().TLSClientConfig(&TLSConfig).Post(dbURL).
@@ -82,7 +106,8 @@ var pushCmd = &cobra.Command{
 			Query(fmt.Sprintf("commitmsg=%s", url.QueryEscape(pushCmdMsg))).
 			Query(fmt.Sprintf("lastmodified=%s", url.QueryEscape(fi.ModTime().Format(time.RFC3339)))).
 
-			//TBD Query(fmt.Sprintf("commit=%s", pushCmdCommit)).
+			Query(fmt.Sprintf("commit=%s", pushCmdCommit)).
+
 			//TBD Query(fmt.Sprintf("sourceurl=%s", pushCmdSrcURL)).
 
 			Query(fmt.Sprintf("public=%v", pushCmdPublic)).
@@ -124,6 +149,8 @@ func init() {
 	//pushCmd.Flags().StringVar(&pushCmdName, "author", "", "Author name")
 	pushCmd.Flags().StringVar(&pushCmdBranch, "branch", "master",
 		"Remote branch the database will be uploaded to")
+	pushCmd.Flags().StringVar(&pushCmdCommit, "commit", "",
+		"ID of the previous commit, for appending this new database to")
 	//pushCmd.Flags().StringVar(&pushCmdDB, "dbname", "", "Override for the database name")
 	//pushCmd.Flags().StringVar(&pushCmdEmail, "email", "", "Email address of the author")
 	pushCmd.Flags().BoolVar(&pushCmdForce, "force", false, "Overwrite existing commit history?")
