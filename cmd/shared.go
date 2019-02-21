@@ -107,7 +107,7 @@ func updateMetadata(db string) error {
 		}
 	}
 
-	// Download the database metadata
+	// Download the latest database metadata
 	md, err := retrieveMetadata(db)
 	if err != nil {
 		return err
