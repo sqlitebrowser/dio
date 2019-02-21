@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -92,12 +93,6 @@ var pushCmd = &cobra.Command{
 			pushCmdCommit = string(c)
 		}
 
-		// TODO: Extract the new commit id from the servers response, then update the metadata on disk with it
-
-		//fmt.Printf("Branch name: %s\n", pushCmdBranch)
-		//fmt.Printf("Commit: %s\n", pushCmdCommit)
-
-
 		// Send the file
 		dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, file)
 		req := rq.New().TLSClientConfig(&TLSConfig).Post(dbURL).
@@ -120,7 +115,7 @@ var pushCmd = &cobra.Command{
 			req.Query(fmt.Sprintf("licence=%s", url.QueryEscape(pushCmdLicence)))
 			//req.Set("licence", pushCmdLicence)
 		}
-		resp, _, errs := req.End()
+		resp, body, errs := req.End()
 		if errs != nil {
 			log.Print("Errors when uploading database to the cloud:")
 			for _, err := range errs {
@@ -132,6 +127,28 @@ var pushCmd = &cobra.Command{
 			return errors.New(fmt.Sprintf("Upload failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
 		}
+
+		// Process the JSON format response data
+		parsedResponse := map[string]string{}
+		err = json.Unmarshal([]byte(body), &parsedResponse)
+		if err != nil {
+			fmt.Printf("Error parsing server response: '%v'\n", err.Error())
+			return err
+		}
+
+		// Retrieve and store metadata for the database
+		err = updateMetadata(file)
+		if err != nil {
+			return err
+		}
+
+		// Save the commit id in the metadata directory
+		comFile := filepath.Join(".dio", file, "commit")
+		err = ioutil.WriteFile(comFile, []byte(parsedResponse["commit_id"]), 0644)
+		if err != nil {
+			return err
+		}
+
 		fmt.Printf("Database uploaded to %s\n\n", cloud)
 		fmt.Printf("  * Name: %s\n", pushCmdDB)
 		fmt.Printf("    Branch: %s\n", pushCmdBranch)

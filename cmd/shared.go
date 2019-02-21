@@ -4,6 +4,12 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 
 	rq "github.com/parnurzeal/gorequest"
@@ -66,4 +72,42 @@ func getUserAndServer() (userAcc string, certServer string, err error) {
 	}
 
 	return
+}
+
+func updateMetadata(file string) error {
+	// Create a folder to hold metadata, if it doesn't yet exist
+	if _, err := os.Stat(filepath.Join(".dio", file)); os.IsNotExist(err) {
+		err = os.MkdirAll(filepath.Join(".dio", file), 0770)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Download the database metadata
+	resp, mdBody, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/metadata/get").
+		Query(fmt.Sprintf("username=%s", url.QueryEscape(certUser))).
+		Query(fmt.Sprintf("folder=%s", "/")).
+		Query(fmt.Sprintf("dbname=%s", url.QueryEscape(file))).
+		End()
+
+	if errs != nil {
+		log.Print("Errors when downloading database metadata:")
+		for _, err := range errs {
+			log.Print(err.Error())
+		}
+		return errors.New("Error when downloading database metadata")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return errors.New(fmt.Sprintf("Metadata download failed with an error: HTTP status %d - '%v'\n",
+			resp.StatusCode, resp.Status))
+	}
+
+	// Write the metadata file to disk
+	mdFile := filepath.Join(".dio", file, "metadata.json")
+	err := ioutil.WriteFile(mdFile, []byte(mdBody), 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

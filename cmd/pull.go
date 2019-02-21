@@ -4,7 +4,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -152,35 +151,8 @@ var pullCmd = &cobra.Command{
 			// If it does, we'll probably need to figure out some way to merge things, so it doesn't muck up any
 			// locally created branches (should we support those? probably yes)
 
-		// TODO: Update the push code to use this newly saved metadata
-
-		// TODO: We'll probably need to write (on the server) decently in depth validation code for the commit data,
-		//       for when a client sends (--force enabled) new metadata to the server.  Otherwise, if the commit
-		//       history is badly formed it could lead to bad crap happening.
-
-		// Download the database metadata
-		var mdBody string
-		resp, mdBody, errs = rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/metadata/get").
-			Query(fmt.Sprintf("username=%s", url.QueryEscape(certUser))).
-			Query(fmt.Sprintf("folder=%s", "/")).
-			Query(fmt.Sprintf("dbname=%s", url.QueryEscape(file))).
-			End()
-
-		if errs != nil {
-			log.Print("Errors when downloading database metadata:")
-			for _, err := range errs {
-				log.Print(err.Error())
-			}
-			return errors.New("Error when downloading database metadata")
-		}
-		if resp.StatusCode != http.StatusOK {
-			return errors.New(fmt.Sprintf("Metadata download failed with an error: HTTP status %d - '%v'\n",
-				resp.StatusCode, resp.Status))
-		}
-
-		// Write the metadata file to disk
-		mdFile := filepath.Join(".dio", file, "metadata.json")
-		err = ioutil.WriteFile(mdFile, []byte(mdBody), 0644)
+		// Update the stored database metadata
+		err = updateMetadata(file)
 		if err != nil {
 			return err
 		}
