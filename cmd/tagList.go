@@ -3,12 +3,11 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
-	"log"
-	"net/http"
+	"io/ioutil"
+	"path/filepath"
 	"sort"
 	"time"
 
-	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
 )
 
@@ -27,53 +26,44 @@ var tagListCmd = &cobra.Command{
 			return errors.New("Only one database can be worked with at a time (for now)")
 		}
 
-		// Retrieve the list of tags
-		file := args[0]
-		resp, body, errs := rq.New().Get(cloud+"/tag_list").
-			Set("database", file).
-			End()
-		if errs != nil {
-			log.Print("Errors when retrieving tag list:")
-			for _, err := range errs {
-				log.Print(err.Error())
+		// TODO: Add options to control whether info is retrieved from local metadata cache or from the DBHub.io server
+
+		// If there is a local metadata cache for the requested database, use that
+		db := args[0]
+		md, err := ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
+		if err != nil {
+			// No local cache, so retrieve the info from the server
+			temp, err := retrieveMetadata(db)
+			if err != nil {
+				return err
 			}
-			return errors.New("Error when retrieving tag list")
+			md = []byte(temp)
 		}
-		if resp.StatusCode != http.StatusOK {
-			if resp.StatusCode == http.StatusNotFound {
-				return errors.New("Requested database not found")
-			}
-			return errors.New(fmt.Sprintf("Tag list failed with an error: HTTP status %d - '%v'\n",
-				resp.StatusCode, resp.Status))
-		}
-		list := make(map[string]tagEntry)
-		err := json.Unmarshal([]byte(body), &list)
+		list := metaData{}
+		err = json.Unmarshal([]byte(md), &list)
 		if err != nil {
 			return err
 		}
-		if len(list) == 0 {
-			fmt.Printf("Database %s has no tags\n", file)
+
+		if len(list.Tags) == 0 {
+			fmt.Printf("Database %s has no tags\n", db)
 			return nil
 		}
 
 		// Sort the list alphabetically
 		var sortedKeys []string
-		for k := range list {
+		for k := range list.Tags {
 			sortedKeys = append(sortedKeys, k)
 		}
 		sort.Strings(sortedKeys)
 
 		// Display the list of tags
-		fmt.Printf("Tags for %s:\n\n", file)
+		fmt.Printf("Tags for %s:\n\n", db)
 		for _, i := range sortedKeys {
-			if list[i].TagType == SIMPLE {
-				fmt.Printf("  * %s : commit %s\n", i, list[i].Commit)
-			} else {
-				fmt.Printf("  * %s : commit %s\n\n", i, list[i].Commit)
-				fmt.Printf("      Author: %s <%s>\n", list[i].TaggerName, list[i].TaggerEmail)
-				fmt.Printf("      Date: %s\n", list[i].Date.Format(time.UnixDate))
-				fmt.Printf("      Message: %s\n", list[i].Message)
-			}
+			fmt.Printf("  * %s : commit %s\n\n", i, list.Tags[i].Commit)
+			fmt.Printf("      Author: %s <%s>\n", list.Tags[i].TaggerName, list.Tags[i].TaggerEmail)
+			fmt.Printf("      Date: %s\n", list.Tags[i].Date.Format(time.UnixDate))
+			fmt.Printf("      Message: %s\n", list.Tags[i].Description)
 		}
 		fmt.Println()
 		return nil

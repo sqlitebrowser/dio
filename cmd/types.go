@@ -77,18 +77,17 @@ type licenceEntry struct {
 	URL      string `json:"url"`
 }
 
-type tagType string
-
-const (
-	SIMPLE    tagType = "simple"
-	ANNOTATED         = "annotated"
-)
+type metaData struct {
+	DefBranch string                 `json:"default_branch"`
+	Branches  map[string]branchEntry `json:"branches"`
+	Commits   map[string]commitEntry `json:"commits"`
+	Tags      map[string]tagEntry    `json:"tags"`
+}
 
 type tagEntry struct {
 	Commit      string    `json:"commit"`
 	Date        time.Time `json:"date"`
-	Message     string    `json:"message"`
-	TagType     tagType   `json:"type"`
+	Description string    `json:"description"`
 	TaggerEmail string    `json:"email"`
 	TaggerName  string    `json:"name"`
 }

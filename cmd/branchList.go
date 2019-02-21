@@ -3,12 +3,10 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
-	"log"
-	"net/http"
-	"net/url"
+	"io/ioutil"
+	"path/filepath"
 	"sort"
 
-	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
 )
 
@@ -27,52 +25,41 @@ var branchListCmd = &cobra.Command{
 			return errors.New("Only one database can be worked with at a time (for now)")
 		}
 
-		// Retrieve the list of branches
-		file := args[0]
-		resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/branch/list").
-			Query(fmt.Sprintf("username=%s", url.QueryEscape(certUser))).
-			Query(fmt.Sprintf("folder=%s", "/")).
-			Query(fmt.Sprintf("dbname=%s", url.QueryEscape(file))).
-			End()
-		if errs != nil {
-			log.Print("Errors when retrieving branch list:")
-			for _, err := range errs {
-				log.Print(err.Error())
+		// TODO: Add options to control whether info is retrieved from local metadata cache or from the DBHub.io server
+
+		// If there is a local metadata cache for the requested database, use that
+		db := args[0]
+		md, err := ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
+		if err != nil {
+			// No local cache, so retrieve the info from the server
+			temp, err := retrieveMetadata(db)
+			if err != nil {
+				return err
 			}
-			return errors.New("Error when retrieving branch list")
+			md = []byte(temp)
 		}
-		if resp.StatusCode != http.StatusOK {
-			if resp.StatusCode == http.StatusNotFound {
-				return errors.New("Requested database not found")
-			}
-			return errors.New(fmt.Sprintf("Branch list failed with an error: HTTP status %d - '%v'\n",
-				resp.StatusCode, resp.Status))
-		}
-		list := struct {
-			Def     string                 `json:"default_branch"`
-			Entries map[string]branchEntry `json:"branches"`
-		}{}
-		err := json.Unmarshal([]byte(body), &list)
+		list := metaData{}
+		err = json.Unmarshal([]byte(md), &list)
 		if err != nil {
 			return err
 		}
 
 		// Sort the list alphabetically
 		var sortedKeys []string
-		for k := range list.Entries {
+		for k := range list.Branches {
 			sortedKeys = append(sortedKeys, k)
 		}
 		sort.Strings(sortedKeys)
 
 		// Display the list of branches
-		fmt.Printf("Branches for %s:\n\n", file)
+		fmt.Printf("Branches for %s:\n\n", db)
 		for _, i := range sortedKeys {
-			fmt.Printf("  * %s - Commit: %s\n", i, list.Entries[i].Commit)
-			if list.Entries[i].Description != "" {
-				fmt.Printf("\n      %s\n\n", list.Entries[i].Description)
+			fmt.Printf("  * %s - Commit: %s\n", i, list.Branches[i].Commit)
+			if list.Branches[i].Description != "" {
+				fmt.Printf("\n      %s\n\n", list.Branches[i].Description)
 			}
 		}
-		fmt.Printf("\n    Default branch: %s\n", list.Def)
+		fmt.Printf("\n    Default branch: %s\n\n", list.DefBranch)
 		return nil
 	},
 }

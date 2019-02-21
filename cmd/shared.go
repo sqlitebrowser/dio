@@ -74,20 +74,13 @@ func getUserAndServer() (userAcc string, certServer string, err error) {
 	return
 }
 
-func updateMetadata(file string) error {
-	// Create a folder to hold metadata, if it doesn't yet exist
-	if _, err := os.Stat(filepath.Join(".dio", file)); os.IsNotExist(err) {
-		err = os.MkdirAll(filepath.Join(".dio", file), 0770)
-		if err != nil {
-			return err
-		}
-	}
-
+// Retrieves database metadata from DBHub.io
+func retrieveMetadata(db string) (md string, err error) {
 	// Download the database metadata
-	resp, mdBody, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/metadata/get").
+	resp, md, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/metadata/get").
 		Query(fmt.Sprintf("username=%s", url.QueryEscape(certUser))).
 		Query(fmt.Sprintf("folder=%s", "/")).
-		Query(fmt.Sprintf("dbname=%s", url.QueryEscape(file))).
+		Query(fmt.Sprintf("dbname=%s", url.QueryEscape(db))).
 		End()
 
 	if errs != nil {
@@ -95,16 +88,34 @@ func updateMetadata(file string) error {
 		for _, err := range errs {
 			log.Print(err.Error())
 		}
-		return errors.New("Error when downloading database metadata")
+		return "", errors.New("Error when downloading database metadata")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return errors.New(fmt.Sprintf("Metadata download failed with an error: HTTP status %d - '%v'\n",
+		return "", errors.New(fmt.Sprintf("Metadata download failed with an error: HTTP status %d - '%v'\n",
 			resp.StatusCode, resp.Status))
+	}
+	return md, nil
+}
+
+// Saves metadata to the local cache
+func updateMetadata(db string) error {
+	// Create a folder to hold metadata, if it doesn't yet exist
+	if _, err := os.Stat(filepath.Join(".dio", db)); os.IsNotExist(err) {
+		err = os.MkdirAll(filepath.Join(".dio", db), 0770)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Download the database metadata
+	md, err := retrieveMetadata(db)
+	if err != nil {
+		return err
 	}
 
 	// Write the metadata file to disk
-	mdFile := filepath.Join(".dio", file, "metadata.json")
-	err := ioutil.WriteFile(mdFile, []byte(mdBody), 0644)
+	mdFile := filepath.Join(".dio", db, "metadata.json")
+	err = ioutil.WriteFile(mdFile, []byte(md), 0644)
 	if err != nil {
 		return err
 	}
