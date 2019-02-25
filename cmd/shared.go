@@ -97,7 +97,7 @@ func retrieveMetadata(db string) (md string, err error) {
 	return md, nil
 }
 
-// Saves metadata to the local cache
+// Saves metadata to the local cache, merging in with any existing metadata
 func updateMetadata(db string) error {
 	// Create a folder to hold metadata, if it doesn't yet exist
 	if _, err := os.Stat(filepath.Join(".dio", db)); os.IsNotExist(err) {
@@ -107,15 +107,202 @@ func updateMetadata(db string) error {
 		}
 	}
 
+	// Check for existing metadata file, and load/unmarshall it if present
+	origMeta := metaData{}
+	md, err := ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
+	if err == nil {
+		err = json.Unmarshal([]byte(md), &origMeta)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Download the latest database metadata
-	md, err := retrieveMetadata(db)
+	fmt.Println("Updating metadata")
+	newMeta := metaData{}
+	tmp, err := retrieveMetadata(db)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal([]byte(tmp), &newMeta)
 	if err != nil {
 		return err
 	}
 
-	// Write the metadata file to disk
+	// TODO: If there are conflicting changes in a local branch compared to a remote one, alert the user, and ... then what?
+
+	// If we have existing local metadata, then merge the metadata from the server with it
+	mergedMeta := metaData{
+		Branches: map[string]branchEntry{},
+		Commits:  map[string]commitEntry{},
+		Tags:     map[string]tagEntry{}}
+	if len(origMeta.Commits) > 0 {
+		// Start by check branches which exist locally
+		for brName, brData := range origMeta.Branches {
+			matchFound := false
+			for newBranch, newData := range newMeta.Branches {
+				if brName == newBranch {
+					// A branch with this name exists on both the local and remote server
+					matchFound = true
+					skipFurtherChecks := false
+
+					// Rewind back to the local root commit, making a list of the local commits IDs we pass through
+					var localList []string
+					localCommit := origMeta.Commits[brData.Commit]
+					localList = append(localList, localCommit.ID)
+					for localCommit.Parent != "" {
+						localCommit = origMeta.Commits[localCommit.Parent]
+						localList = append(localList, localCommit.ID)
+					}
+					localLength := len(localList) - 1
+
+					// Rewind back to the remote root commit, making a list of the remote commit IDs we pass through
+					var remoteList []string
+					remoteCommit := newMeta.Commits[newData.Commit]
+					remoteList = append(remoteList, remoteCommit.ID)
+					for remoteCommit.Parent != "" {
+						remoteCommit = newMeta.Commits[remoteCommit.Parent]
+						remoteList = append(remoteList, remoteCommit.ID)
+					}
+					remoteLength := len(remoteList) - 1
+
+					// Make sure the local and remote commits start out with the same commit ID
+					if localCommit.ID != remoteCommit.ID {
+						// The local and remote branches don't have a common root, so abort
+						return errors.New(fmt.Sprintf("Local and remote branch %s don't have a common root.  "+
+							"Aborting.", brName))
+					}
+
+					// If there are more commits in the local branch than in the remote one, we keep the local branch
+					// as it probably means the user is adding stuff locally (prior to pushing to the server)
+					if localLength > remoteLength {
+						c := origMeta.Commits[brData.Commit]
+						mergedMeta.Commits[c.ID] = origMeta.Commits[c.ID]
+						for c.Parent != "" {
+							c = origMeta.Commits[c.Parent]
+							mergedMeta.Commits[c.ID] = origMeta.Commits[c.ID]
+						}
+
+						// Copy the local branch data
+						mergedMeta.Branches[brName] = brData
+					}
+
+					// We've wound back to the root commit for both the local and remote branch, and the root commit
+					// IDs match.  Now we walk forwards through the commits, comparing them.
+					branchesSame := true
+					for i := 0; i <= localLength; i++ {
+						lCommit := localList[localLength-i]
+						if i > remoteLength {
+							fmt.Printf("Remote list doesn't have element %d - commit '%s'\n", i, lCommit)
+							branchesSame = false
+						} else {
+							if lCommit != remoteList[remoteLength-i] {
+								fmt.Printf("Commit %d differs - local: '%s', remote: '%s'\n", i, lCommit, remoteList[i])
+								branchesSame = false
+							}
+						}
+					}
+
+					// If the local branch commits are in the remote branch already, then we only need to check for
+					// newer commits in the remote branch
+					if branchesSame {
+						if remoteLength > localLength {
+							fmt.Printf("  * Remote branch '%s' has %d new commit(s)... merged\n", brName,
+								remoteLength-localLength)
+							for _, j := range remoteList {
+								mergedMeta.Commits[j] = newMeta.Commits[j]
+							}
+							mergedMeta.Branches[brName] = newMeta.Branches[brName]
+						} else {
+							// The local and remote branches are the same, so copy the local branch commits across to
+							// the merged data structure
+							fmt.Printf("  * Branch '%s' is unchanged\n", brName) // TODO: Probably don't need this line
+							for _, j := range localList {
+								mergedMeta.Commits[j] = origMeta.Commits[j]
+							}
+							mergedMeta.Branches[brName] = brData
+						}
+						// No need to do further checks on this branch
+						skipFurtherChecks = true
+					}
+
+					if skipFurtherChecks == false && brData.Commit != newData.Commit {
+						fmt.Printf("  * Head commit for branch %s differs between the local and remote\n"+
+							"    * Local: %s\n"+
+							"    * Remote: %s\n",
+							brName, brData.Commit, newData.Commit)
+					}
+					if skipFurtherChecks == false && brData.Description != newData.Description {
+						fmt.Printf("  * Description for branch %s differs between the local and remote\n"+
+							"    * Local: '%s'\n"+
+							"    * Remote: '%s'\n",
+							brName, brData.Description, newData.Description)
+					}
+				}
+			}
+			if !matchFound {
+				// This seems to be a branch that's not on the server, so we keep it as-is
+				fmt.Printf("  * Branch %s is local only, not on the server\n", brName)
+				mergedMeta.Branches[brName] = brData
+
+				// Copy across the commits from the local branch
+				localCommit := origMeta.Commits[brData.Commit]
+				mergedMeta.Commits[localCommit.ID] = origMeta.Commits[localCommit.ID]
+				for localCommit.Parent != "" {
+					localCommit = origMeta.Commits[localCommit.Parent]
+					mergedMeta.Commits[localCommit.ID] = origMeta.Commits[localCommit.ID]
+				}
+
+				// Copy across the branch data entry for the local branch
+				mergedMeta.Branches[brName] = brData
+			}
+		}
+
+		// Add new branches
+		for remoteName, remoteData := range newMeta.Branches {
+			if _, ok := origMeta.Branches[remoteName]; ok == false {
+				// Copy their commit data
+				newCommit := newMeta.Commits[remoteData.Commit]
+				mergedMeta.Commits[newCommit.ID] = newMeta.Commits[newCommit.ID]
+				for newCommit.Parent != "" {
+					newCommit = newMeta.Commits[newCommit.Parent]
+					mergedMeta.Commits[newCommit.ID] = newMeta.Commits[newCommit.ID]
+				}
+
+				// Copy their branch data
+				mergedMeta.Branches[remoteName] = remoteData
+			}
+		}
+
+		// Add new tags
+		// TODO: Check for tags in the local cache, which aren't (yet) on the remote server
+		for tagName, tagData := range newMeta.Tags {
+			// If the tag isn't known locally, check that it's commit is known then copy the tag across
+			if _, tagFound := origMeta.Tags[tagName]; tagFound == false {
+				if _, commitFound := mergedMeta.Commits[tagData.Commit]; commitFound == true {
+					fmt.Printf("  * New tag '%s' merged\n", tagName)
+					mergedMeta.Tags[tagName] = tagData
+				}
+			}
+		}
+
+		// Copy the default branch name from the remote server
+		mergedMeta.DefBranch = newMeta.DefBranch
+
+		fmt.Println()
+	}
+
+	// Serialise the updated metadata to JSON
+	jsonString, err := json.MarshalIndent(mergedMeta, "", "  ")
+	if err != nil {
+		errMsg := fmt.Sprintf("Error when JSON marshalling the merged metadata: %v\n", err)
+		log.Print(errMsg)
+		return err
+	}
+
+	// Write the updated metadata to disk
 	mdFile := filepath.Join(".dio", db, "metadata.json")
-	err = ioutil.WriteFile(mdFile, []byte(md), 0644)
+	err = ioutil.WriteFile(mdFile, []byte(jsonString), 0644)
 	if err != nil {
 		return err
 	}
