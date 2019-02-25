@@ -297,6 +297,9 @@ func updateMetadata(db string) error {
 		mergedMeta.DefBranch = newMeta.DefBranch
 
 		fmt.Println()
+	} else {
+		// No existing metadata, so just copy across the remote metadata
+		mergedMeta = newMeta
 	}
 
 	// Serialise the updated metadata to JSON
