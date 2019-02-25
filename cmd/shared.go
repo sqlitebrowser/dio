@@ -129,8 +129,6 @@ func updateMetadata(db string) error {
 		return err
 	}
 
-	// TODO: If there are conflicting changes in a local branch compared to a remote one, alert the user, and ... then what?
-
 	// If we have existing local metadata, then merge the metadata from the server with it
 	mergedMeta := metaData{
 		Branches: map[string]branchEntry{},
@@ -197,6 +195,10 @@ func updateMetadata(db string) error {
 							branchesSame = false
 						} else {
 							if lCommit != remoteList[remoteLength-i] {
+								// There are conflicting commits in this branch between the local metadata and the
+								// remote.  This will probably need to be resolved by user action.
+								// TODO: Figure out what user actions should be possible from here, to resolve the
+								//       problem
 								fmt.Printf("Commit %d differs - local: '%s', remote: '%s'\n", i, lCommit, remoteList[i])
 								branchesSame = false
 							}
