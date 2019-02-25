@@ -271,6 +271,8 @@ func updateMetadata(db string) error {
 
 				// Copy their branch data
 				mergedMeta.Branches[remoteName] = remoteData
+
+				fmt.Printf("  * New remote branch '%s' merged\n", remoteName)
 			}
 		}
 
