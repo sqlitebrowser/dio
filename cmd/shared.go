@@ -274,11 +274,16 @@ func updateMetadata(db string) error {
 			}
 		}
 
+		// Preserve existing tags
+		for tagName, tagData := range origMeta.Tags {
+			mergedMeta.Tags[tagName] = tagData
+		}
+
 		// Add new tags
-		// TODO: Check for tags in the local cache, which aren't (yet) on the remote server
 		for tagName, tagData := range newMeta.Tags {
-			// If the tag isn't known locally, check that it's commit is known then copy the tag across
-			if _, tagFound := origMeta.Tags[tagName]; tagFound == false {
+			// Only add tags which aren't already in the merged metadata structure
+			if _, tagFound := mergedMeta.Tags[tagName]; tagFound == false {
+				// Also make sure it's commit is in the commit list.  If it's not, then skip adding the tag
 				if _, commitFound := mergedMeta.Commits[tagData.Commit]; commitFound == true {
 					fmt.Printf("  * New tag '%s' merged\n", tagName)
 					mergedMeta.Tags[tagName] = tagData
