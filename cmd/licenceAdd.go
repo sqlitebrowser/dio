@@ -2,15 +2,15 @@ package cmd
 
 import (
 	"errors"
-	"log"
 	"net/http"
+	"net/url"
 	"os"
 
 	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
 )
 
-var licenceAddFile, licenceAddURL string
+var licenceAddFile, licenceAddFileFormat, licenceAddFullName, licenceAddURL string
 
 // Adds a licence to the list of known licences on the server
 var licenceAddCmd = &cobra.Command{
@@ -36,18 +36,24 @@ var licenceAddCmd = &cobra.Command{
 
 		// Send the licence info to the API server
 		name := args[0]
-		req := rq.New().Post(cloud+"/licence_add").
+		req := rq.New().TLSClientConfig(&TLSConfig).Post(fmt.Sprintf("%s/licence/add", cloud)).
 			Type("multipart").
-			Set("name", name).
-			SendFile(licenceAddFile)
+			Query(fmt.Sprintf("licence_id=%s", url.QueryEscape(name))).
+			SendFile(licenceAddFile, "", "file1")
+		if licenceAddFileFormat != "" {
+			req.Query(fmt.Sprintf("file_format=%s", url.QueryEscape(licenceAddFileFormat)))
+		}
+		if licenceAddFullName != "" {
+			req.Query(fmt.Sprintf("licence_name=%s", url.QueryEscape(licenceAddFullName)))
+		}
 		if licenceAddURL != "" {
-			req.Set("source", licenceAddURL)
+			req.Query(fmt.Sprintf("source_url=%s", url.QueryEscape(licenceAddURL)))
 		}
 		resp, _, errs := req.End()
 		if errs != nil {
-			log.Print("Errors when adding licence:")
+			fmt.Print("Errors when adding licence:")
 			for _, err := range errs {
-				log.Print(err.Error())
+				fmt.Print(err.Error())
 			}
 			return errors.New("Error when adding licence")
 		}
@@ -59,6 +65,7 @@ var licenceAddCmd = &cobra.Command{
 			return errors.New(fmt.Sprintf("Adding licence failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
 		}
+
 		fmt.Printf("Licence '%s' added\n", name)
 		return nil
 	},
@@ -66,6 +73,10 @@ var licenceAddCmd = &cobra.Command{
 
 func init() {
 	licenceCmd.AddCommand(licenceAddCmd)
+	licenceAddCmd.Flags().StringVar(&licenceAddFileFormat, "file-format", "text",
+		"The content format of the file.  Either text or html")
+	licenceAddCmd.Flags().StringVar(&licenceAddFullName, "full-name", "",
+		"The full name of the licence")
 	licenceAddCmd.Flags().StringVar(&licenceAddFile, "licence-file", "",
 		"Path to a file containing the licence as text")
 	licenceAddCmd.Flags().StringVar(&licenceAddURL, "source-url", "",
