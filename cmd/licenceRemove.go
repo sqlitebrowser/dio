@@ -3,8 +3,8 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
+	"net/url"
 
 	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
@@ -17,7 +17,7 @@ var licenceRemoveCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a licence friendly name is present
 		if len(args) == 0 {
-			return errors.New("Human friendly licence name is needed.  eg CC0-BY-1.0")
+			return errors.New("A short licence name or identified is needed.  eg CC0-BY-1.0")
 		}
 		// TODO: Allow giving multiple licence names on the command line.  Hopefully just needs turning this
 		// TODO  into a for loop
@@ -26,26 +26,22 @@ var licenceRemoveCmd = &cobra.Command{
 		}
 
 		// Remove the licence
-		lic := args[0]
-		resp, _, errs := rq.New().Post(cloud+"/licence_remove").
-			Set("licence", lic).
-			End()
+		name := args[0]
+		resp, _, errs := rq.New().TLSClientConfig(&TLSConfig).Post(fmt.Sprintf("%s/licence/remove", cloud)).
+			Query(fmt.Sprintf("licence_id=%s", url.QueryEscape(name))).End()
 		if errs != nil {
-			log.Print("Errors when removing licence:")
+			fmt.Print("Errors when removing licence:")
 			for _, err := range errs {
-				log.Print(err.Error())
+				fmt.Print(err.Error())
 			}
 			return errors.New("Error when removing licence")
 		}
-		if resp.StatusCode != http.StatusNoContent {
-			if resp.StatusCode == http.StatusNotFound {
-				return errors.New("Requested licence not found")
-			}
-			return errors.New(fmt.Sprintf("Licence removal failed with an error: HTTP status %d - '%v'\n",
+		if resp.StatusCode != http.StatusOK {
+			return errors.New(fmt.Sprintf("Removing licence failed with an error: HTTP status %d - '%v'\n",
 				resp.StatusCode, resp.Status))
 		}
 
-		fmt.Printf("Licence '%s' removed\n", lic)
+		fmt.Printf("Licence '%s' removed\n", name)
 		return nil
 	},
 }
