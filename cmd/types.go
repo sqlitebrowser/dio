@@ -71,10 +71,11 @@ type errorInfo struct {
 }
 
 type licenceEntry struct {
-	FullName string `json:"full_name"`
-	SHA256   string `json:"sha256"`
-	Type     string `json:"type"`
-	URL      string `json:"url"`
+	FileFormat string `json:"file_format"`
+	FullName   string `json:"full_name"`
+	Order      int    `json:"order"`
+	Sha256     string `json:"sha256"`
+	URL        string `json:"url"`
 }
 
 type metaData struct {

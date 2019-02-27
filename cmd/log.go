@@ -63,7 +63,7 @@ var branchLog = &cobra.Command{
 		// Map the license sha256's to their friendly name for easy lookup
 		licList := make(map[string]string)
 		for _, j := range l {
-			licList[j.SHA256] = j.FullName
+			licList[j.Sha256] = j.FullName
 		}
 
 		// Display the branch history
