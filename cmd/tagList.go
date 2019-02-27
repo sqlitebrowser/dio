@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"sort"

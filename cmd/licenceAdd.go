@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -11,6 +12,7 @@ import (
 )
 
 var licenceAddFile, licenceAddFileFormat, licenceAddFullName, licenceAddURL string
+var licenceAddDisplayOrder int
 
 // Adds a licence to the list of known licences on the server
 var licenceAddCmd = &cobra.Command{
@@ -23,6 +25,14 @@ var licenceAddCmd = &cobra.Command{
 		}
 		if len(args) > 1 {
 			return errors.New("Only one licence can be added at a time (for now)")
+		}
+
+		// TODO: Add a --display-order option to the licence list command, otherwise people will have no idea what
+		//       the display order # is of the existing licences, so won't be able to choose an approprite one
+
+		// Ensure a display order was specified
+		if licenceAddDisplayOrder == 0 {
+			return errors.New("A (unique) display order # must be given")
 		}
 
 		// Ensure a licence file was specified, and that it exists
@@ -39,6 +49,7 @@ var licenceAddCmd = &cobra.Command{
 		req := rq.New().TLSClientConfig(&TLSConfig).Post(fmt.Sprintf("%s/licence/add", cloud)).
 			Type("multipart").
 			Query(fmt.Sprintf("licence_id=%s", url.QueryEscape(name))).
+			Query(fmt.Sprintf("display_order=%d", licenceAddDisplayOrder)).
 			SendFile(licenceAddFile, "", "file1")
 		if licenceAddFileFormat != "" {
 			req.Query(fmt.Sprintf("file_format=%s", url.QueryEscape(licenceAddFileFormat)))
@@ -73,6 +84,8 @@ var licenceAddCmd = &cobra.Command{
 
 func init() {
 	licenceCmd.AddCommand(licenceAddCmd)
+	licenceAddCmd.Flags().IntVar(&licenceAddDisplayOrder, "display-order", 0,
+		"Used when displaying a list of available licences.  This adjusts the position in the list.")
 	licenceAddCmd.Flags().StringVar(&licenceAddFileFormat, "file-format", "text",
 		"The content format of the file.  Either text or html")
 	licenceAddCmd.Flags().StringVar(&licenceAddFullName, "full-name", "",

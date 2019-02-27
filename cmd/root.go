@@ -3,6 +3,7 @@ package cmd
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -16,7 +17,7 @@ import (
 var (
 	branch, cfgFile, cloud, commit, email, name, msg, tag string
 	certUser, certServer                                  string
-	fmt                                                   *message.Printer
+	numFormat                                             *message.Printer
 	TLSConfig                                             tls.Config
 )
 
@@ -42,8 +43,8 @@ func Execute() {
 }
 
 func init() {
-	// Use alternative fmt library
-	fmt = message.NewPrinter(message.MatchLanguage("en"))
+	// Add support for pretty printing numbers
+	numFormat = message.NewPrinter(message.MatchLanguage("en"))
 
 	cobra.OnInitialize(initConfig)
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",

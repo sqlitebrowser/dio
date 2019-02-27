@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
@@ -45,7 +46,7 @@ var listCmd = &cobra.Command{
 				fmt.Printf("      Description: %s\n", j.OneLineDesc)
 			}
 			fmt.Printf("      Default branch: %s\n", j.DefBranch)
-			fmt.Printf("      Size: %d bytes\n", j.Size)
+			numFormat.Printf("      Size: %d bytes\n", j.Size)
 			if j.Licence != "" {
 				fmt.Printf("      Licence: %s\n", j.Licence)
 			} else {

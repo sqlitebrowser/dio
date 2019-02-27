@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -100,7 +101,6 @@ var pushCmd = &cobra.Command{
 			Query(fmt.Sprintf("branch=%s", url.QueryEscape(pushCmdBranch))).
 			Query(fmt.Sprintf("commitmsg=%s", url.QueryEscape(pushCmdMsg))).
 			Query(fmt.Sprintf("lastmodified=%s", url.QueryEscape(fi.ModTime().Format(time.RFC3339)))).
-
 			Query(fmt.Sprintf("commit=%s", pushCmdCommit)).
 
 			//TBD Query(fmt.Sprintf("sourceurl=%s", pushCmdSrcURL)).
