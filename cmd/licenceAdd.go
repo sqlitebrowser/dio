@@ -19,9 +19,9 @@ var licenceAddCmd = &cobra.Command{
 	Use:   "add [licence name]",
 	Short: "Add a licence to the list of known licences on a DBHub.io cloud",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Ensure a licence friendly name is present
+		// Ensure a short licence name is present
 		if len(args) == 0 {
-			return errors.New("Human friendly licence name is needed.  eg CC0-BY-1.0")
+			return errors.New("A short licence name or identifier is needed.  eg CC0-BY-1.0")
 		}
 		if len(args) > 1 {
 			return errors.New("Only one licence can be added at a time (for now)")
@@ -67,7 +67,7 @@ var licenceAddCmd = &cobra.Command{
 		}
 		if resp.StatusCode != http.StatusCreated {
 			if resp.StatusCode == http.StatusConflict {
-				return errors.New("A licence using that friendly name already exists")
+				return errors.New("A licence using that short name already exists")
 			}
 
 			return errors.New(fmt.Sprintf("Adding licence failed with an error: HTTP status %d - '%v'\n",
