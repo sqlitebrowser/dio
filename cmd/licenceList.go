@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var licenceListDisplayOrder bool
+
 // Custom slice types, used for sorting the licences by display order
 type displayOrder struct {
 	order int
@@ -76,6 +78,9 @@ var licenceListCmd = &cobra.Command{
 			if s := licList[j.key].URL; s != "" {
 				fmt.Printf("    Source URL: %s\n", s)
 			}
+			if licenceListDisplayOrder {
+				fmt.Printf("    Display order: %d\n", licList[j.key].Order)
+			}
 			fmt.Printf("    SHA256: %s\n\n", licList[j.key].Sha256)
 		}
 		return nil
@@ -84,4 +89,6 @@ var licenceListCmd = &cobra.Command{
 
 func init() {
 	licenceCmd.AddCommand(licenceListCmd)
+	licenceListCmd.Flags().BoolVar(&licenceListDisplayOrder, "display-order", false,
+		"Show the display order number of each licence")
 }

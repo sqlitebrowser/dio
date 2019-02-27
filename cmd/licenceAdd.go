@@ -27,9 +27,6 @@ var licenceAddCmd = &cobra.Command{
 			return errors.New("Only one licence can be added at a time (for now)")
 		}
 
-		// TODO: Add a --display-order option to the licence list command, otherwise people will have no idea what
-		//       the display order # is of the existing licences, so won't be able to choose an approprite one
-
 		// Ensure a display order was specified
 		if licenceAddDisplayOrder == 0 {
 			return errors.New("A (unique) display order # must be given")
