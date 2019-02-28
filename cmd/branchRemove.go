@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"net/http"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
-	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
 )
 
@@ -31,47 +31,45 @@ var branchRemoveCmd = &cobra.Command{
 			return errors.New("No branch name given")
 		}
 
-		// Remove the branch
-		file := args[0]
-		resp, body, errs := rq.New().Post(cloud+"/branch_remove").
-			Set("branch", branch).
-			Set("database", file).
-			End()
-		if errs != nil {
-			log.Print("Errors when removing branch:")
-			for _, err := range errs {
-				log.Print(err.Error())
+		// If there isn't a local metadata cache for the requested database, retrieve it from the server (and store it)
+		db := args[0]
+		if _, err := os.Stat(filepath.Join(".dio", db, "metadata.json")); os.IsNotExist(err) {
+			err := updateMetadata(db)
+			if err != nil {
+				return err
 			}
-			return errors.New("Error when removing branch")
 		}
-		if resp.StatusCode != http.StatusNoContent {
-			if resp.StatusCode == http.StatusNotFound {
-				return errors.New("Requested database or branch not found")
-			}
-			if resp.StatusCode == http.StatusConflict {
-				// Check for a message body indicating there would be isolated tags
-				var e errorInfo
-				err := json.Unmarshal([]byte(body), &e)
-				if err != nil {
-					return err
-				}
-				if e.Condition == "isolated_tags" {
-					// Yep, isolated tags would exist if this branch is removed.  Let the user know they'll need to
-					// remove the tags first
-					// TODO: Add some kind of --force option which removes the tags itself then removes the branch
-					m := "The following tags only exist on that branch.  You'll need to remove them first:\n\n"
-					for _, j := range e.Data {
-						m += fmt.Sprintf(" * %s\n", j)
-					}
-					return errors.New(m)
-				}
 
-				// Nope, it wasn't an "isolated tags" problem.  Lets assume it was a "try to delete the default branch"
-				// problem instead
-				return errors.New("Default branch can't be removed.  Change the default branch first")
-			}
-			return errors.New(fmt.Sprintf("Branch removal failed with an error: HTTP status %d - '%v'\n",
-				resp.StatusCode, resp.Status))
+		// Read in the metadata cache
+		md, err := ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
+		if err != nil {
+			return err
+		}
+		meta := metaData{}
+		err = json.Unmarshal([]byte(md), &meta)
+		if err != nil {
+			return err
+		}
+
+		// Check if the branch exists
+		if _, ok := meta.Branches[branch]; ok != true {
+			return errors.New("A branch with that name doesn't exist")
+		}
+
+		// Remove the branch
+		delete(meta.Branches, branch)
+
+		// Serialise the updated metadata back to JSON
+		jsonString, err := json.MarshalIndent(meta, "", "  ")
+		if err != nil {
+			return err
+		}
+
+		// Write the updated metadata to disk
+		mdFile := filepath.Join(".dio", db, "metadata.json")
+		err = ioutil.WriteFile(mdFile, []byte(jsonString), 0644)
+		if err != nil {
+			return err
 		}
 
 		fmt.Printf("Branch '%s' removed\n", branch)
