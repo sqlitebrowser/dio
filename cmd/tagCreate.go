@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var tagDate string // Optional
@@ -37,19 +38,24 @@ var tagCreateCmd = &cobra.Command{
 			return errors.New("No commit ID given")
 		}
 
-		// TODO: Make sure we have the email and name of the tag creator.  Either by loading it from the dio config, or
-		//       getting it from the command line arguments
-
+		// Make sure we have the email and name of the tag creator.  Either by loading it from the config file, or
+		// getting it from the command line arguments
 		if email == "" {
-			return errors.New("No email address provided")
+			if viper.IsSet("user.email") == false {
+				return errors.New("No email address provided")
+			}
+			email = viper.GetString("user.email")
 		}
 
 		if name == "" {
-			return errors.New("No name provided")
+			if viper.IsSet("user.name") == false {
+				return errors.New("No name provided")
+			}
+			name = viper.GetString("user.name")
 		}
 
 		// If a date was given, parse it to ensure the format is correct.  Warn the user if it isn't,
-		var tagTimeStamp time.Time
+		tagTimeStamp := time.Now()
 		var err error
 		if tagDate != "" {
 			tagTimeStamp, err = time.Parse(time.RFC3339, tagDate)
