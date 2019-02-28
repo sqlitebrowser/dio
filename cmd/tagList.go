@@ -27,9 +27,8 @@ var tagListCmd = &cobra.Command{
 			return errors.New("Only one database can be worked with at a time (for now)")
 		}
 
-		// TODO: Add options to control whether info is retrieved from local metadata cache or from the DBHub.io server
-
-		// If there is a local metadata cache for the requested database, use that
+		// If there is a local metadata cache for the requested database, use that.  Otherwise, retrieve it from the
+		// server first (without storing it)
 		db := args[0]
 		md, err := ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
 		if err != nil {
