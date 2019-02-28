@@ -75,6 +75,27 @@ func getUserAndServer() (userAcc string, certServer string, err error) {
 	return
 }
 
+// Loads the local metadata from disk (if present), and if not then retrieves it from the remote server, saving it
+// locally
+func loadMetadata(db string) (meta metaData, err error) {
+	// Check if the local metadata exists.  If not, pull it from the remote server
+	if _, err = os.Stat(filepath.Join(".dio", db, "metadata.json")); os.IsNotExist(err) {
+		err = updateMetadata(db)
+		if err != nil {
+			return
+		}
+	}
+
+	// Read and parse the metadata
+	var md []byte
+	md, err = ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
+	if err != nil {
+		return
+	}
+	err = json.Unmarshal([]byte(md), &meta)
+	return
+}
+
 // Retrieves database metadata from DBHub.io
 func retrieveMetadata(db string) (md string, err error) {
 	// Download the database metadata
@@ -96,6 +117,20 @@ func retrieveMetadata(db string) (md string, err error) {
 			resp.StatusCode, resp.Status))
 	}
 	return md, nil
+}
+
+// Saves the metadata to a local cache
+func saveMetadata(db string, meta metaData) (err error) {
+	var jsonString []byte
+	jsonString, err = json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return
+	}
+
+	// Write the updated metadata to disk
+	mdFile := filepath.Join(".dio", db, "metadata.json")
+	err = ioutil.WriteFile(mdFile, jsonString, 0644)
+	return err
 }
 
 // Saves metadata to the local cache, merging in with any existing metadata

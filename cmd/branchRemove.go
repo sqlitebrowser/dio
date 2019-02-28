@@ -1,12 +1,8 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -31,22 +27,9 @@ var branchRemoveCmd = &cobra.Command{
 			return errors.New("No branch name given")
 		}
 
-		// If there isn't a local metadata cache for the requested database, retrieve it from the server (and store it)
+		// Load the metadata
 		db := args[0]
-		if _, err := os.Stat(filepath.Join(".dio", db, "metadata.json")); os.IsNotExist(err) {
-			err := updateMetadata(db)
-			if err != nil {
-				return err
-			}
-		}
-
-		// Read in the metadata cache
-		md, err := ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
-		if err != nil {
-			return err
-		}
-		meta := metaData{}
-		err = json.Unmarshal([]byte(md), &meta)
+		meta, err := loadMetadata(db)
 		if err != nil {
 			return err
 		}
@@ -59,15 +42,8 @@ var branchRemoveCmd = &cobra.Command{
 		// Remove the branch
 		delete(meta.Branches, branch)
 
-		// Serialise the updated metadata back to JSON
-		jsonString, err := json.MarshalIndent(meta, "", "  ")
-		if err != nil {
-			return err
-		}
-
-		// Write the updated metadata to disk
-		mdFile := filepath.Join(".dio", db, "metadata.json")
-		err = ioutil.WriteFile(mdFile, []byte(jsonString), 0644)
+		// Save the updated metadata back to disk
+		err = saveMetadata(db, meta)
 		if err != nil {
 			return err
 		}
