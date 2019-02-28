@@ -57,7 +57,7 @@ var licenceAddCmd = &cobra.Command{
 		if licenceAddURL != "" {
 			req.Query(fmt.Sprintf("source_url=%s", url.QueryEscape(licenceAddURL)))
 		}
-		resp, _, errs := req.End()
+		resp, body, errs := req.End()
 		if errs != nil {
 			fmt.Print("Errors when adding licence:")
 			for _, err := range errs {
@@ -67,7 +67,7 @@ var licenceAddCmd = &cobra.Command{
 		}
 		if resp.StatusCode != http.StatusCreated {
 			if resp.StatusCode == http.StatusConflict {
-				return errors.New("A licence using that short name already exists")
+				return errors.New(body)
 			}
 
 			return errors.New(fmt.Sprintf("Adding licence failed with an error: HTTP status %d - '%v'\n",
