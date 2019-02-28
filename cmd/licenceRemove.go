@@ -27,7 +27,7 @@ var licenceRemoveCmd = &cobra.Command{
 
 		// Remove the licence
 		name := args[0]
-		resp, _, errs := rq.New().TLSClientConfig(&TLSConfig).Post(fmt.Sprintf("%s/licence/remove", cloud)).
+		resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Post(fmt.Sprintf("%s/licence/remove", cloud)).
 			Query(fmt.Sprintf("licence_id=%s", url.QueryEscape(name))).End()
 		if errs != nil {
 			fmt.Print("Errors when removing licence:")
@@ -37,8 +37,7 @@ var licenceRemoveCmd = &cobra.Command{
 			return errors.New("Error when removing licence")
 		}
 		if resp.StatusCode != http.StatusOK {
-			return errors.New(fmt.Sprintf("Removing licence failed with an error: HTTP status %d - '%v'\n",
-				resp.StatusCode, resp.Status))
+			return errors.New(body)
 		}
 
 		fmt.Printf("Licence '%s' removed\n", name)
