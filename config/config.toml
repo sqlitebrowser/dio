@@ -1,0 +1,10 @@
+[certs]
+cachain = "/path/to/ca-chain-docker.cert.pem"
+cert = "/path/to/your.cert.pem"
+
+[general]
+cloud = "https://docker-dev.dbhub.io:5550"
+
+[user]
+name = "Some One"
+email = "someone@example.org"

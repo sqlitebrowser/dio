@@ -1,16 +1,17 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"net/http"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"time"
 
-	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
 )
 
-var tagAnno *bool
 var tagDate string // Optional
 
 // Creates a tag for a database
@@ -36,49 +37,77 @@ var tagCreateCmd = &cobra.Command{
 			return errors.New("No commit ID given")
 		}
 
-		// If we're creating an annotated tag, ensure the required values are all present
-		if *tagAnno == true {
-			if email == "" || name == "" || msg == "" {
-				return errors.New("Email, name, and message are all required for annotated tags")
+		// TODO: Make sure we have the email and name of the tag creator.  Either by loading it from the dio config, or
+		//       getting it from the command line arguments
+
+		if email == "" {
+			return errors.New("No email address provided")
+		}
+
+		if name == "" {
+			return errors.New("No name provided")
+		}
+
+		// If a date was given, parse it to ensure the format is correct.  Warn the user if it isn't,
+		var tagTimeStamp time.Time
+		var err error
+		if tagDate != "" {
+			tagTimeStamp, err = time.Parse(time.RFC3339, tagDate)
+			if err != nil {
+				return err
 			}
 		}
 
-		// TODO: If a date was given, parse it to ensure the format is correct.  Warn the user if it isn't,
-		// TODO  and display the correct format.  Ideally we'd be able to parse several formats, but I haven't
-		// TODO  yet looked for a simple way to do that.
+		// If there isn't a local metadata cache for the requested database, retrieve it from the server
+		db := args[0]
+		if _, err := os.Stat(filepath.Join(".dio", db, "metadata.json")); os.IsNotExist(err) {
+			err := updateMetadata(db)
+			if err != nil {
+				return err
+			}
+		}
 
-		// Create the tag
-		file := args[0]
-		req := rq.New().Post(cloud+"/tag_create").
-			Set("tag", tag).
-			Set("commit", commit).
-			Set("database", file)
-		if *tagAnno == true {
-			// We're creating an annotated tag, so add the required extra information
-			if tagDate != "" {
-				req.Set("date", tagDate)
+		// Read in the metadata cache
+		md, err := ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
+		if err != nil {
+			if err != nil {
+				return err
 			}
-			req.Set("taggeremail", email)
-			req.Set("taggername", name)
-			req.Set("msg", msg)
 		}
-		resp, _, errs := req.End()
-		if errs != nil {
-			log.Print("Errors when creating tag:")
-			for _, err := range errs {
-				log.Print(err.Error())
-			}
-			return errors.New("Error when creating tag")
+		list := metaData{}
+		err = json.Unmarshal([]byte(md), &list)
+		if err != nil {
+			return err
 		}
-		if resp.StatusCode != http.StatusNoContent {
-			if resp.StatusCode == http.StatusNotFound {
-				return errors.New("Requested database or commit not found")
-			}
-			if resp.StatusCode == http.StatusConflict {
-				return errors.New("Requested tag already exists")
-			}
-			return errors.New(fmt.Sprintf("Tag creation failed with an error: HTTP status %d - '%v'\n",
-				resp.StatusCode, resp.Status))
+
+		// Ensure a tag with the same name doesn't already exist
+		if _, ok := list.Tags[tag]; ok == true {
+			return errors.New("A tag with that name already exists")
+		}
+
+		// Generate the new tag info locally
+		newTag := tagEntry{
+			Commit:      commit,
+			Date:        tagTimeStamp,
+			Description: msg,
+			TaggerEmail: email,
+			TaggerName:  name,
+		}
+
+		// Add the new tag to the local metadata cache
+		list.Tags[tag] = newTag
+
+		// Serialise the updated metadata to JSON
+		jsonString, err := json.MarshalIndent(list, "", "  ")
+		if err != nil {
+			return err
+		}
+
+		// Write the updated metadata to disk
+		mdFile := filepath.Join(".dio", db, "metadata.json")
+		err = ioutil.WriteFile(mdFile, []byte(jsonString), 0644)
+		if err != nil {
+			return err
 		}
 
 		fmt.Println("Tag creation succeeded")
@@ -88,11 +117,10 @@ var tagCreateCmd = &cobra.Command{
 
 func init() {
 	tagCmd.AddCommand(tagCreateCmd)
-	tagAnno = tagCreateCmd.Flags().BoolP("annotated", "a", false, "Create an annotated tag")
 	tagCreateCmd.Flags().StringVar(&commit, "commit", "", "Commit ID for the new tag")
-	tagCreateCmd.Flags().StringVar(&tag, "tag", "", "Name of remote tag to create")
-	tagCreateCmd.Flags().StringVar(&tagDate, "date", "", "(Optional) Custom date for annotated tag")
-	tagCreateCmd.Flags().StringVar(&email, "email", "", "(Annotated) Email address of tagger")
-	tagCreateCmd.Flags().StringVar(&name, "name", "", "(Annotated) Name of tagger")
-	tagCreateCmd.Flags().StringVar(&msg, "message", "", "(Annotated) Text message to include")
+	tagCreateCmd.Flags().StringVar(&tag, "tag", "", "Name of tag to create")
+	tagCreateCmd.Flags().StringVar(&tagDate, "date", "", "Custom timestamp (RFC3339 format) for tag")
+	tagCreateCmd.Flags().StringVar(&email, "email", "", "Email address of tagger")
+	tagCreateCmd.Flags().StringVar(&name, "name", "", "Name of tagger")
+	tagCreateCmd.Flags().StringVar(&msg, "message", "", "Description / message for the tag")
 }

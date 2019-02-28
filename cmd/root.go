@@ -5,10 +5,11 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 
-	homedir "github.com/mitchellh/go-homedir"
+	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/text/message"
@@ -16,7 +17,7 @@ import (
 
 var (
 	branch, cfgFile, cloud, commit, email, name, msg, tag string
-	certUser, certServer                                  string
+	certUser                                              string
 	numFormat                                             *message.Printer
 	TLSConfig                                             tls.Config
 )
@@ -46,49 +47,13 @@ func init() {
 	// Add support for pretty printing numbers
 	numFormat = message.NewPrinter(message.MatchLanguage("en"))
 
-	cobra.OnInitialize(initConfig)
+	// Add the global environment variables
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
-		"config file (default is $HOME/.dio/config.yaml)")
-	RootCmd.PersistentFlags().StringVar(&cloud, "cloud", "https://docker-dev.dbhub.io:5550",
+		"config file (default is $HOME/.dio/config.toml)")
+	RootCmd.PersistentFlags().StringVar(&cloud, "cloud", "https://dbhub.io:5550",
 		"Address of the DBHub.io cloud")
 
-	// Read our certificate info, if present
-	// TODO: Read the certificate from a proper location
-	ourCAPool := x509.NewCertPool()
-	chainFile, err := ioutil.ReadFile("/home/jc/git_repos/src/github.com/sqlitebrowser/dbhub.io/docker/certs/ca-chain-docker.cert.pem")
-	if err != nil {
-		fmt.Println(err)
-	}
-	ok := ourCAPool.AppendCertsFromPEM(chainFile)
-	if !ok {
-		fmt.Println("Error when loading certificate chain file")
-	}
-
-	// Load a client certificate file
-	// TODO: Read the certificate from a proper location
-	cert, err := tls.LoadX509KeyPair("/home/jc/default.cert.pem", "/home/jc/default.cert.pem")
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	// Load our self signed CA Cert chain, and set TLS1.2 as minimum
-	TLSConfig = tls.Config{
-		Certificates:             []tls.Certificate{cert},
-		ClientCAs:                ourCAPool,
-		MinVersion:               tls.VersionTLS12,
-		PreferServerCipherSuites: true,
-		RootCAs:                  ourCAPool,
-	}
-
-	// Extract the username and server from the TLS certificate
-	certUser, certServer, err = getUserAndServer()
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
-// initConfig reads in config file and ENV variables if set.
-func initConfig() {
+	// Read all of our configuration data now
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
@@ -110,5 +75,53 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err != nil {
 		fmt.Println("Error reading config file:", viper.ConfigFileUsed())
+	}
+
+	// Make sure the paths to our CA Chain and user certificate have been set
+	if found := viper.IsSet("certs.cachain"); found == false {
+		log.Fatal("Path to Certificate Authority chain file not set in the config file")
+		return
+	}
+	if found := viper.IsSet("certs.cert"); found == false {
+		log.Fatal("Path to user certificate file not set in the config file")
+		return
+	}
+
+	// If an alternative DBHub.io cloud address is set in the config file, use that
+	if found := viper.IsSet("general.cloud"); found == true {
+		// If the user provided an override on the command line, that will override this anyway
+		cloud = viper.GetString("general.cloud")
+	}
+
+	// Read our certificate info, if present
+	ourCAPool := x509.NewCertPool()
+	chainFile, err := ioutil.ReadFile(viper.GetString("certs.cachain"))
+	if err != nil {
+		fmt.Println(err)
+	}
+	ok := ourCAPool.AppendCertsFromPEM(chainFile)
+	if !ok {
+		fmt.Println("Error when loading certificate chain file")
+	}
+
+	// Load a client certificate file
+	cert, err := tls.LoadX509KeyPair(viper.GetString("certs.cert"), viper.GetString("certs.cert"))
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Load our self signed CA Cert chain, and set TLS1.2 as minimum
+	TLSConfig = tls.Config{
+		Certificates:             []tls.Certificate{cert},
+		ClientCAs:                ourCAPool,
+		MinVersion:               tls.VersionTLS12,
+		PreferServerCipherSuites: true,
+		RootCAs:                  ourCAPool,
+	}
+
+	// Extract the username and server from the TLS certificate
+	certUser, _, err = getUserAndServer()
+	if err != nil {
+		fmt.Println(err)
 	}
 }
