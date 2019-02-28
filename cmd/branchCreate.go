@@ -1,12 +1,13 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"net/http"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
-	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
 )
 
@@ -33,32 +34,67 @@ var branchCreateCmd = &cobra.Command{
 			return errors.New("No commit ID given")
 		}
 
-		// Create the branch
-		file := args[0]
-		req := rq.New().Post(cloud+"/branch_create").
-			Set("branch", branch).
-			Set("commit", commit).
-			Set("database", file)
-		if msg != "" {
-			req.Set("desc", msg)
+		// If there isn't a local metadata cache for the requested database, retrieve it from the server (and store  it)
+		db := args[0]
+		if _, err := os.Stat(filepath.Join(".dio", db, "metadata.json")); os.IsNotExist(err) {
+			err := updateMetadata(db)
+			if err != nil {
+				return err
+			}
 		}
-		resp, _, errs := req.End()
-		if errs != nil {
-			log.Print("Errors when creating branch:")
-			for _, err := range errs {
-				log.Print(err.Error())
+
+		// Read in the metadata cache
+		md, err := ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
+		if err != nil {
+			if err != nil {
+				return err
 			}
-			return errors.New("Error when creating branch")
 		}
-		if resp.StatusCode != http.StatusNoContent {
-			if resp.StatusCode == http.StatusNotFound {
-				return errors.New("Requested database or commit not found")
-			}
-			if resp.StatusCode == http.StatusConflict {
-				return errors.New("Requested branch already exists")
-			}
-			return errors.New(fmt.Sprintf("Branch creation failed with an error: HTTP status %d - '%v'\n",
-				resp.StatusCode, resp.Status))
+		meta := metaData{}
+		err = json.Unmarshal([]byte(md), &meta)
+		if err != nil {
+			return err
+		}
+
+		// Ensure a branch with the same name doesn't already exist
+		if _, ok := meta.Branches[branch]; ok == true {
+			return errors.New("A branch with that name already exists")
+		}
+
+		// Make sure the target commit exists in our commit list
+		c, ok := meta.Commits[commit]
+		if ok != true {
+			return errors.New("That commit isn't in the database commit list")
+		}
+
+		// Count the number of commits in the new branch
+		numCommits := 1
+		for c.Parent != "" {
+			numCommits++
+			c = meta.Commits[c.Parent]
+		}
+
+		// Generate the new branch info locally
+		newBranch := branchEntry{
+			Commit:      commit,
+			CommitCount: numCommits,
+			Description: msg,
+		}
+
+		// Add the new branch to the local metadata cache
+		meta.Branches[branch] = newBranch
+
+		// Serialise the updated metadata to JSON
+		jsonString, err := json.MarshalIndent(meta, "", "  ")
+		if err != nil {
+			return err
+		}
+
+		// Write the updated metadata to disk
+		mdFile := filepath.Join(".dio", db, "metadata.json")
+		err = ioutil.WriteFile(mdFile, []byte(jsonString), 0644)
+		if err != nil {
+			return err
 		}
 
 		fmt.Printf("Branch '%s' created\n", branch)
