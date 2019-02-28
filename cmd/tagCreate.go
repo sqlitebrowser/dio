@@ -64,7 +64,7 @@ var tagCreateCmd = &cobra.Command{
 			}
 		}
 
-		// If there isn't a local metadata cache for the requested database, retrieve it from the server
+		// If there isn't a local metadata cache for the requested database, retrieve it from the server (and store  it)
 		db := args[0]
 		if _, err := os.Stat(filepath.Join(".dio", db, "metadata.json")); os.IsNotExist(err) {
 			err := updateMetadata(db)
