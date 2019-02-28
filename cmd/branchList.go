@@ -38,15 +38,15 @@ var branchListCmd = &cobra.Command{
 			}
 			md = []byte(temp)
 		}
-		list := metaData{}
-		err = json.Unmarshal([]byte(md), &list)
+		meta := metaData{}
+		err = json.Unmarshal([]byte(md), &meta)
 		if err != nil {
 			return err
 		}
 
 		// Sort the list alphabetically
 		var sortedKeys []string
-		for k := range list.Branches {
+		for k := range meta.Branches {
 			sortedKeys = append(sortedKeys, k)
 		}
 		sort.Strings(sortedKeys)
@@ -54,12 +54,12 @@ var branchListCmd = &cobra.Command{
 		// Display the list of branches
 		fmt.Printf("Branches for %s:\n\n", db)
 		for _, i := range sortedKeys {
-			fmt.Printf("  * %s - Commit: %s\n", i, list.Branches[i].Commit)
-			if list.Branches[i].Description != "" {
-				fmt.Printf("\n      %s\n\n", list.Branches[i].Description)
+			fmt.Printf("  * %s - Commit: %s\n", i, meta.Branches[i].Commit)
+			if meta.Branches[i].Description != "" {
+				fmt.Printf("\n      %s\n\n", meta.Branches[i].Description)
 			}
 		}
-		fmt.Printf("\n    Default branch: %s\n\n", list.DefBranch)
+		fmt.Printf("\n    Default branch: %s\n\n", meta.DefBranch)
 		return nil
 	},
 }

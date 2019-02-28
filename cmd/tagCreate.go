@@ -80,14 +80,14 @@ var tagCreateCmd = &cobra.Command{
 				return err
 			}
 		}
-		list := metaData{}
-		err = json.Unmarshal([]byte(md), &list)
+		meta := metaData{}
+		err = json.Unmarshal([]byte(md), &meta)
 		if err != nil {
 			return err
 		}
 
 		// Ensure a tag with the same name doesn't already exist
-		if _, ok := list.Tags[tag]; ok == true {
+		if _, ok := meta.Tags[tag]; ok == true {
 			return errors.New("A tag with that name already exists")
 		}
 
@@ -101,10 +101,10 @@ var tagCreateCmd = &cobra.Command{
 		}
 
 		// Add the new tag to the local metadata cache
-		list.Tags[tag] = newTag
+		meta.Tags[tag] = newTag
 
 		// Serialise the updated metadata to JSON
-		jsonString, err := json.MarshalIndent(list, "", "  ")
+		jsonString, err := json.MarshalIndent(meta, "", "  ")
 		if err != nil {
 			return err
 		}

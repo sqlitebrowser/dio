@@ -39,20 +39,20 @@ var tagListCmd = &cobra.Command{
 			}
 			md = []byte(temp)
 		}
-		list := metaData{}
-		err = json.Unmarshal([]byte(md), &list)
+		meta := metaData{}
+		err = json.Unmarshal([]byte(md), &meta)
 		if err != nil {
 			return err
 		}
 
-		if len(list.Tags) == 0 {
+		if len(meta.Tags) == 0 {
 			fmt.Printf("Database %s has no tags\n", db)
 			return nil
 		}
 
 		// Sort the list alphabetically
 		var sortedKeys []string
-		for k := range list.Tags {
+		for k := range meta.Tags {
 			sortedKeys = append(sortedKeys, k)
 		}
 		sort.Strings(sortedKeys)
@@ -60,10 +60,10 @@ var tagListCmd = &cobra.Command{
 		// Display the list of tags
 		fmt.Printf("Tags for %s:\n\n", db)
 		for _, i := range sortedKeys {
-			fmt.Printf("  * %s : commit %s\n\n", i, list.Tags[i].Commit)
-			fmt.Printf("      Author: %s <%s>\n", list.Tags[i].TaggerName, list.Tags[i].TaggerEmail)
-			fmt.Printf("      Date: %s\n", list.Tags[i].Date.Format(time.UnixDate))
-			fmt.Printf("      Message: %s\n\n", list.Tags[i].Description)
+			fmt.Printf("  * %s : commit %s\n\n", i, meta.Tags[i].Commit)
+			fmt.Printf("      Author: %s <%s>\n", meta.Tags[i].TaggerName, meta.Tags[i].TaggerEmail)
+			fmt.Printf("      Date: %s\n", meta.Tags[i].Date.Format(time.UnixDate))
+			fmt.Printf("      Message: %s\n\n", meta.Tags[i].Description)
 		}
 		fmt.Println()
 		return nil

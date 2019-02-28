@@ -47,22 +47,22 @@ var tagRemoveCmd = &cobra.Command{
 				return err
 			}
 		}
-		list := metaData{}
-		err = json.Unmarshal([]byte(md), &list)
+		meta := metaData{}
+		err = json.Unmarshal([]byte(md), &meta)
 		if err != nil {
 			return err
 		}
 
 		// Check if the tag exists
-		if _, ok := list.Tags[tag]; ok != true {
+		if _, ok := meta.Tags[tag]; ok != true {
 			return errors.New("A tag with that name doesn't exist")
 		}
 
 		// Remove the tag
-		delete(list.Tags, tag)
+		delete(meta.Tags, tag)
 
 		// Serialise the updated metadata back to JSON
-		jsonString, err := json.MarshalIndent(list, "", "  ")
+		jsonString, err := json.MarshalIndent(meta, "", "  ")
 		if err != nil {
 			return err
 		}
