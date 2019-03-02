@@ -39,6 +39,11 @@ var branchRemoveCmd = &cobra.Command{
 			return errors.New("A branch with that name doesn't exist")
 		}
 
+		// If the branch is the currently active one, then abort
+		if branch == meta.ActiveBranch {
+			return errors.New("Can't remove the currently active branch.  You need to switch branches first")
+		}
+
 		// Remove the branch
 		delete(meta.Branches, branch)
 

@@ -59,7 +59,7 @@ var branchListCmd = &cobra.Command{
 				fmt.Printf("\n      %s\n\n", meta.Branches[i].Description)
 			}
 		}
-		fmt.Printf("\n    Default branch: %s\n\n", meta.DefBranch)
+		fmt.Printf("\n    Active branch: %s\n\n", meta.ActiveBranch)
 		return nil
 	},
 }
