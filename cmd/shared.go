@@ -75,10 +75,11 @@ func getUserAndServer() (userAcc string, certServer string, err error) {
 	return
 }
 
-// Loads the local metadata from disk (if present).  If not, then grab it from the remote server, storing it locally
-// Note - This is subtly different than calling updateMetadata() itself.  This function (loadMetadata()) is for use by
-//        commands which can use a local metadata cache only (eg branch creation), but only if it already exists.  For
-//        those, it only calls the remote server when a local metadata cache doesn't exist.
+// Loads the local metadata from disk (if present).  If not, then grab it from the remote server, storing it locally.
+//     Note - This is subtly different than calling updateMetadata() itself.  This function
+//     (loadMetadata()) is for use by commands which can use a local metadata cache only
+//     (eg branch creation), but only if it already exists.  For those, it only calls the
+//     remote server when a local metadata cache doesn't exist.
 func loadMetadata(db string) (meta metaData, err error) {
 	// Check if the local metadata exists.  If not, pull it from the remote server
 	if _, err = os.Stat(filepath.Join(".dio", db, "metadata.json")); os.IsNotExist(err) {
