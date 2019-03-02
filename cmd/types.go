@@ -79,11 +79,21 @@ type licenceEntry struct {
 }
 
 type metaData struct {
-	ActiveBranch string                 `json:"active_branch"`  // The local branch
-	DefBranch    string                 `json:"default_branch"` // The default branch *on the server*
-	Branches     map[string]branchEntry `json:"branches"`
-	Commits      map[string]commitEntry `json:"commits"`
-	Tags         map[string]tagEntry    `json:"tags"`
+	ActiveBranch string                  `json:"active_branch"`  // The local branch
+	Branches     map[string]branchEntry  `json:"branches"`
+	Commits      map[string]commitEntry  `json:"commits"`
+	DefBranch    string                  `json:"default_branch"` // The default branch *on the server*
+	Releases     map[string]ReleaseEntry `json:"releases"`
+	Tags         map[string]tagEntry     `json:"tags"`
+}
+
+type ReleaseEntry struct {
+	Commit        string    `json:"commit"`
+	Date          time.Time `json:"date"`
+	Description   string    `json:"description"`
+	ReleaserEmail string    `json:"email"`
+	ReleaserName  string    `json:"name"`
+	Size          int       `json:"size"`
 }
 
 type tagEntry struct {
