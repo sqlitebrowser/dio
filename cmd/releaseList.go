@@ -50,8 +50,12 @@ var releaseListCmd = &cobra.Command{
 			fmt.Printf("  * %s : commit %s\n\n", i, meta.Releases[i].Commit)
 			fmt.Printf("      Author: %s <%s>\n", meta.Releases[i].ReleaserName, meta.Releases[i].ReleaserEmail)
 			fmt.Printf("      Date: %s\n", meta.Releases[i].Date.Format(time.UnixDate))
-			fmt.Printf("      Message: %s\n", meta.Releases[i].Description)
-			numFormat.Printf("      Size: %d\n\n", meta.Releases[i].Size)
+			numFormat.Printf("      Size: %d\n", meta.Releases[i].Size)
+			if meta.Releases[i].Description != "" {
+				fmt.Printf("      Message: %s\n\n", meta.Releases[i].Description)
+			} else {
+				fmt.Println()
+			}
 		}
 		return nil
 	},
