@@ -79,7 +79,7 @@ type licenceEntry struct {
 }
 
 type metaData struct {
-	ActiveBranch string                  `json:"active_branch"`  // The local branch
+	ActiveBranch string                  `json:"active_branch"` // The local branch
 	Branches     map[string]branchEntry  `json:"branches"`
 	Commits      map[string]commitEntry  `json:"commits"`
 	DefBranch    string                  `json:"default_branch"` // The default branch *on the server*

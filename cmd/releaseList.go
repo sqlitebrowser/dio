@@ -9,10 +9,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Displays the list of tags for a remote database
-var tagListCmd = &cobra.Command{
-	Use:   "tags [database name]",
-	Short: "Displays a list of tags for a database",
+// Displays the list of releases for a remote database
+var releaseListCmd = &cobra.Command{
+	Use:   "releases [database name]",
+	Short: "Displays a list of releases for a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given
 		if len(args) == 0 {
@@ -32,30 +32,31 @@ var tagListCmd = &cobra.Command{
 			return err
 		}
 
-		if len(meta.Tags) == 0 {
-			fmt.Printf("Database %s has no tags\n", db)
+		if len(meta.Releases) == 0 {
+			fmt.Printf("Database %s has no releases\n", db)
 			return nil
 		}
 
 		// Sort the list alphabetically
 		var sortedKeys []string
-		for k := range meta.Tags {
+		for k := range meta.Releases {
 			sortedKeys = append(sortedKeys, k)
 		}
 		sort.Strings(sortedKeys)
 
-		// Display the list of tags
-		fmt.Printf("Tags for %s:\n\n", db)
+		// Display the list of releases
+		fmt.Printf("Releases for %s:\n\n", db)
 		for _, i := range sortedKeys {
-			fmt.Printf("  * %s : commit %s\n\n", i, meta.Tags[i].Commit)
-			fmt.Printf("      Author: %s <%s>\n", meta.Tags[i].TaggerName, meta.Tags[i].TaggerEmail)
-			fmt.Printf("      Date: %s\n", meta.Tags[i].Date.Format(time.UnixDate))
-			fmt.Printf("      Message: %s\n\n", meta.Tags[i].Description)
+			fmt.Printf("  * %s : commit %s\n\n", i, meta.Releases[i].Commit)
+			fmt.Printf("      Author: %s <%s>\n", meta.Releases[i].ReleaserName, meta.Releases[i].ReleaserEmail)
+			fmt.Printf("      Date: %s\n", meta.Releases[i].Date.Format(time.UnixDate))
+			fmt.Printf("      Message: %s\n", meta.Releases[i].Description)
+			numFormat.Printf("      Size: %d\n\n", meta.Releases[i].Size)
 		}
 		return nil
 	},
 }
 
 func init() {
-	RootCmd.AddCommand(tagListCmd)
+	RootCmd.AddCommand(releaseListCmd)
 }
