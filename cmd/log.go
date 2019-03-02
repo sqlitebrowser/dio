@@ -1,14 +1,10 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"net/http"
 	"time"
 
-	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
 )
 
@@ -29,30 +25,21 @@ var branchLog = &cobra.Command{
 			return errors.New("only one database can be worked with at a time (for now)")
 		}
 
-		// Retrieve the branch history
-		file := args[0]
-		resp, body, errs := rq.New().Get(cloud+"/branch_history").
-			Set("branch", logBranch).
-			Set("database", file).
-			End()
-		if errs != nil {
-			log.Print("Errors when retrieving branch history:")
-			for _, err := range errs {
-				log.Print(err.Error())
-			}
-			return errors.New("error when retrieving branch history")
-		}
-		if resp.StatusCode != http.StatusOK {
-			if resp.StatusCode == http.StatusNotFound {
-				return errors.New("requested database or branch not found")
-			}
-			return errors.New(fmt.Sprintf("Branch history failed with an error: HTTP status %d - '%v'\n",
-				resp.StatusCode, resp.Status))
-		}
-		var history branchEntries
-		err := json.Unmarshal([]byte(body), &history)
+		// If there is a local metadata cache for the requested database, use that.  Otherwise, retrieve it from the
+		// server first (without storing it)
+		db := args[0]
+		meta, err := localFetchMetadata(db)
 		if err != nil {
 			return err
+		}
+
+		// If a branch name was given by the user, check if it exists
+		if logBranch != "" {
+			if _, ok := meta.Branches[logBranch]; ok == false {
+				return errors.New("That branch doesn't exist for the database")
+			}
+		} else {
+			logBranch = meta.ActiveBranch
 		}
 
 		// Retrieve the list of known licences
@@ -67,13 +54,14 @@ var branchLog = &cobra.Command{
 			licList[j.Sha256] = j.FullName
 		}
 
-		// Display the branch history
-		fmt.Printf("Branch \"%s\" history for %s:\n\n", history.Branch, file)
-		for _, j := range history.Entries {
-			fmt.Printf(createCommitText(j, licList))
-			if j.Message != "" {
-				fmt.Println()
-			}
+		// Display the commits for the branch
+		headID := meta.Branches[logBranch].Commit
+		localCommit := meta.Commits[headID]
+		fmt.Printf("Branch \"%s\" history for %s:\n\n", logBranch, db)
+		fmt.Printf(createCommitText(meta.Commits[localCommit.ID], licList))
+		for localCommit.Parent != "" {
+			localCommit = meta.Commits[localCommit.Parent]
+			fmt.Printf(createCommitText(meta.Commits[localCommit.ID], licList))
 		}
 		return nil
 	},
@@ -86,14 +74,14 @@ func init() {
 
 // Creates the user visible commit text for a commit.
 func createCommitText(c commitEntry, licList map[string]string) string {
-	s := fmt.Sprintf("  commit %s\n", c.ID)
-	s += fmt.Sprintf("  Author: %s <%s>\n", c.AuthorName, c.AuthorEmail)
-	s += fmt.Sprintf("  Date: %v\n", c.Timestamp.Format(time.UnixDate))
+	s := fmt.Sprintf("  * Commit: %s\n", c.ID)
+	s += fmt.Sprintf("    Author: %s <%s>\n", c.AuthorName, c.AuthorEmail)
+	s += fmt.Sprintf("    Date: %v\n", c.Timestamp.Format(time.UnixDate))
 	if c.Tree.Entries[0].Licence != "" {
-		s += fmt.Sprintf("  Licence: %s\n", licList[c.Tree.Entries[0].Licence])
+		s += fmt.Sprintf("    Licence: %s\n\n", licList[c.Tree.Entries[0].Licence])
 	}
 	if c.Message != "" {
-		s += fmt.Sprintf("\n    %s\n", c.Message)
+		s += fmt.Sprintf("      %s\n\n", c.Message)
 	}
 	return s
 }

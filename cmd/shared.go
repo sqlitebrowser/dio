@@ -99,9 +99,10 @@ func loadMetadata(db string) (meta metaData, err error) {
 	return
 }
 
+// Loads the local metadata cache for the requested database, if present.  Otherwise, retrieve it from the server first.
+//   Note that this suitable for use by read-only functions (eg: branch/tag list, log)
+//   as it doesn't store or change any metadata on disk
 func localFetchMetadata(db string) (meta metaData, err error) {
-	// If there is a local metadata cache for the requested database, use that.  Otherwise, retrieve it from the
-	// server first (without storing it)
 	var md []byte
 	md, err = ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
 	if err != nil {
