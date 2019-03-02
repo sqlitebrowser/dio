@@ -1,11 +1,8 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"path/filepath"
 	"sort"
 	"time"
 
@@ -30,17 +27,7 @@ var tagListCmd = &cobra.Command{
 		// If there is a local metadata cache for the requested database, use that.  Otherwise, retrieve it from the
 		// server first (without storing it)
 		db := args[0]
-		md, err := ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
-		if err != nil {
-			// No local cache, so retrieve the info from the server
-			temp, err := retrieveMetadata(db)
-			if err != nil {
-				return err
-			}
-			md = []byte(temp)
-		}
-		meta := metaData{}
-		err = json.Unmarshal([]byte(md), &meta)
+		meta, err := localFetchMetadata(db)
 		if err != nil {
 			return err
 		}

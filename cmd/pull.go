@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -58,8 +57,8 @@ var pullCmd = &cobra.Command{
 		//}
 
 		// Download the database file
-		file := args[0]
-		dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, file)
+		db := args[0]
+		dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, db)
 		req := rq.New().TLSClientConfig(&TLSConfig).Get(dbURL)
 		//if pullCmdBranch != "" {
 		//	req.Set("branch", pullCmdBranch)
@@ -87,7 +86,7 @@ var pullCmd = &cobra.Command{
 		}
 
 		// Write the database file to disk
-		err := ioutil.WriteFile(file, []byte(body), 0644)
+		err := ioutil.WriteFile(db, []byte(body), 0644)
 		if err != nil {
 			return err
 		}
@@ -109,7 +108,7 @@ var pullCmd = &cobra.Command{
 					if err != nil {
 						return err
 					}
-					err = os.Chtimes(file, time.Now(), lastMod)
+					err = os.Chtimes(db, time.Now(), lastMod)
 					if err != nil {
 						return err
 					}
@@ -117,48 +116,22 @@ var pullCmd = &cobra.Command{
 			}
 		}
 
-		// TODO: * Download the metadata for the database, and save it in a subdirectory of the local .dio directory *
-
-		// We store metadata for all databases in a ".dio" directory in the current directory.  Each downloaded database
-		// has it's metadata stored in a folder (named the same as the database) in this directory.
-
-		// Create a folder to hold metadata, if it doesn't yet exist
-		if _, err = os.Stat(filepath.Join(".dio", file)); os.IsNotExist(err) {
-			err = os.MkdirAll(filepath.Join(".dio", file), 0770)
-			if err != nil {
-				return err
-			}
-		}
-
-		// If the server provided the branch name, save it in the metadata directory
-		if branch := resp.Header.Get("Branch"); branch != "" {
-			mdFile := filepath.Join(".dio", file, "branch")
-			err = ioutil.WriteFile(mdFile, []byte(branch), 0644)
-			if err != nil {
-				return err
-			}
-		}
-
-		// If the server provided the commit id, save it in the metadata directory
-		if commit := resp.Header.Get("Commit-ID"); commit != "" {
-			mdFile := filepath.Join(".dio", file, "commit")
-			err = ioutil.WriteFile(mdFile, []byte(commit), 0644)
-			if err != nil {
-				return err
-			}
-		}
-
-		// TODO: Check if the database metadata (metadata.json) file already exists in the subdirectory
-			// If it does, we'll probably need to figure out some way to merge things, so it doesn't muck up any
-			// locally created branches (should we support those? probably yes)
-
-		// Update the stored database metadata
-		err = updateMetadata(file)
+		// Update the local metadata cache
+		var meta metaData
+		meta, err = updateMetadata(db)
 		if err != nil {
 			return err
 		}
 
-		numFormat.Printf("Database '%s' downloaded.  Size: %d bytes\n", file, len(body))
+		// If the server provided a branch name, add it to the local metadata cache
+		if branch := resp.Header.Get("Branch"); branch != "" {
+			meta.ActiveBranch = branch
+		}
+
+		_, err = numFormat.Printf("Database '%s' downloaded.  Size: %d bytes\n", db, len(body))
+		if err != nil {
+			return err
+		}
 
 		//if pullCmdBranch != "" {
 		//	fmt.Printf("Database '%s' downloaded from %s.  Branch: '%s'.  Size: %d bytes\n", file,
@@ -167,7 +140,7 @@ var pullCmd = &cobra.Command{
 		//	fmt.Printf("Database '%s' downloaded from %s.  Size: %d bytes\nCommit: %s\n", file,
 		//		cloud, len(dbAndLicence.DBFile), pullCmdCommit)
 		//}
-		//
+
 		//// If a licence was returned along with the database, write it to disk as well
 		//if len(dbAndLicence.LicText) > 0 {
 		//	licFile := file + "-LICENCE"

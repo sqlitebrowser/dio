@@ -75,12 +75,14 @@ func getUserAndServer() (userAcc string, certServer string, err error) {
 	return
 }
 
-// Loads the local metadata from disk (if present), and if not then retrieves it from the remote server, saving it
-// locally
+// Loads the local metadata from disk (if present).  If not, then grab it from the remote server, storing it locally
+// Note - This is subtly different than calling updateMetadata() itself.  This function (loadMetadata()) is for use by
+//        commands which can use a local metadata cache only (eg branch creation), but only if it already exists.  For
+//        those, it only calls the remote server when a local metadata cache doesn't exist.
 func loadMetadata(db string) (meta metaData, err error) {
 	// Check if the local metadata exists.  If not, pull it from the remote server
 	if _, err = os.Stat(filepath.Join(".dio", db, "metadata.json")); os.IsNotExist(err) {
-		err = updateMetadata(db)
+		_, err = updateMetadata(db)
 		if err != nil {
 			return
 		}
@@ -91,6 +93,24 @@ func loadMetadata(db string) (meta metaData, err error) {
 	md, err = ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
 	if err != nil {
 		return
+	}
+	err = json.Unmarshal([]byte(md), &meta)
+	return
+}
+
+func localFetchMetadata(db string) (meta metaData, err error) {
+	// If there is a local metadata cache for the requested database, use that.  Otherwise, retrieve it from the
+	// server first (without storing it)
+	var md []byte
+	md, err = ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
+	if err != nil {
+		// No local cache, so retrieve the info from the server
+		var temp string
+		temp, err = retrieveMetadata(db)
+		if err != nil {
+			return
+		}
+		md = []byte(temp)
 	}
 	err = json.Unmarshal([]byte(md), &meta)
 	return
@@ -134,42 +154,43 @@ func saveMetadata(db string, meta metaData) (err error) {
 }
 
 // Saves metadata to the local cache, merging in with any existing metadata
-func updateMetadata(db string) error {
+func updateMetadata(db string) (mergedMeta metaData, err error) {
 	// Create a folder to hold metadata, if it doesn't yet exist
-	if _, err := os.Stat(filepath.Join(".dio", db)); os.IsNotExist(err) {
+	if _, err = os.Stat(filepath.Join(".dio", db)); os.IsNotExist(err) {
 		err = os.MkdirAll(filepath.Join(".dio", db), 0770)
 		if err != nil {
-			return err
+			return
 		}
 	}
 
 	// Check for existing metadata file, and load/unmarshall it if present
+	var md []byte
 	origMeta := metaData{}
-	md, err := ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
+	md, err = ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
 	if err == nil {
 		err = json.Unmarshal([]byte(md), &origMeta)
 		if err != nil {
-			return err
+			return
 		}
 	}
 
 	// Download the latest database metadata
 	fmt.Println("Updating metadata")
 	newMeta := metaData{}
-	tmp, err := retrieveMetadata(db)
+	var tmp string
+	tmp, err = retrieveMetadata(db)
 	if err != nil {
-		return err
+		return
 	}
 	err = json.Unmarshal([]byte(tmp), &newMeta)
 	if err != nil {
-		return err
+		return
 	}
 
 	// If we have existing local metadata, then merge the metadata from the server with it
-	mergedMeta := metaData{
-		Branches: map[string]branchEntry{},
-		Commits:  map[string]commitEntry{},
-		Tags:     map[string]tagEntry{}}
+	mergedMeta.Branches = make(map[string]branchEntry)
+	mergedMeta.Commits = make(map[string]commitEntry)
+	mergedMeta.Tags = make(map[string]tagEntry)
 	if len(origMeta.Commits) > 0 {
 		// Start by check branches which exist locally
 		for brName, brData := range origMeta.Branches {
@@ -203,8 +224,9 @@ func updateMetadata(db string) error {
 					// Make sure the local and remote commits start out with the same commit ID
 					if localCommit.ID != remoteCommit.ID {
 						// The local and remote branches don't have a common root, so abort
-						return errors.New(fmt.Sprintf("Local and remote branch %s don't have a common root.  "+
+						err = errors.New(fmt.Sprintf("Local and remote branch %s don't have a common root.  "+
 							"Aborting.", brName))
+						return
 					}
 
 					// If there are more commits in the local branch than in the remote one, we keep the local branch
@@ -334,26 +356,34 @@ func updateMetadata(db string) error {
 		// Copy the default branch name from the remote server
 		mergedMeta.DefBranch = newMeta.DefBranch
 
+		// If an active (local) branch has been set, then copy it to the merged metadata.  Otherwise use the default
+		// branch as given by the remote server
+		if origMeta.ActiveBranch != "" {
+			mergedMeta.ActiveBranch = origMeta.ActiveBranch
+		} else {
+			mergedMeta.ActiveBranch = newMeta.DefBranch
+		}
+
 		fmt.Println()
 	} else {
 		// No existing metadata, so just copy across the remote metadata
 		mergedMeta = newMeta
+
+		// Use the remote default branch as the initial active (local) branch
+		mergedMeta.ActiveBranch = newMeta.DefBranch
 	}
 
 	// Serialise the updated metadata to JSON
-	jsonString, err := json.MarshalIndent(mergedMeta, "", "  ")
+	var jsonString []byte
+	jsonString, err = json.MarshalIndent(mergedMeta, "", "  ")
 	if err != nil {
 		errMsg := fmt.Sprintf("Error when JSON marshalling the merged metadata: %v\n", err)
 		log.Print(errMsg)
-		return err
+		return
 	}
 
 	// Write the updated metadata to disk
 	mdFile := filepath.Join(".dio", db, "metadata.json")
 	err = ioutil.WriteFile(mdFile, []byte(jsonString), 0644)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return
 }

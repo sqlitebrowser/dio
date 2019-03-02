@@ -79,6 +79,7 @@ var pushCmd = &cobra.Command{
 		}
 
 		// Load the branch name and commit id from saved metadata, if they exist
+		// TODO: These may be better as part of the local metadata.json cache
 		if _, err = os.Stat(filepath.Join(".dio", file, "branch")); err == nil {
 			b, err := ioutil.ReadFile(filepath.Join(".dio", file, "branch"))
 			if err != nil {
@@ -137,7 +138,7 @@ var pushCmd = &cobra.Command{
 		}
 
 		// Retrieve and store metadata for the database
-		err = updateMetadata(file)
+		_, err = updateMetadata(file)
 		if err != nil {
 			return err
 		}
