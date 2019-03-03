@@ -3,14 +3,11 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"log"
-	"net/http"
 
-	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
 )
 
-var branchUpdateBranch string
+var branchUpdateBranch, branchUpdateMsg string
 var descDel *bool
 
 // Updates the description text for a branch
@@ -32,42 +29,39 @@ var branchUpdateCmd = &cobra.Command{
 		if branchUpdateBranch == "" {
 			return errors.New("No branch name given")
 		}
-		if msg == "" && *descDel == false {
+		if branchUpdateMsg == "" && *descDel == false {
 			return errors.New("No description text given")
 		}
 
+		// Load the metadata
+		db := args[0]
+		meta, err := loadMetadata(db)
+		if err != nil {
+			return err
+		}
+
+		// Make sure the branch exists
+		branch, ok := meta.Branches[branchUpdateBranch]
+		if ok == false {
+			return errors.New("That branch doesn't exist")
+		}
+
 		// Update the branch
-		file := args[0]
-		req := rq.New().Post(cloud+"/branch_update").
-			Set("branch", branchUpdateBranch).
-			Set("database", file)
-		if msg != "" {
-			req.Set("desc", msg)
+		if *descDel == false {
+			branch.Description = branchUpdateMsg
 		} else {
-			req.Set("del", "true")
+			branch.Description = ""
 		}
-		resp, _, errs := req.End()
-		if errs != nil {
-			log.Print("Errors when updating branch description:")
-			for _, err := range errs {
-				log.Print(err.Error())
-			}
-			return errors.New("Error when updating branch description")
-		}
-		if resp.StatusCode != http.StatusNoContent {
-			if resp.StatusCode == http.StatusNotFound {
-				return errors.New("Requested database or branch not found")
-			}
-			return errors.New(fmt.Sprintf("Description update failed with an error: HTTP status %d - '%v'\n",
-				resp.StatusCode, resp.Status))
+		meta.Branches[branchUpdateBranch] = branch
+
+		// Save the updated metadata back to disk
+		err = saveMetadata(db, meta)
+		if err != nil {
+			return err
 		}
 
 		// Inform the user
-		if *descDel {
-			fmt.Println("Description deleted")
-		} else {
-			fmt.Println("Description updated")
-		}
+		fmt.Println("Branch updated")
 		return nil
 	},
 }
@@ -78,5 +72,5 @@ func init() {
 		"Name of remote branch to create")
 	descDel = branchUpdateCmd.Flags().BoolP("delete", "d", false,
 		"Delete the branch description")
-	branchUpdateCmd.Flags().StringVar(&msg, "description", "", "Description of the branch")
+	branchUpdateCmd.Flags().StringVar(&branchUpdateMsg, "description", "", "Description of the branch")
 }
