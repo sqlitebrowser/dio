@@ -1,15 +1,13 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"net/http"
 
-	rq "github.com/parnurzeal/gorequest"
 	"github.com/spf13/cobra"
 )
+
+var branchRevertBranch, branchRevertCommit, branchRevertTag string
 
 // Reverts a database to a prior commit in its history
 var branchRevertCmd = &cobra.Command{
@@ -27,62 +25,84 @@ var branchRevertCmd = &cobra.Command{
 		}
 
 		// Ensure the required info was given
-		if branch == "" {
+		if branchRevertBranch == "" {
 			return errors.New("No branch name given")
 		}
-		if commit == "" && tag == "" {
+		if branchRevertCommit == "" && branchRevertTag == "" {
 			return errors.New("Either a commit ID or tag must be given.")
 		}
 
 		// Ensure we were given only a commit ID OR a tag
-		if commit != "" && tag != "" {
+		if branchRevertCommit != "" && branchRevertTag != "" {
 			return errors.New("Either a commit ID or tag must be given.  Not both!")
 		}
 
-		// Revert the branch
-		file := args[0]
-		req := rq.New().Post(cloud+"/branch_revert").
-			Set("branch", branch).
-			Set("database", file)
-		if commit != "" {
-			req.Set("commit", commit)
-		} else {
-			req.Set("tag", tag)
+		// Load the metadata
+		db := args[0]
+		meta, err := loadMetadata(db)
+		if err != nil {
+			return err
 		}
-		resp, body, errs := req.End()
-		if errs != nil {
-			log.Print("Errors when reverting branch:")
-			for _, err := range errs {
-				log.Print(err.Error())
-			}
-			return errors.New("Error when reverting branch")
-		}
-		if resp.StatusCode != http.StatusNoContent {
-			if resp.StatusCode == http.StatusNotFound {
-				return errors.New("Requested database or commit not found")
-			}
-			if resp.StatusCode == http.StatusConflict {
-				// Check for a message body indicating there would be isolated tags
-				var e errorInfo
-				err := json.Unmarshal([]byte(body), &e)
-				if err != nil {
-					return err
-				}
-				if e.Condition == "isolated_tags" {
-					// Yep, isolated tags would exist if this branch is reverted.  Let the user know they'll need to
-					// remove the tags first
-					// TODO: Add some kind of --force option which removes the tags itself then removes the branch
-					m := "The following tags would become isolated by reverting to that commit. " +
-						"You'll need to remove them first:\n\n"
-					for _, j := range e.Data {
-						m += fmt.Sprintf(" * %s\n", j)
-					}
-					return errors.New(m)
-				}
-			}
 
-			return errors.New(fmt.Sprintf("Branch revertion failed with an error: HTTP status %d - '%v'\n",
-				resp.StatusCode, resp.Status))
+		// Make sure the branch exists
+		matchFound := false
+		head, ok := meta.Branches[branchRevertBranch]
+		if ok == false {
+			return errors.New("That branch doesn't exist")
+		}
+		if head.Commit == branchRevertCommit {
+			matchFound = true
+		}
+
+		// Build a list of commits in the branch
+		commitList := []string{head.Commit}
+		c, ok := meta.Commits[head.Commit]
+		if ok == false {
+			return errors.New("Something has gone wrong.  Head commit for the branch isn't in the commit list")
+		}
+		for c.Parent != "" {
+			c = meta.Commits[c.Parent]
+			if c.ID == branchRevertCommit {
+				matchFound = true
+			}
+			commitList = append(commitList, c.ID)
+		}
+
+		// Make sure the requested commit exists on the selected branch
+		if !matchFound {
+			return errors.New("The given commit id doesn't seem to exist on the selected branch")
+		}
+
+		// TODO: * Check if there would be isolated tags or releases if this revert is done.  If so, let the user
+		//         know they'll need to remove the tags first
+
+		// TODO: Get the tag list for the database
+
+		// Count the number of commits in the updated branch
+		var commitCount int
+		listLen := len(commitList) - 1
+		for i := 0; i <= listLen; i++ {
+			commitCount++
+			if commitList[listLen-i] == branchRevertCommit {
+				break
+			}
+		}
+
+		// Revert the branch
+		// TODO: Remove the no-longer-referenced commits (if any) caused by this reverting
+		//       * One alternative would be to leave them, and only clean up with with some kind of garbage collection
+		//         operation.  Even a "dio gc" to manually trigger it
+		newHead := branchEntry{
+			Commit:      branchRevertCommit,
+			CommitCount: commitCount,
+			Description: head.Description,
+		}
+		meta.Branches[branchRevertBranch] = newHead
+
+		// Save the updated metadata back to disk
+		err = saveMetadata(db, meta)
+		if err != nil {
+			return err
 		}
 
 		fmt.Println("Branch reverted")
@@ -92,7 +112,7 @@ var branchRevertCmd = &cobra.Command{
 
 func init() {
 	branchCmd.AddCommand(branchRevertCmd)
-	branchRevertCmd.Flags().StringVar(&branch, "branch", "master", "Remote branch to operate on")
-	branchRevertCmd.Flags().StringVar(&commit, "commit", "", "Commit ID for the to revert to")
-	branchRevertCmd.Flags().StringVar(&tag, "tag", "", "Name of tag to revert to")
+	branchRevertCmd.Flags().StringVar(&branchRevertBranch, "branch", "master", "Remote branch to operate on")
+	branchRevertCmd.Flags().StringVar(&branchRevertCommit, "commit", "", "Commit ID for the to revert to")
+	branchRevertCmd.Flags().StringVar(&branchRevertTag, "tag", "", "Name of tag to revert to")
 }
