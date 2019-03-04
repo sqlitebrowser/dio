@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,9 +15,49 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	rq "github.com/parnurzeal/gorequest"
 )
+
+// Generate a stable SHA256 for a commit.
+func createCommitID(c commitEntry) string {
+	var b bytes.Buffer
+	b.WriteString(fmt.Sprintf("tree %s\n", c.Tree.ID))
+	if c.Parent != "" {
+		b.WriteString(fmt.Sprintf("parent %s\n", c.Parent))
+	}
+	b.WriteString(fmt.Sprintf("author %s <%s> %v\n", c.AuthorName, c.AuthorEmail,
+		c.Timestamp.Format(time.UnixDate)))
+	if c.CommitterEmail != "" {
+		b.WriteString(fmt.Sprintf("committer %s <%s> %v\n", c.CommitterName, c.CommitterEmail,
+			c.Timestamp.Format(time.UnixDate)))
+	}
+	b.WriteString("\n" + c.Message)
+	b.WriteByte(0)
+	s := sha256.Sum256(b.Bytes())
+	return hex.EncodeToString(s[:])
+}
+
+// Generate the SHA256 for a tree.
+// Tree entry structure is:
+// * [ type ] [ sha256 ] [ db name ] [ last modified (timestamp) ] [ db size (bytes) ]
+func createDBTreeID(entries []dbTreeEntry) string {
+	var b bytes.Buffer
+	for _, j := range entries {
+		b.WriteString(string(j.AType))
+		b.WriteByte(0)
+		b.WriteString(j.Sha256)
+		b.WriteByte(0)
+		b.WriteString(j.Name)
+		b.WriteByte(0)
+		b.WriteString(j.LastModified.Format(time.RFC3339))
+		b.WriteByte(0)
+		b.WriteString(fmt.Sprintf("%d\n", j.Size))
+	}
+	s := sha256.Sum256(b.Bytes())
+	return hex.EncodeToString(s[:])
+}
 
 // Returns a map with the list of licences available on the remote server
 func getLicences() (list map[string]licenceEntry, err error) {
@@ -77,13 +120,13 @@ func getUserAndServer() (userAcc string, certServer string, err error) {
 
 // Loads the local metadata from disk (if present).  If not, then grab it from the remote server, storing it locally.
 //     Note - This is subtly different than calling updateMetadata() itself.  This function
-//     (loadMetadata()) is for use by commands which can use a local metadata cache only
+//     (loadMetadata()) is for use by commands which can use a local metadata cache all by itself
 //     (eg branch creation), but only if it already exists.  For those, it only calls the
 //     remote server when a local metadata cache doesn't exist.
 func loadMetadata(db string) (meta metaData, err error) {
 	// Check if the local metadata exists.  If not, pull it from the remote server
 	if _, err = os.Stat(filepath.Join(".dio", db, "metadata.json")); os.IsNotExist(err) {
-		_, err = updateMetadata(db)
+		_, err = updateMetadata(db, true)
 		if err != nil {
 			return
 		}
@@ -118,78 +161,8 @@ func localFetchMetadata(db string) (meta metaData, err error) {
 	return
 }
 
-// Retrieves database metadata from DBHub.io
-func retrieveMetadata(db string) (md string, err error) {
-	// Download the database metadata
-	resp, md, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/metadata/get").
-		Query(fmt.Sprintf("username=%s", url.QueryEscape(certUser))).
-		Query(fmt.Sprintf("folder=%s", "/")).
-		Query(fmt.Sprintf("dbname=%s", url.QueryEscape(db))).
-		End()
-
-	if errs != nil {
-		log.Print("Errors when downloading database metadata:")
-		for _, err := range errs {
-			log.Print(err.Error())
-		}
-		return "", errors.New("Error when downloading database metadata")
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", errors.New(fmt.Sprintf("Metadata download failed with an error: HTTP status %d - '%v'\n",
-			resp.StatusCode, resp.Status))
-	}
-	return md, nil
-}
-
-// Saves the metadata to a local cache
-func saveMetadata(db string, meta metaData) (err error) {
-	var jsonString []byte
-	jsonString, err = json.MarshalIndent(meta, "", "  ")
-	if err != nil {
-		return
-	}
-
-	// Write the updated metadata to disk
-	mdFile := filepath.Join(".dio", db, "metadata.json")
-	err = ioutil.WriteFile(mdFile, jsonString, 0644)
-	return err
-}
-
-// Saves metadata to the local cache, merging in with any existing metadata
-func updateMetadata(db string) (mergedMeta metaData, err error) {
-	// Create a folder to hold metadata, if it doesn't yet exist
-	if _, err = os.Stat(filepath.Join(".dio", db)); os.IsNotExist(err) {
-		err = os.MkdirAll(filepath.Join(".dio", db), 0770)
-		if err != nil {
-			return
-		}
-	}
-
-	// Check for existing metadata file, and load/unmarshall it if present
-	var md []byte
-	origMeta := metaData{}
-	md, err = ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
-	if err == nil {
-		err = json.Unmarshal([]byte(md), &origMeta)
-		if err != nil {
-			return
-		}
-	}
-
-	// Download the latest database metadata
-	fmt.Println("Updating metadata")
-	newMeta := metaData{}
-	var tmp string
-	tmp, err = retrieveMetadata(db)
-	if err != nil {
-		return
-	}
-	err = json.Unmarshal([]byte(tmp), &newMeta)
-	if err != nil {
-		return
-	}
-
-	// If we have existing local metadata, then merge the metadata from the server with it
+// Merges old and new metadata
+func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, err error) {
 	mergedMeta.Branches = make(map[string]branchEntry)
 	mergedMeta.Commits = make(map[string]commitEntry)
 	mergedMeta.Tags = make(map[string]tagEntry)
@@ -374,6 +347,85 @@ func updateMetadata(db string) (mergedMeta metaData, err error) {
 		// Use the remote default branch as the initial active (local) branch
 		mergedMeta.ActiveBranch = newMeta.DefBranch
 	}
+	return
+}
+
+// Retrieves database metadata from DBHub.io
+func retrieveMetadata(db string) (md string, err error) {
+	// Download the database metadata
+	resp, md, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/metadata/get").
+		Query(fmt.Sprintf("username=%s", url.QueryEscape(certUser))).
+		Query(fmt.Sprintf("folder=%s", "/")).
+		Query(fmt.Sprintf("dbname=%s", url.QueryEscape(db))).
+		End()
+
+	if errs != nil {
+		log.Print("Errors when downloading database metadata:")
+		for _, err := range errs {
+			log.Print(err.Error())
+		}
+		return "", errors.New("Error when downloading database metadata")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", errors.New(fmt.Sprintf("Metadata download failed with an error: HTTP status %d - '%v'\n",
+			resp.StatusCode, resp.Status))
+	}
+	return md, nil
+}
+
+// Saves the metadata to a local cache
+func saveMetadata(db string, meta metaData) (err error) {
+	var jsonString []byte
+	jsonString, err = json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return
+	}
+
+	// Write the updated metadata to disk
+	mdFile := filepath.Join(".dio", db, "metadata.json")
+	err = ioutil.WriteFile(mdFile, jsonString, 0644)
+	return err
+}
+
+// Saves metadata to the local cache, merging in with any existing metadata
+func updateMetadata(db string, saveMeta bool) (mergedMeta metaData, err error) {
+	// Check for existing metadata file, loading it if present
+	var md []byte
+	origMeta := metaData{}
+	md, err = ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
+	if err == nil {
+		err = json.Unmarshal([]byte(md), &origMeta)
+		if err != nil {
+			return
+		}
+	}
+
+	// Download the latest database metadata
+	fmt.Println("Updating metadata")
+	newMeta := metaData{}
+	var tmp string
+	tmp, err = retrieveMetadata(db)
+	if err != nil {
+		return
+	}
+	err = json.Unmarshal([]byte(tmp), &newMeta)
+	if err != nil {
+		return
+	}
+
+	// If we have existing local metadata, then merge the metadata from DBHub.io with it
+	if len(origMeta.Commits) > 0 {
+		mergedMeta, err = mergeMetadata(origMeta, newMeta)
+		if err != nil {
+			return
+		}
+	} else {
+		// No existing metadata, so just copy across the remote metadata
+		mergedMeta = newMeta
+
+		// Use the remote default branch as the initial active (local) branch
+		mergedMeta.ActiveBranch = newMeta.DefBranch
+	}
 
 	// Serialise the updated metadata to JSON
 	var jsonString []byte
@@ -384,8 +436,16 @@ func updateMetadata(db string) (mergedMeta metaData, err error) {
 		return
 	}
 
-	// Write the updated metadata to disk
-	mdFile := filepath.Join(".dio", db, "metadata.json")
-	err = ioutil.WriteFile(mdFile, []byte(jsonString), 0644)
+	// If requested, write the updated metadata to disk
+	if saveMeta {
+		if _, err = os.Stat(filepath.Join(".dio", db)); os.IsNotExist(err) {
+			err = os.MkdirAll(filepath.Join(".dio", db), 0770)
+			if err != nil {
+				return
+			}
+		}
+		mdFile := filepath.Join(".dio", db, "metadata.json")
+		err = ioutil.WriteFile(mdFile, []byte(jsonString), 0644)
+	}
 	return
 }

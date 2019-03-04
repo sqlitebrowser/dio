@@ -24,7 +24,7 @@ var branchActiveGetCmd = &cobra.Command{
 
 		// If there's no local metadata cache, then create one
 		db := args[0]
-		meta, err := updateMetadata(db)
+		meta, err := updateMetadata(db, true)
 		if err != nil {
 			return err
 		}

@@ -138,7 +138,7 @@ var pushCmd = &cobra.Command{
 		}
 
 		// Retrieve and store metadata for the database
-		_, err = updateMetadata(file)
+		_, err = updateMetadata(file, true)
 		if err != nil {
 			return err
 		}

@@ -47,7 +47,7 @@ var pullCmd = &cobra.Command{
 		var meta metaData
 		var err error
 		db := args[0]
-		meta, err = localFetchMetadata(db) // Doesn't store the metadata to disk
+		meta, err = updateMetadata(db, false) // Don't store the metadata to disk yet, in case the download fails
 		if err != nil {
 			return err
 		}
@@ -145,7 +145,7 @@ var pullCmd = &cobra.Command{
 			meta.ActiveBranch = branch
 		}
 
-		// Save the updated metadata back to disk
+		// The download succeeded, so save the updated metadata to disk
 		err = saveMetadata(db, meta)
 		if err != nil {
 			return err
