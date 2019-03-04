@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var branchActiveBranch string
+var branchActiveSetBranch string
 
 // Sets the active branch for a database
 var branchActiveSetCmd = &cobra.Command{
@@ -25,7 +25,7 @@ var branchActiveSetCmd = &cobra.Command{
 		}
 
 		// Ensure a branch name was given
-		if branchActiveBranch == "" {
+		if branchActiveSetBranch == "" {
 			return errors.New("No branch name given")
 		}
 
@@ -37,12 +37,12 @@ var branchActiveSetCmd = &cobra.Command{
 		}
 
 		// Make sure the given branch name exists
-		if _, ok := meta.Branches[branchActiveBranch]; ok == false {
+		if _, ok := meta.Branches[branchActiveSetBranch]; ok == false {
 			return errors.New("That branch name doesn't exist for this database")
 		}
 
 		// Set the active branch
-		meta.ActiveBranch = branchActiveBranch
+		meta.ActiveBranch = branchActiveSetBranch
 
 		// Save the updated metadata
 		err = saveMetadata(db, meta)
@@ -50,13 +50,13 @@ var branchActiveSetCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Branch '%s' set as active for '%s'\n", branchActiveBranch, db)
+		fmt.Printf("Branch '%s' set as active for '%s'\n", branchActiveSetBranch, db)
 		return nil
 	},
 }
 
 func init() {
 	branchActiveCmd.AddCommand(branchActiveSetCmd)
-	branchActiveSetCmd.Flags().StringVar(&branchActiveBranch, "branch", "",
+	branchActiveSetCmd.Flags().StringVar(&branchActiveSetBranch, "branch", "",
 		"Remote branch to set as active")
 }

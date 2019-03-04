@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var branchRemoveBranch string
+
 // Removes a branch from a database
 var branchRemoveCmd = &cobra.Command{
 	Use:   "remove [database name] --branch xxx",
@@ -23,7 +25,7 @@ var branchRemoveCmd = &cobra.Command{
 		}
 
 		// Ensure a branch name was given
-		if branch == "" {
+		if branchRemoveBranch == "" {
 			return errors.New("No branch name given")
 		}
 
@@ -35,17 +37,17 @@ var branchRemoveCmd = &cobra.Command{
 		}
 
 		// Check if the branch exists
-		if _, ok := meta.Branches[branch]; ok != true {
+		if _, ok := meta.Branches[branchRemoveBranch]; ok != true {
 			return errors.New("A branch with that name doesn't exist")
 		}
 
 		// If the branch is the currently active one, then abort
-		if branch == meta.ActiveBranch {
+		if branchRemoveBranch == meta.ActiveBranch {
 			return errors.New("Can't remove the currently active branch.  You need to switch branches first")
 		}
 
 		// Remove the branch
-		delete(meta.Branches, branch)
+		delete(meta.Branches, branchRemoveBranch)
 
 		// Save the updated metadata back to disk
 		err = saveMetadata(db, meta)
@@ -53,12 +55,12 @@ var branchRemoveCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Branch '%s' removed\n", branch)
+		fmt.Printf("Branch '%s' removed\n", branchRemoveBranch)
 		return nil
 	},
 }
 
 func init() {
 	branchCmd.AddCommand(branchRemoveCmd)
-	branchRemoveCmd.Flags().StringVar(&branch, "branch", "", "Name of remote branch to remove")
+	branchRemoveCmd.Flags().StringVar(&branchRemoveBranch, "branch", "", "Name of remote branch to remove")
 }

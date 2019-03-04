@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var tagRemoveTag string
+
 // Removes a tag from a database
 var tagRemoveCmd = &cobra.Command{
 	Use:   "remove [database name] --tag xxx",
@@ -23,7 +25,7 @@ var tagRemoveCmd = &cobra.Command{
 		}
 
 		// Ensure a tag name was given
-		if tag == "" {
+		if tagRemoveTag == "" {
 			return errors.New("No tag name given")
 		}
 
@@ -35,12 +37,12 @@ var tagRemoveCmd = &cobra.Command{
 		}
 
 		// Check if the tag exists
-		if _, ok := meta.Tags[tag]; ok != true {
+		if _, ok := meta.Tags[tagRemoveTag]; ok != true {
 			return errors.New("A tag with that name doesn't exist")
 		}
 
 		// Remove the tag
-		delete(meta.Tags, tag)
+		delete(meta.Tags, tagRemoveTag)
 
 		// Save the updated metadata back to disk
 		err = saveMetadata(db, meta)
@@ -48,12 +50,12 @@ var tagRemoveCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Tag '%s' removed\n", tag)
+		fmt.Printf("Tag '%s' removed\n", tagRemoveTag)
 		return nil
 	},
 }
 
 func init() {
 	tagCmd.AddCommand(tagRemoveCmd)
-	tagRemoveCmd.Flags().StringVar(&tag, "tag", "", "Name of remote tag to remove")
+	tagRemoveCmd.Flags().StringVar(&tagRemoveTag, "tag", "", "Name of remote tag to remove")
 }

@@ -16,10 +16,10 @@ import (
 )
 
 var (
-	branch, cfgFile, cloud, commit, email, name, msg, tag string
-	certUser                                              string
-	numFormat                                             *message.Printer
-	TLSConfig                                             tls.Config
+	cfgFile, cloud string
+	certUser       string
+	numFormat      *message.Printer
+	TLSConfig      tls.Config
 )
 
 // RootCmd represents the base command when called without any subcommands

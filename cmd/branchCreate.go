@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var branchCreateBranch, branchCreateCommit, branchCreateMsg string
+
 // Creates a branch for a database
 var branchCreateCmd = &cobra.Command{
 	Use:   "create [database name] --branch xxx --commit yyy",
@@ -23,10 +25,10 @@ var branchCreateCmd = &cobra.Command{
 		}
 
 		// Ensure a new branch name and commit ID were given
-		if branch == "" {
+		if branchCreateBranch == "" {
 			return errors.New("No branch name given")
 		}
-		if commit == "" {
+		if branchCreateCommit == "" {
 			return errors.New("No commit ID given")
 		}
 
@@ -38,12 +40,12 @@ var branchCreateCmd = &cobra.Command{
 		}
 
 		// Ensure a branch with the same name doesn't already exist
-		if _, ok := meta.Branches[branch]; ok == true {
+		if _, ok := meta.Branches[branchCreateBranch]; ok == true {
 			return errors.New("A branch with that name already exists")
 		}
 
 		// Make sure the target commit exists in our commit list
-		c, ok := meta.Commits[commit]
+		c, ok := meta.Commits[branchCreateCommit]
 		if ok != true {
 			return errors.New("That commit isn't in the database commit list")
 		}
@@ -57,13 +59,13 @@ var branchCreateCmd = &cobra.Command{
 
 		// Generate the new branch info locally
 		newBranch := branchEntry{
-			Commit:      commit,
+			Commit:      branchCreateCommit,
 			CommitCount: numCommits,
-			Description: msg,
+			Description: branchCreateMsg,
 		}
 
 		// Add the new branch to the local metadata cache
-		meta.Branches[branch] = newBranch
+		meta.Branches[branchCreateBranch] = newBranch
 
 		// Save the updated metadata back to disk
 		err = saveMetadata(db, meta)
@@ -71,14 +73,14 @@ var branchCreateCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Branch '%s' created\n", branch)
+		fmt.Printf("Branch '%s' created\n", branchCreateBranch)
 		return nil
 	},
 }
 
 func init() {
 	branchCmd.AddCommand(branchCreateCmd)
-	branchCreateCmd.Flags().StringVar(&branch, "branch", "", "Name of remote branch to create")
-	branchCreateCmd.Flags().StringVar(&commit, "commit", "", "Commit ID for the new branch head")
-	branchCreateCmd.Flags().StringVar(&msg, "description", "", "Description of the branch")
+	branchCreateCmd.Flags().StringVar(&branchCreateBranch, "branch", "", "Name of remote branch to create")
+	branchCreateCmd.Flags().StringVar(&branchCreateCommit, "commit", "", "Commit ID for the new branch head")
+	branchCreateCmd.Flags().StringVar(&branchCreateMsg, "description", "", "Description of the branch")
 }

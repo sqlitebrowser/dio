@@ -9,7 +9,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-var tagDate string // Optional
+var (
+	tagCreateCommit, tagCreateDate, tagCreateEmail string
+	tagCreateMsg, tagCreateName, tagCreateTag      string
+)
 
 // Creates a tag for a database
 var tagCreateCmd = &cobra.Command{
@@ -27,34 +30,34 @@ var tagCreateCmd = &cobra.Command{
 		}
 
 		// Ensure a new tag name and commit ID were given
-		if tag == "" {
+		if tagCreateTag == "" {
 			return errors.New("No tag name given")
 		}
-		if commit == "" {
+		if tagCreateCommit == "" {
 			return errors.New("No commit ID given")
 		}
 
 		// Make sure we have the email and name of the tag creator.  Either by loading it from the config file, or
 		// getting it from the command line arguments
-		if email == "" {
+		if tagCreateEmail == "" {
 			if viper.IsSet("user.email") == false {
 				return errors.New("No email address provided")
 			}
-			email = viper.GetString("user.email")
+			tagCreateEmail = viper.GetString("user.email")
 		}
 
-		if name == "" {
+		if tagCreateName == "" {
 			if viper.IsSet("user.name") == false {
 				return errors.New("No name provided")
 			}
-			name = viper.GetString("user.name")
+			tagCreateName = viper.GetString("user.name")
 		}
 
 		// If a date was given, parse it to ensure the format is correct.  Warn the user if it isn't,
 		tagTimeStamp := time.Now()
 		var err error
-		if tagDate != "" {
-			tagTimeStamp, err = time.Parse(time.RFC3339, tagDate)
+		if tagCreateDate != "" {
+			tagTimeStamp, err = time.Parse(time.RFC3339, tagCreateDate)
 			if err != nil {
 				return err
 			}
@@ -68,21 +71,21 @@ var tagCreateCmd = &cobra.Command{
 		}
 
 		// Ensure a tag with the same name doesn't already exist
-		if _, ok := meta.Tags[tag]; ok == true {
+		if _, ok := meta.Tags[tagCreateTag]; ok == true {
 			return errors.New("A tag with that name already exists")
 		}
 
 		// Generate the new tag info locally
 		newTag := tagEntry{
-			Commit:      commit,
+			Commit:      tagCreateCommit,
 			Date:        tagTimeStamp,
-			Description: msg,
-			TaggerEmail: email,
-			TaggerName:  name,
+			Description: tagCreateMsg,
+			TaggerEmail: tagCreateEmail,
+			TaggerName:  tagCreateName,
 		}
 
 		// Add the new tag to the local metadata cache
-		meta.Tags[tag] = newTag
+		meta.Tags[tagCreateTag] = newTag
 
 		// Save the updated metadata back to disk
 		err = saveMetadata(db, meta)
@@ -97,10 +100,10 @@ var tagCreateCmd = &cobra.Command{
 
 func init() {
 	tagCmd.AddCommand(tagCreateCmd)
-	tagCreateCmd.Flags().StringVar(&commit, "commit", "", "Commit ID for the new tag")
-	tagCreateCmd.Flags().StringVar(&tag, "tag", "", "Name of tag to create")
-	tagCreateCmd.Flags().StringVar(&tagDate, "date", "", "Custom timestamp (RFC3339 format) for tag")
-	tagCreateCmd.Flags().StringVar(&email, "email", "", "Email address of tagger")
-	tagCreateCmd.Flags().StringVar(&name, "name", "", "Name of tagger")
-	tagCreateCmd.Flags().StringVar(&msg, "message", "", "Description / message for the tag")
+	tagCreateCmd.Flags().StringVar(&tagCreateCommit, "commit", "", "Commit ID for the new tag")
+	tagCreateCmd.Flags().StringVar(&tagCreateDate, "date", "", "Custom timestamp (RFC3339 format) for tag")
+	tagCreateCmd.Flags().StringVar(&tagCreateEmail, "email", "", "Email address of tagger")
+	tagCreateCmd.Flags().StringVar(&tagCreateMsg, "message", "", "Description / message for the tag")
+	tagCreateCmd.Flags().StringVar(&tagCreateName, "name", "", "Name of tagger")
+	tagCreateCmd.Flags().StringVar(&tagCreateTag, "tag", "", "Name of tag to create")
 }
