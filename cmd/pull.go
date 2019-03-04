@@ -59,8 +59,34 @@ var pullCmd = &cobra.Command{
 			}
 		}
 		if pullCmdCommit != "" {
-			if _, ok := meta.Commits[pullCmdCommit]; ok == false {
+			thisCommit, ok := meta.Commits[pullCmdCommit]
+			if ok == false {
 				return errors.New("The requested commit doesn't exist")
+			}
+
+			// Check if the database file already exists in local cache
+			thisSha := thisCommit.Tree.Entries[0].Sha256
+			if _, err = os.Stat(filepath.Join(".dio", db, "db", thisSha)); err == nil {
+				// The database is already in the local cache, so use that instead of downloading from DBHub.io
+				var b []byte
+				b, err = ioutil.ReadFile(filepath.Join(".dio", db, "db", thisSha))
+				if err != nil {
+					return err
+				}
+				err = ioutil.WriteFile(db, b, 0644)
+				if err != nil {
+					return err
+				}
+
+				fmt.Printf("Database '%s' refreshed from local cache\n", db)
+				if pullCmdCommit != "" {
+					fmt.Printf("  * Commit: %s\n", pullCmdCommit)
+				}
+				_, err = numFormat.Printf("  * Size: %d bytes\n", len(b))
+				if err != nil {
+					return err
+				}
+				return nil
 			}
 		}
 
