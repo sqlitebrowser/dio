@@ -52,20 +52,38 @@ var pullCmd = &cobra.Command{
 			return err
 		}
 
-		// If given, make sure the requested branch or commit exist
+		// If given, make sure the requested branch exists
 		if pullCmdBranch != "" {
 			if _, ok := meta.Branches[pullCmdBranch]; ok == false {
 				return errors.New("The requested branch doesn't exist")
 			}
 		}
+
+		// If no specific branch nor commit were requested, we use the active branch set in the metadata
+		if pullCmdBranch == "" && pullCmdCommit == "" {
+			pullCmdBranch = meta.ActiveBranch
+		}
+
+		// If given, make sure the requested commit exists
+		var thisSha string
 		if pullCmdCommit != "" {
 			thisCommit, ok := meta.Commits[pullCmdCommit]
 			if ok == false {
 				return errors.New("The requested commit doesn't exist")
 			}
+			thisSha = thisCommit.Tree.Entries[0].Sha256
+		} else {
+			// Determine the sha256 of the database file
+			c := meta.Branches[pullCmdBranch].Commit
+			thisCommit, ok := meta.Commits[c]
+			if ok == false {
+				return errors.New("The requested commit doesn't exist")
+			}
+			thisSha = thisCommit.Tree.Entries[0].Sha256
+		}
 
-			// Check if the database file already exists in local cache
-			thisSha := thisCommit.Tree.Entries[0].Sha256
+		// Check if the database file already exists in local cache
+		if thisSha != "" {
 			if _, err = os.Stat(filepath.Join(".dio", db, "db", thisSha)); err == nil {
 				// The database is already in the local cache, so use that instead of downloading from DBHub.io
 				var b []byte
@@ -79,6 +97,9 @@ var pullCmd = &cobra.Command{
 				}
 
 				fmt.Printf("Database '%s' refreshed from local cache\n", db)
+				if pullCmdBranch != "" {
+					fmt.Printf("  * Branch: '%s'\n", pullCmdBranch)
+				}
 				if pullCmdCommit != "" {
 					fmt.Printf("  * Commit: %s\n", pullCmdCommit)
 				}
@@ -88,11 +109,6 @@ var pullCmd = &cobra.Command{
 				}
 				return nil
 			}
-		}
-
-		// If no specific branch nor commit were requested, we use the active branch set in the metadata
-		if pullCmdBranch == "" && pullCmdCommit == "" {
-			pullCmdBranch = meta.ActiveBranch
 		}
 
 		// Download the database file
