@@ -2,33 +2,6 @@
 
 
 [[projects]]
-  digest = "1:9f3b30d9f8e0d7040f729b82dcbc8f0dead820a133b3147ce355fc451f32d761"
-  name = "github.com/BurntSushi/toml"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "3012a1dbe2e4bd1391d42b32f0577cb7bbc7f005"
-  version = "v0.3.1"
-
-[[projects]]
-  digest = "1:6f9339c912bbdda81302633ad7e99a28dfa5a639c864061f1929510a9a64aa74"
-  name = "github.com/dustin/go-humanize"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "9f541cc9db5d55bce703bd99987c9d5cb8eea45e"
-  version = "v1.0.0"
-
-[[projects]]
-  digest = "1:9f6d41e901cde897bad4569877c96c9cacee67c9c6ede2794c515371c954cb6a"
-  name = "github.com/emicklei/go-restful"
-  packages = [
-    ".",
-    "log",
-  ]
-  pruneopts = "UT"
-  revision = "e37671aced663c8d3a395bd301857e26dcf4340c"
-  version = "v2.8.1"
-
-[[projects]]
   digest = "1:abeb38ade3f32a92943e5be54f55ed6d6e3b6602761d74b4aab4c9dd45c18abd"
   name = "github.com/fsnotify/fsnotify"
   packages = ["."]
@@ -64,58 +37,12 @@
   version = "v1.0"
 
 [[projects]]
-  digest = "1:6a5edb6e9ad91f22d33e01739bbabea324fed674c40bc4f7d60adb48235e8b48"
-  name = "github.com/jackc/pgx"
-  packages = [
-    ".",
-    "chunkreader",
-    "internal/sanitize",
-    "pgio",
-    "pgproto3",
-    "pgtype",
-  ]
-  pruneopts = "UT"
-  revision = "c59c9cac59ab95eceb0c12ff338923c62f411ea2"
-  version = "v3.3.0"
-
-[[projects]]
-  digest = "1:3e551bbb3a7c0ab2a2bf4660e7fcad16db089fdcfbb44b0199e62838038623ea"
-  name = "github.com/json-iterator/go"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "1624edc4454b8682399def8740d46db5e4362ba4"
-  version = "v1.1.5"
-
-[[projects]]
-  digest = "1:0a69a1c0db3591fcefb47f115b224592c8dfa4368b7ba9fae509d5e16cdc95c8"
-  name = "github.com/konsorten/go-windows-terminal-sequences"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "5c8c8bd35d3832f5d134ae1e1e375b69a4d25242"
-  version = "v1.0.1"
-
-[[projects]]
   digest = "1:c568d7727aa262c32bdf8a3f7db83614f7af0ed661474b24588de635c20024c7"
   name = "github.com/magiconair/properties"
   packages = ["."]
   pruneopts = "UT"
   revision = "c2353362d570a7bfa228149c62842019201cfb71"
   version = "v1.8.0"
-
-[[projects]]
-  digest = "1:d25d86eabe6a6039f465a076d2f8293bb2b5545f26b2796df696d20fed198e10"
-  name = "github.com/minio/minio-go"
-  packages = [
-    ".",
-    "pkg/credentials",
-    "pkg/encrypt",
-    "pkg/s3signer",
-    "pkg/s3utils",
-    "pkg/set",
-  ]
-  pruneopts = "UT"
-  revision = "c8a261de75c1a9a9ece4dcc0c81ff6db525bcf27"
-  version = "v6.0.16"
 
 [[projects]]
   digest = "1:5d231480e1c64a726869bc4142d270184c419749d34f167646baa21008eb0a79"
@@ -132,22 +59,6 @@
   pruneopts = "UT"
   revision = "3536a929edddb9a5b34bd6861dc4a9647cb459fe"
   version = "v1.1.2"
-
-[[projects]]
-  digest = "1:33422d238f147d247752996a26574ac48dcf472976eda7f5134015f06bf16563"
-  name = "github.com/modern-go/concurrent"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "bacd9c7ef1dd9b15be4a9909b8ac7a4e313eec94"
-  version = "1.0.3"
-
-[[projects]]
-  digest = "1:e32bdbdb7c377a07a9a46378290059822efdce5c8d96fe71940d87cb4f918855"
-  name = "github.com/modern-go/reflect2"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "4b7aa43c6742a2c18fdef89dd197aaae7dac7ccd"
-  version = "1.0.1"
 
 [[projects]]
   digest = "1:7aefb397a53fc437c90f0fdb3e1419c751c5a3a165ced52325d5d797edf1aca6"
@@ -180,14 +91,6 @@
   pruneopts = "UT"
   revision = "ba968bfe8b2f7e042a574c888954fccecfa385b4"
   version = "v0.8.1"
-
-[[projects]]
-  digest = "1:87c2e02fb01c27060ccc5ba7c5a407cc91147726f8f40b70cceeedbc52b1f3a8"
-  name = "github.com/sirupsen/logrus"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "e1e72e9de974bd926e5c56f83753fba2df402ce5"
-  version = "v1.3.0"
 
 [[projects]]
   digest = "1:3e39bafd6c2f4bf3c76c3bfd16a2e09e016510ad5db90dc02b88e2f565d6d595"
@@ -242,22 +145,9 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:06231d1ce743be1bd5a9a56afbaca3d66b4c7846f958a949b965dbefe8e5fb48"
-  name = "golang.org/x/crypto"
-  packages = [
-    "argon2",
-    "blake2b",
-    "ssh/terminal",
-  ]
-  pruneopts = "UT"
-  revision = "193df9c0f06f8bb35fba505183eaf0acc0136505"
-
-[[projects]]
-  branch = "master"
-  digest = "1:ed3efa0f4eb3ca16d1be3f83a1f11ce217b50e78aef5ca3f77bea8f28125670f"
+  digest = "1:b6a3256ffb6ee9d7e7159c062f57e091c30c19e13ac3c676729baac7d83ecd21"
   name = "golang.org/x/net"
   packages = [
-    "http/httpguts",
     "idna",
     "publicsuffix",
   ]
@@ -266,13 +156,9 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:f11a2dc61aae6c601dc075fb0f9ecda1743a9c644d91e37af2c729a399ef17fc"
+  digest = "1:8b466798e96432c23185ca32826702885299f94eb644c9a8dedb79771dff383a"
   name = "golang.org/x/sys"
-  packages = [
-    "cpu",
-    "unix",
-    "windows",
-  ]
+  packages = ["unix"]
   pruneopts = "UT"
   revision = "3b5209105503162ded1863c307ac66fec31120dd"
 
@@ -308,14 +194,6 @@
   version = "v0.3.0"
 
 [[projects]]
-  digest = "1:8b4bb15de2e698d359eeec15c42453567c98972a70c8619946050360ec02ec32"
-  name = "gopkg.in/ini.v1"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "6ed8d5f64cd79a498d1f3fab5880cc376ce41bbe"
-  version = "v1.41.0"
-
-[[projects]]
   digest = "1:4d2e5a73dc1500038e504a8d78b986630e3626dc027bc030ba5c75da257cdb96"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
@@ -327,10 +205,6 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/BurntSushi/toml",
-    "github.com/emicklei/go-restful",
-    "github.com/jackc/pgx",
-    "github.com/minio/minio-go",
     "github.com/mitchellh/go-homedir",
     "github.com/parnurzeal/gorequest",
     "github.com/pkg/errors",
