@@ -1,11 +1,15 @@
 package cmd
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -31,40 +35,43 @@ var pullCmd = &cobra.Command{
 			return errors.New("Only one database can be downloaded at a time (for now)")
 		}
 
+		// TODO: Add a --licence option, for automatically grabbing the licence as well
+		//       * Probably save it as <database name>-<license short name>.txt/html
+
 		// Ensure we weren't given potentially conflicting info on what to pull down
 		if pullCmdBranch != "" && pullCmdCommit != "" {
 			return errors.New("Either a branch name or commit ID can be given.  Not both at the same time!")
 		}
 
-		//// If neither a branch nor commit ID were given, use the head commit of the default branch
-		//if pullCmdBranch == "" && pullCmdCommit == "" {
-		//	var errs []error
-		//	var resp rq.Response
-		//	resp, pullCmdBranch, errs = rq.New().Get(cloud+"/branch_default_get").
-		//		Set("database", file).
-		//		End()
-		//	if errs != nil {
-		//		return errors.New("Could not determine default branch for database")
-		//	}
-		//	if resp.StatusCode != http.StatusOK {
-		//		if resp.StatusCode == http.StatusNotFound {
-		//			return errors.New("Requested database not found")
-		//		}
-		//		return errors.New(fmt.Sprintf(
-		//			"Retrieving default branch failed with an error: HTTP status %d - '%v'\n",
-		//			resp.StatusCode, resp.Status))
-		//	}
-		//}
+		// Retrieve metadata for the database
+		var meta metaData
+		var err error
+		db := args[0]
+		meta, err = localFetchMetadata(db) // Doesn't store the metadata to disk
+		if err != nil {
+			return err
+		}
+
+		// If given, make sure the requested branch or commit exist
+		if pullCmdBranch != "" {
+			if _, ok := meta.Branches[pullCmdBranch]; ok == false {
+				return errors.New("The requested branch doesn't exist")
+			}
+		}
+		if pullCmdCommit != "" {
+			if _, ok := meta.Commits[pullCmdCommit]; ok == false {
+				return errors.New("The requested commit doesn't exist")
+			}
+		}
 
 		// Download the database file
-		db := args[0]
 		dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, db)
 		req := rq.New().TLSClientConfig(&TLSConfig).Get(dbURL)
-		//if pullCmdBranch != "" {
-		//	req.Set("branch", pullCmdBranch)
-		//} else {
-		//	req.Set("commit", pullCmdCommit)
-		//}
+		if pullCmdBranch != "" {
+			req.Query(fmt.Sprintf("branch=%s", url.QueryEscape(pullCmdBranch)))
+		} else {
+			req.Query(fmt.Sprintf("commit=%s", url.QueryEscape(pullCmdCommit)))
+		}
 		resp, body, errs := req.End()
 		if errs != nil {
 			log.Print("Errors when downloading database:")
@@ -75,6 +82,9 @@ var pullCmd = &cobra.Command{
 		}
 		if resp.StatusCode != http.StatusOK {
 			if resp.StatusCode == http.StatusNotFound {
+				if pullCmdBranch != "" {
+					return errors.New("That database & branch aren't known on DBHub.io")
+				}
 				if pullCmdCommit != "" {
 					return errors.New(fmt.Sprintf("Requested database not found with commit %s.",
 						pullCmdCommit))
@@ -85,15 +95,29 @@ var pullCmd = &cobra.Command{
 				resp.StatusCode, resp.Status))
 		}
 
-		// Write the database file to disk
-		err := ioutil.WriteFile(db, []byte(body), 0644)
+		// Create the local database cache directory, if it doesn't yet exist
+		if _, err = os.Stat(filepath.Join(".dio", db, "db")); os.IsNotExist(err) {
+			err = os.MkdirAll(filepath.Join(".dio", db, "db"), 0770)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Calculate the sha256 of the database file
+		s := sha256.Sum256([]byte(body))
+		shaSum := hex.EncodeToString(s[:])
+
+		// Write the database file to disk in the cache directory
+		err = ioutil.WriteFile(filepath.Join(".dio", db, "db", shaSum), []byte(body), 0644)
 		if err != nil {
 			return err
 		}
 
-		// TODO: It'd probably be useful for the DBHub.io server to include the licence info in the headers, so a
-		//       follow up request can grab the licence too.  Maybe even add a --licence option or similar to the
-		//       pull command, for automatically grabbing the licence as well?
+		// Write the database file to disk again, this time in the working directory
+		err = ioutil.WriteFile(db, []byte(body), 0644)
+		if err != nil {
+			return err
+		}
 
 		// If the headers included the modification-date parameter for the database, set the last accessed and last
 		// modified times on the new database file
@@ -116,45 +140,39 @@ var pullCmd = &cobra.Command{
 			}
 		}
 
-		// Update the local metadata cache
-		var meta metaData
-		meta, err = updateMetadata(db)
-		if err != nil {
-			return err
-		}
-
 		// If the server provided a branch name, add it to the local metadata cache
 		if branch := resp.Header.Get("Branch"); branch != "" {
 			meta.ActiveBranch = branch
 		}
 
-		_, err = numFormat.Printf("Database '%s' downloaded.  Size: %d bytes\n", db, len(body))
+		// Save the updated metadata back to disk
+		err = saveMetadata(db, meta)
 		if err != nil {
 			return err
 		}
 
-		//if pullCmdBranch != "" {
-		//	fmt.Printf("Database '%s' downloaded from %s.  Branch: '%s'.  Size: %d bytes\n", file,
-		//		cloud, pullCmdBranch, len(dbAndLicence.DBFile))
-		//} else {
-		//	fmt.Printf("Database '%s' downloaded from %s.  Size: %d bytes\nCommit: %s\n", file,
-		//		cloud, len(dbAndLicence.DBFile), pullCmdCommit)
-		//}
+		if pullCmdBranch != "" {
+			_, err = numFormat.Printf("Database '%s' downloaded from %s.  Size: %d bytes\nBranch: '%s'\n", db,
+				cloud, len(body), pullCmdBranch)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		if comID := resp.Header.Get("Commit-Id"); comID != "" {
+			_, err = numFormat.Printf("Database '%s' downloaded from %s.  Size: %d bytes\nCommit: %s\n", db,
+				cloud, len(body), comID)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
 
-		//// If a licence was returned along with the database, write it to disk as well
-		//if len(dbAndLicence.LicText) > 0 {
-		//	licFile := file + "-LICENCE"
-		//	err = ioutil.WriteFile(licFile, dbAndLicence.LicText, 0644)
-		//	if err != nil {
-		//		return err
-		//	}
-		//	err = os.Chtimes(licFile, time.Now(), dbAndLicence.LastModified)
-		//	if err != nil {
-		//		return err
-		//	}
-		//	fmt.Printf("This database is using the %s licence.  A copy has been created as %s.\n",
-		//		dbAndLicence.LicName, licFile)
-		//}
+		// Generic success message, when branch and commit id aren't known
+		_, err = numFormat.Printf("Database '%s' downloaded.  Size: %d bytes\n", db, len(body))
+		if err != nil {
+			return err
+		}
 		return nil
 	},
 }
