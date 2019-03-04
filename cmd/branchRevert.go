@@ -3,6 +3,9 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -73,6 +76,17 @@ var branchRevertCmd = &cobra.Command{
 			return errors.New("The given commit id doesn't seem to exist on the selected branch")
 		}
 
+		// Abort if the database for the requested commit isn't in the local cache
+		var shaSum string
+		if branchRevertCommit != "" {
+			shaSum = meta.Commits[branchRevertCommit].Tree.Entries[0].Sha256
+			// TODO: Fetch the database from DBHub.io if it's not in the local cache
+			if _, err = os.Stat(filepath.Join(".dio", db, "db", shaSum)); os.IsNotExist(err) {
+				return errors.New("Aborting: The database for the requested commit isn't in local cache.  Fetch " +
+					"it with `dio pull` first")
+			}
+		}
+
 		// TODO: * Check if there would be isolated tags or releases if this revert is done.  If so, let the user
 		//         know they'll need to remove the tags first
 
@@ -98,6 +112,17 @@ var branchRevertCmd = &cobra.Command{
 			Description: head.Description,
 		}
 		meta.Branches[branchRevertBranch] = newHead
+
+		// Copy the file from local cache to the working directory
+		var b []byte
+		b, err = ioutil.ReadFile(filepath.Join(".dio", db, "db", shaSum))
+		if err != nil {
+			return err
+		}
+		err = ioutil.WriteFile(db, b, 0644)
+		if err != nil {
+			return err
+		}
 
 		// Save the updated metadata back to disk
 		err = saveMetadata(db, meta)
