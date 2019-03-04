@@ -7,8 +7,8 @@ import (
 // licenceCmd represents the licence command
 var licenceCmd = &cobra.Command{
 	Use:   "licence",
-	Short: "List, retrieve, and update licences on DBHub.io",
-	Long: `List, retrieve, and update licences on DBHub.io
+	Short: "List, retrieve, update and remove licences on DBHub.io",
+	Long: `List, retrieve, update and remove licences on DBHub.io
 
 The special word 'all' can be used with 'get' for retrieving all licences.`,
 	Example: `

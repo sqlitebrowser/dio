@@ -6,7 +6,7 @@ import (
 
 var releaseCmd = &cobra.Command{
 	Use:   "release",
-	Short: "Create and remove releases for a database",
+	Short: "Create, list and remove releases for a database",
 }
 
 func init() {

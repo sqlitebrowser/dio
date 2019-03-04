@@ -36,7 +36,7 @@ var licenceGetCmd = &cobra.Command{
 		if allFound {
 			l, err := getLicences()
 			if err != nil {
-				return errors.New(fmt.Sprintf("error when retrieving list of all licences: %s", err))
+				return errors.New(fmt.Sprintf("Error when retrieving list of all licences: %s", err))
 			}
 			for i := range l {
 				licenceList = append(licenceList, i)
