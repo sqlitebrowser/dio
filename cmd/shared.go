@@ -350,6 +350,46 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 	return
 }
 
+// Retrieves a database from DBHub.io
+func retrieveDatabase(db string, branch string, commit string) (resp rq.Response, body string, err error) {
+	dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, db)
+	req := rq.New().TLSClientConfig(&TLSConfig).Get(dbURL)
+	if branch != "" {
+		req.Query(fmt.Sprintf("branch=%s", url.QueryEscape(branch)))
+	} else {
+		req.Query(fmt.Sprintf("commit=%s", url.QueryEscape(commit)))
+	}
+	var errs []error
+	resp, body, errs = req.End()
+	if errs != nil {
+		log.Print("Errors when downloading database:")
+		for _, err := range errs {
+			log.Print(err.Error())
+		}
+		err = errors.New("Error when downloading database")
+		return
+	}
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			if branch != "" {
+				err = errors.New(fmt.Sprintf("That database & branch '%s' aren't known on DBHub.io",
+					branch))
+				return
+			}
+			if commit != "" {
+				err = errors.New(fmt.Sprintf("Requested database not found with commit %s.",
+					commit))
+				return
+			}
+			err = errors.New("Requested database not found")
+			return
+		}
+		err = errors.New(fmt.Sprintf("Download failed with an error: HTTP status %d - '%v'\n",
+			resp.StatusCode, resp.Status))
+	}
+	return
+}
+
 // Retrieves database metadata from DBHub.io
 func retrieveMetadata(db string) (md string, err error) {
 	// Download the database metadata

@@ -5,15 +5,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
-	"log"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	rq "github.com/parnurzeal/gorequest"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -107,40 +103,20 @@ var pullCmd = &cobra.Command{
 				if err != nil {
 					return err
 				}
+
+				// Save the updated metadata to disk
+				err = saveMetadata(db, meta)
+				if err != nil {
+					return err
+				}
 				return nil
 			}
 		}
 
 		// Download the database file
-		dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, db)
-		req := rq.New().TLSClientConfig(&TLSConfig).Get(dbURL)
-		if pullCmdBranch != "" {
-			req.Query(fmt.Sprintf("branch=%s", url.QueryEscape(pullCmdBranch)))
-		} else {
-			req.Query(fmt.Sprintf("commit=%s", url.QueryEscape(pullCmdCommit)))
-		}
-		resp, body, errs := req.End()
-		if errs != nil {
-			log.Print("Errors when downloading database:")
-			for _, err := range errs {
-				log.Print(err.Error())
-			}
-			return errors.New("Error when downloading database")
-		}
-		if resp.StatusCode != http.StatusOK {
-			if resp.StatusCode == http.StatusNotFound {
-				if pullCmdBranch != "" {
-					return errors.New(fmt.Sprintf("That database & branch '%s' aren't known on DBHub.io",
-						pullCmdBranch))
-				}
-				if pullCmdCommit != "" {
-					return errors.New(fmt.Sprintf("Requested database not found with commit %s.",
-						pullCmdCommit))
-				}
-				return errors.New("Requested database not found")
-			}
-			return errors.New(fmt.Sprintf("Download failed with an error: HTTP status %d - '%v'\n",
-				resp.StatusCode, resp.Status))
+		resp, body, err := retrieveDatabase(db, pullCmdBranch, pullCmdCommit)
+		if err != nil {
+			return err
 		}
 
 		// Create the local database cache directory, if it doesn't yet exist

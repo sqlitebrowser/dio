@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -28,9 +30,6 @@ var branchRevertCmd = &cobra.Command{
 		}
 
 		// Ensure the required info was given
-		if branchRevertBranch == "" {
-			return errors.New("No branch name given")
-		}
 		if branchRevertCommit == "" && branchRevertTag == "" {
 			return errors.New("Either a commit ID or tag must be given.")
 		}
@@ -45,6 +44,11 @@ var branchRevertCmd = &cobra.Command{
 		meta, err := loadMetadata(db)
 		if err != nil {
 			return err
+		}
+
+		// If no branch name was passed, use the active branch
+		if branchRevertBranch == "" {
+			branchRevertBranch = meta.ActiveBranch
 		}
 
 		// Make sure the branch exists
@@ -80,10 +84,28 @@ var branchRevertCmd = &cobra.Command{
 		var shaSum string
 		if branchRevertCommit != "" {
 			shaSum = meta.Commits[branchRevertCommit].Tree.Entries[0].Sha256
-			// TODO: Fetch the database from DBHub.io if it's not in the local cache
+			// Fetch the database from DBHub.io if it's not in the local cache
 			if _, err = os.Stat(filepath.Join(".dio", db, "db", shaSum)); os.IsNotExist(err) {
-				return errors.New("Aborting: The database for the requested commit isn't in local cache.  Fetch " +
-					"it with `dio pull` first")
+				// Download the required missing database fil
+				_, body, err := retrieveDatabase(db, pullCmdBranch, pullCmdCommit)
+				if err != nil {
+					return err
+				}
+
+				// Verify the SHA256 checksum of the new download
+				s := sha256.Sum256([]byte(body))
+				thisSum := hex.EncodeToString(s[:])
+				if thisSum != shaSum {
+					// The newly downloaded database file doesn't have the expected checksum.  Abort.
+					return errors.New(fmt.Sprintf("Aborting: newly downloaded database file should have "+
+						"checksum '%s', but data with checksum '%s' received\n", shaSum, thisSum))
+				}
+
+				// Write the database file to disk in the cache directory
+				err = ioutil.WriteFile(filepath.Join(".dio", db, "db", shaSum), []byte(body), 0644)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
@@ -137,7 +159,7 @@ var branchRevertCmd = &cobra.Command{
 
 func init() {
 	branchCmd.AddCommand(branchRevertCmd)
-	branchRevertCmd.Flags().StringVar(&branchRevertBranch, "branch", "master", "Remote branch to operate on")
+	branchRevertCmd.Flags().StringVar(&branchRevertBranch, "branch", "", "Remote branch to operate on")
 	branchRevertCmd.Flags().StringVar(&branchRevertCommit, "commit", "", "Commit ID for the to revert to")
 	branchRevertCmd.Flags().StringVar(&branchRevertTag, "tag", "", "Name of tag to revert to")
 }
