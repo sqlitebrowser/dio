@@ -64,6 +64,11 @@ var pullCmd = &cobra.Command{
 			}
 		}
 
+		// If no specific branch nor commit were requested, we use the active branch set in the metadata
+		if pullCmdBranch == "" && pullCmdCommit == "" {
+			pullCmdBranch = meta.ActiveBranch
+		}
+
 		// Download the database file
 		dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, db)
 		req := rq.New().TLSClientConfig(&TLSConfig).Get(dbURL)
@@ -83,7 +88,8 @@ var pullCmd = &cobra.Command{
 		if resp.StatusCode != http.StatusOK {
 			if resp.StatusCode == http.StatusNotFound {
 				if pullCmdBranch != "" {
-					return errors.New("That database & branch aren't known on DBHub.io")
+					return errors.New(fmt.Sprintf("That database & branch '%s' aren't known on DBHub.io",
+						pullCmdBranch))
 				}
 				if pullCmdCommit != "" {
 					return errors.New(fmt.Sprintf("Requested database not found with commit %s.",
@@ -151,25 +157,16 @@ var pullCmd = &cobra.Command{
 			return err
 		}
 
+		// Display success message to the user
+		comID := resp.Header.Get("Commit-Id")
+		fmt.Printf("Database '%s' downloaded from %s\n", db, cloud)
 		if pullCmdBranch != "" {
-			_, err = numFormat.Printf("Database '%s' downloaded from %s.  Size: %d bytes\nBranch: '%s'\n", db,
-				cloud, len(body), pullCmdBranch)
-			if err != nil {
-				return err
-			}
-			return nil
+			fmt.Printf("  * Branch: '%s'\n", pullCmdBranch)
 		}
-		if comID := resp.Header.Get("Commit-Id"); comID != "" {
-			_, err = numFormat.Printf("Database '%s' downloaded from %s.  Size: %d bytes\nCommit: %s\n", db,
-				cloud, len(body), comID)
-			if err != nil {
-				return err
-			}
-			return nil
+		if comID != "" {
+			fmt.Printf("  * Commit: %s\n", comID)
 		}
-
-		// Generic success message, when branch and commit id aren't known
-		_, err = numFormat.Printf("Database '%s' downloaded.  Size: %d bytes\n", db, len(body))
+		_, err = numFormat.Printf("  * Size: %d bytes\n", len(body))
 		if err != nil {
 			return err
 		}
