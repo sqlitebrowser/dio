@@ -230,8 +230,6 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 							if lCommit != remoteList[remoteLength-i] {
 								// There are conflicting commits in this branch between the local metadata and the
 								// remote.  This will probably need to be resolved by user action.
-								// TODO: Figure out what user actions should be possible from here, to resolve the
-								//       problem
 								fmt.Printf("Commit %d differs - local: '%s', remote: '%s'\n", i, lCommit, remoteList[i])
 								branchesSame = false
 							}
@@ -251,7 +249,7 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 						} else {
 							// The local and remote branches are the same, so copy the local branch commits across to
 							// the merged data structure
-							fmt.Printf("  * Branch '%s' is unchanged\n", brName) // TODO: Probably don't need this line
+							fmt.Printf("  * Branch '%s' is unchanged\n", brName)
 							for _, j := range localList {
 								mergedMeta.Commits[j] = origMeta.Commits[j]
 							}
