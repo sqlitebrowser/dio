@@ -129,7 +129,7 @@ var commitCmd = &cobra.Command{
 		newCom := commitEntry{
 			CommitterName:  commitAuthor,
 			CommitterEmail: commitEmail,
-			//Message:        fmt.Sprintf("Licence changed from '%s' to '%s'.", oldLic, newLic),
+			Message:        commitCmdMsg,
 			Parent:         head.Commit,
 			Timestamp:      time.Now(),
 			Tree:           t,
