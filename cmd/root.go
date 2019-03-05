@@ -15,6 +15,10 @@ import (
 	"golang.org/x/text/message"
 )
 
+const (
+	DIO_VERSION = "0.1.0"
+)
+
 var (
 	cfgFile, cloud string
 	certUser       string

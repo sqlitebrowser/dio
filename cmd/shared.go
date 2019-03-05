@@ -173,6 +173,8 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 	mergedMeta.Tags = make(map[string]tagEntry)
 	if len(origMeta.Commits) > 0 {
 		// Start by check branches which exist locally
+		// TODO: Change sort order to be by alphabetical branch name, as the current unordered approach leads to
+		//       inconsistent output across runs
 		for brName, brData := range origMeta.Branches {
 			matchFound := false
 			for newBranch, newData := range newMeta.Branches {
