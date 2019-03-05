@@ -5,9 +5,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/spf13/cobra"
 	"io/ioutil"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 // Displays whether a database has been modified since the last commit
@@ -73,7 +74,7 @@ var statusCmd = &cobra.Command{
 			return err
 		}
 		if len(b) != fileSize {
-			return errors.New(numFormat.Sprintf("Aborting: # of bytes read (%d) when reading the database " +
+			return errors.New(numFormat.Sprintf("Aborting: # of bytes read (%d) when reading the database "+
 				"doesn't match the database file size (%d)", len(b), fileSize))
 		}
 		s := sha256.Sum256(b)
