@@ -86,7 +86,7 @@ var branchRevertCmd = &cobra.Command{
 			shaSum = meta.Commits[branchRevertCommit].Tree.Entries[0].Sha256
 			// Fetch the database from DBHub.io if it's not in the local cache
 			if _, err = os.Stat(filepath.Join(".dio", db, "db", shaSum)); os.IsNotExist(err) {
-				// Download the required missing database fil
+				// Download the required missing database file
 				_, body, err := retrieveDatabase(db, pullCmdBranch, pullCmdCommit)
 				if err != nil {
 					return err
