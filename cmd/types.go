@@ -2,11 +2,6 @@ package cmd
 
 import "time"
 
-type branchEntries struct {
-	Branch  string
-	Entries []commitEntry
-}
-
 type branchEntry struct {
 	Commit      string `json:"commit"`
 	CommitCount int    `json:"commit_count"`
@@ -20,6 +15,7 @@ type commitEntry struct {
 	CommitterName  string    `json:"committer_name"`
 	ID             string    `json:"id"`
 	Message        string    `json:"message"`
+	OtherParents   []string  `json:"other_parents"`
 	Parent         string    `json:"parent"`
 	Timestamp      time.Time `json:"timestamp"`
 	Tree           dbTree    `json:"tree"`
@@ -57,17 +53,12 @@ type dbTree struct {
 	Entries []dbTreeEntry `json:"entries"`
 }
 type dbTreeEntry struct {
-	AType        dbTreeEntryType `json:"type"`
+	EntryType    dbTreeEntryType `json:"entry_type"`
 	LastModified time.Time       `json:"last_modified"`
-	Licence      string          `json:"licence"`
+	LicenceSHA   string          `json:"licence"`
 	Name         string          `json:"name"`
 	Sha256       string          `json:"sha256"`
 	Size         int             `json:"size"`
-}
-
-type errorInfo struct {
-	Condition string   `json:"error_condition"`
-	Data      []string `json:"data"`
 }
 
 type licenceEntry struct {

@@ -77,8 +77,8 @@ func createCommitText(c commitEntry, licList map[string]string) string {
 	s := fmt.Sprintf("  * Commit: %s\n", c.ID)
 	s += fmt.Sprintf("    Author: %s <%s>\n", c.AuthorName, c.AuthorEmail)
 	s += fmt.Sprintf("    Date: %v\n", c.Timestamp.Format(time.UnixDate))
-	if c.Tree.Entries[0].Licence != "" {
-		s += fmt.Sprintf("    Licence: %s\n\n", licList[c.Tree.Entries[0].Licence])
+	if c.Tree.Entries[0].LicenceSHA != "" {
+		s += fmt.Sprintf("    Licence: %s\n\n", licList[c.Tree.Entries[0].LicenceSHA])
 	}
 	if c.Message != "" {
 		s += fmt.Sprintf("      %s\n\n", c.Message)

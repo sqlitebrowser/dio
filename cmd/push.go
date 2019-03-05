@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -78,22 +77,21 @@ var pushCmd = &cobra.Command{
 			pushCmdDB = filepath.Base(file)
 		}
 
-		// Load the branch name and commit id from saved metadata, if they exist
-		// TODO: These may be better as part of the local metadata.json cache
-		if _, err = os.Stat(filepath.Join(".dio", file, "branch")); err == nil {
-			b, err := ioutil.ReadFile(filepath.Join(".dio", file, "branch"))
-			if err != nil {
-				return err
-			}
-			pushCmdBranch = string(b)
-		}
-		if _, err = os.Stat(filepath.Join(".dio", file, "commit")); err == nil {
-			c, err := ioutil.ReadFile(filepath.Join(".dio", file, "commit"))
-			if err != nil {
-				return err
-			}
-			pushCmdCommit = string(c)
-		}
+		// TODO: Load the branch name and commit id from saved metadata, if they exist
+		//if _, err = os.Stat(filepath.Join(".dio", file, "branch")); err == nil {
+		//	b, err := ioutil.ReadFile(filepath.Join(".dio", file, "branch"))
+		//	if err != nil {
+		//		return err
+		//	}
+		//	pushCmdBranch = string(b)
+		//}
+		//if _, err = os.Stat(filepath.Join(".dio", file, "commit")); err == nil {
+		//	c, err := ioutil.ReadFile(filepath.Join(".dio", file, "commit"))
+		//	if err != nil {
+		//		return err
+		//	}
+		//	pushCmdCommit = string(c)
+		//}
 
 		// Send the file
 		dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, file)
@@ -144,11 +142,12 @@ var pushCmd = &cobra.Command{
 		}
 
 		// Save the commit id in the metadata directory
-		comFile := filepath.Join(".dio", file, "commit")
-		err = ioutil.WriteFile(comFile, []byte(parsedResponse["commit_id"]), 0644)
-		if err != nil {
-			return err
-		}
+		// TODO: Update this for the new metadata structure
+		//comFile := filepath.Join(".dio", file, "commit")
+		//err = ioutil.WriteFile(comFile, []byte(parsedResponse["commit_id"]), 0644)
+		//if err != nil {
+		//	return err
+		//}
 
 		fmt.Printf("Database uploaded to %s\n\n", cloud)
 		fmt.Printf("  * Name: %s\n", pushCmdDB)

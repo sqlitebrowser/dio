@@ -27,6 +27,9 @@ func createCommitID(c commitEntry) string {
 	if c.Parent != "" {
 		b.WriteString(fmt.Sprintf("parent %s\n", c.Parent))
 	}
+	for _, j := range c.OtherParents {
+		b.WriteString(fmt.Sprintf("parent %s\n", j))
+	}
 	b.WriteString(fmt.Sprintf("author %s <%s> %v\n", c.AuthorName, c.AuthorEmail,
 		c.Timestamp.Format(time.UnixDate)))
 	if c.CommitterEmail != "" {
@@ -41,11 +44,13 @@ func createCommitID(c commitEntry) string {
 
 // Generate the SHA256 for a tree.
 // Tree entry structure is:
-// * [ type ] [ sha256 ] [ db name ] [ last modified (timestamp) ] [ db size (bytes) ]
+// * [ entry type ] [ licence sha256] [ file sha256 ] [ file name ] [ last modified (timestamp) ] [ file size (bytes) ]
 func createDBTreeID(entries []dbTreeEntry) string {
 	var b bytes.Buffer
 	for _, j := range entries {
-		b.WriteString(string(j.AType))
+		b.WriteString(string(j.EntryType))
+		b.WriteByte(0)
+		b.WriteString(string(j.LicenceSHA))
 		b.WriteByte(0)
 		b.WriteString(j.Sha256)
 		b.WriteByte(0)
