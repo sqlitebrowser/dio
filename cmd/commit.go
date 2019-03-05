@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -17,7 +18,6 @@ import (
 var (
 	commitCmdBranch, commitCmdCommit, commitCmdEmail string
 	commitCmdLicence, commitCmdMsg, commitCmdName    string
-	commitCmdForce, commitCmdPublic                  bool
 )
 
 // Create a commit for the database on the currently active branch
@@ -89,13 +89,28 @@ var commitCmd = &cobra.Command{
 		}
 
 		// If no licence was given, use the licence from the head commit
-		// TODO: Add support for the licence option
-		if commitCmdLicence == "" {
+		var licSHA string
+		if commitCmdLicence != "" {
+			// Retrieve the list of known licences
+			licList, err := getLicences()
+			if err != nil {
+				return err
+			}
+
+			// Select the requested licence (SHA256) from the list
+			lwrLic := strings.ToLower(commitCmdLicence)
+			for i, j := range licList {
+				if strings.ToLower(i) == lwrLic {
+					licSHA = j.Sha256
+					break
+				}
+			}
+		} else {
 			c, ok := meta.Commits[head.Commit]
 			if !ok {
 				return errors.New("Aborting: info for the head commit isn't found in the local commit cache")
 			}
-			commitCmdLicence = c.Tree.Entries[0].LicenceSHA
+			licSHA = c.Tree.Entries[0].LicenceSHA
 		}
 
 		// * Collect info for the new commit *
@@ -124,7 +139,7 @@ var commitCmd = &cobra.Command{
 		var e dbTreeEntry
 		e.EntryType = DATABASE
 		e.LastModified = lastModified
-		e.LicenceSHA = commitCmdLicence
+		e.LicenceSHA = licSHA
 		e.Name = db
 		e.Sha256 = shaSum
 		e.Size = fileSize
@@ -188,15 +203,14 @@ var commitCmd = &cobra.Command{
 func init() {
 	RootCmd.AddCommand(commitCmd)
 	commitCmd.Flags().StringVar(&commitCmdBranch, "branch", "",
-		"Remote branch the database will be uploaded to")
+		"The branch this commit will be appended to")
 	commitCmd.Flags().StringVar(&commitCmdCommit, "commit", "",
 		"ID of the previous commit, for appending this new database to")
-	commitCmd.Flags().StringVar(&commitCmdEmail, "email", "", "Email address of the commit author")
-	commitCmd.Flags().BoolVar(&commitCmdForce, "force", false, "Overwrite existing commit history?")
+	commitCmd.Flags().StringVar(&commitCmdEmail, "email", "",
+		"Email address of the commit author")
 	commitCmd.Flags().StringVar(&commitCmdLicence, "licence", "",
 		"The licence (ID) for the database, as per 'dio licence list'")
 	commitCmd.Flags().StringVar(&commitCmdMsg, "message", "",
-		"(Required) Commit message for this upload")
+		"(Required) Description / commit message")
 	commitCmd.Flags().StringVar(&commitCmdName, "name", "", "Name of the commit author")
-	commitCmd.Flags().BoolVar(&commitCmdPublic, "public", false, "Should the database be public?")
 }
