@@ -88,6 +88,16 @@ var commitCmd = &cobra.Command{
 			return errors.New(fmt.Sprintf("That branch ('%s') doesn't exist", commitCmdBranch))
 		}
 
+		// If no licence was given, use the licence from the head commit
+		// TODO: Add support for the licence option
+		if commitCmdLicence == "" {
+			c, ok := meta.Commits[head.Commit]
+			if !ok {
+				return errors.New("Aborting: info for the head commit isn't found in the local commit cache")
+			}
+			commitCmdLicence = c.Tree.Entries[0].LicenceSHA
+		}
+
 		// * Collect info for the new commit *
 
 		// Get file size and last modified time for the database
@@ -114,8 +124,7 @@ var commitCmd = &cobra.Command{
 		var e dbTreeEntry
 		e.EntryType = DATABASE
 		e.LastModified = lastModified
-		// TODO: If not specified on the command line, then check what the current licence is for this database branch
-		//e.LicenceSHA = newLicSHA
+		e.LicenceSHA = commitCmdLicence
 		e.Name = db
 		e.Sha256 = shaSum
 		e.Size = fileSize
