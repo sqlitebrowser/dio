@@ -64,12 +64,8 @@ var commitCmd = &cobra.Command{
 			return errors.New("Both author name and email are required!")
 		}
 
-		// Ensure commit message has been provided
-		if commitCmdMsg == "" {
-			return errors.New("Commit message is required!")
-		}
-
 		// TODO: Add support for committing when the database doesn't yet exist locally, nor remotely
+		// TODO: Remember to create a reasonable commit message for a new database, if none is provided
 
 		// Load the metadata
 		meta, err := loadMetadata(db)
@@ -87,30 +83,59 @@ var commitCmd = &cobra.Command{
 		if !ok {
 			return errors.New(fmt.Sprintf("That branch ('%s') doesn't exist", commitCmdBranch))
 		}
+		headCommit, ok := meta.Commits[head.Commit]
+		if !ok {
+			return errors.New("Aborting: info for the head commit isn't found in the local commit cache")
+		}
+		existingLicSHA := headCommit.Tree.Entries[0].LicenceSHA
+
+		// Retrieve the list of known licences
+		licList, err := getLicences()
+		if err != nil {
+			return err
+		}
 
 		// If no licence was given, use the licence from the head commit
-		var licSHA string
+		var licID, licSHA string
 		if commitCmdLicence != "" {
-			// Retrieve the list of known licences
-			licList, err := getLicences()
-			if err != nil {
-				return err
-			}
-
 			// Select the requested licence (SHA256) from the list
+			matchFound := false
 			lwrLic := strings.ToLower(commitCmdLicence)
 			for i, j := range licList {
 				if strings.ToLower(i) == lwrLic {
+					licID = i
 					licSHA = j.Sha256
+					matchFound = true
 					break
 				}
 			}
-		} else {
-			c, ok := meta.Commits[head.Commit]
-			if !ok {
-				return errors.New("Aborting: info for the head commit isn't found in the local commit cache")
+			if !matchFound {
+				return errors.New("Aborting: could not determine the name of the existing database licence")
 			}
-			licSHA = c.Tree.Entries[0].LicenceSHA
+		} else {
+			licSHA = existingLicSHA
+		}
+
+		// Generate an appropriate commit message if none was provided
+		if commitCmdMsg == "" {
+			if existingLicSHA != licSHA {
+				// * The licence has changed, so we create a reasonable commit message indicating this *
+
+				// Work out the human friendly short licence name for the current database
+				matchFound := false
+				var existingLicID string
+				for i, j := range licList {
+					if existingLicSHA == j.Sha256 {
+						existingLicID = i
+						matchFound = true
+						break
+					}
+				}
+				if !matchFound {
+					return errors.New("Aborting: could not locate the requested database licence")
+				}
+				commitCmdMsg = fmt.Sprintf("Database licence changed from '%s' to '%s'.", existingLicID, licID)
+			}
 		}
 
 		// * Collect info for the new commit *
@@ -188,14 +213,14 @@ var commitCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Database commit '%s' created\n", newCom.ID)
-		fmt.Printf("  * Name: %s\n", db)
+		fmt.Printf("Commit created on '%s'\n", db)
+		fmt.Printf("  * Commit ID: %s\n", newCom.ID)
 		fmt.Printf("    Branch: %s\n", commitCmdBranch)
-		if commitCmdLicence != "" {
-			fmt.Printf("    Licence: %s\n", commitCmdLicence)
+		fmt.Printf("    Licence: %s\n", licID)
+		fmt.Printf("    Size: %d bytes\n", e.Size)
+		if commitCmdMsg != "" {
+			fmt.Printf("    Commit message: %s\n\n", commitCmdMsg)
 		}
-		fmt.Printf("    Size: %d bytes\n", fi.Size())
-		fmt.Printf("    Commit message: %s\n\n", commitCmdMsg)
 		return nil
 	},
 }
@@ -211,6 +236,6 @@ func init() {
 	commitCmd.Flags().StringVar(&commitCmdLicence, "licence", "",
 		"The licence (ID) for the database, as per 'dio licence list'")
 	commitCmd.Flags().StringVar(&commitCmdMsg, "message", "",
-		"(Required) Description / commit message")
+		"Description / commit message")
 	commitCmd.Flags().StringVar(&commitCmdName, "name", "", "Name of the commit author")
 }
