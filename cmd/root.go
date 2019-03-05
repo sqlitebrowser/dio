@@ -76,7 +76,8 @@ func init() {
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err != nil {
-		fmt.Println("Error reading config file:", viper.ConfigFileUsed())
+		log.Fatalf("Error loading config file: %s", err.Error())
+		return
 	}
 
 	// Make sure the paths to our CA Chain and user certificate have been set
