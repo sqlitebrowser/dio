@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Creates a tag for a database
+// Displays the version number of dio
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Displays the version of dio being run",
