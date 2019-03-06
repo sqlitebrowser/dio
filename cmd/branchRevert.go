@@ -88,6 +88,10 @@ var branchRevertCmd = &cobra.Command{
 		if head.Commit == branchRevertCommit {
 			matchFound = true
 		}
+		delList := map[string]struct{}{}
+		if !matchFound {
+			delList[head.Commit] = struct{}{} // Start creating a list of the branch commits to be deleted
+		}
 
 		// Build a list of commits in the branch
 		commitList := []string{head.Commit}
@@ -99,6 +103,9 @@ var branchRevertCmd = &cobra.Command{
 			c = meta.Commits[c.Parent]
 			if c.ID == branchRevertCommit {
 				matchFound = true
+			}
+			if !matchFound {
+				delList[c.ID] = struct{}{} // Only commits prior to matchFound should be deleted
 			}
 			commitList = append(commitList, c.ID)
 		}
@@ -140,6 +147,79 @@ var branchRevertCmd = &cobra.Command{
 
 		// TODO: * Check if there would be isolated tags or releases if this revert is done.  If so, let the user
 		//         know they'll need to remove the tags first
+		// Check if deleting the commits would leave isolated tags or releases
+		type isolCheck struct {
+			safe   bool
+			commit string
+		}
+		var isolatedTags []string
+		commitTags := map[string]isolCheck{}
+		for delCommit := range delList {
+
+			// Ensure that deleting this commit won't result in any isolated/unreachable tags
+			for tName, tEntry := range meta.Tags {
+				// Scan through the database tag list, checking if any of the tags is for the commit we're deleting
+				if tEntry.Commit == delCommit {
+					commitTags[tName] = isolCheck{safe: false, commit: delCommit}
+				}
+			}
+		}
+
+		if len(commitTags) > 0 {
+			// If a commit we're deleting has a tag on it, we need to check whether the commit is on other branches too
+			//   * If it is, we're ok to proceed as the tag can still be reached from the other branch(es)
+			//   * If it isn't, we need to abort this deletion (and tell the user), as the tag would become unreachable
+
+			for bName, bEntry := range meta.Branches {
+				if bName == branchRevertBranch {
+					// We only run this comparison from "other branches", not the branch whose history we're changing
+					continue
+				}
+				c, ok = meta.Commits[bEntry.Commit]
+				if !ok {
+					return fmt.Errorf("Broken commit history encountered when checking for isolated tags "+
+						"while reverting in branch '%s' of database '%s'\n", branchRevertBranch, db)
+				}
+				for tName, tEntry := range commitTags {
+					if c.ID == tEntry.commit {
+						// The commit is also on another branch, so we're ok to delete the commit
+						tmp := commitTags[tName]
+						tmp.safe = true
+						commitTags[tName] = tmp
+					}
+				}
+				for c.Parent != "" {
+					c, ok = meta.Commits[c.Parent]
+					if !ok {
+						return fmt.Errorf("Broken commit history encountered when checking for isolated tags "+
+							"while reverting in branch '%s' of database '%s'\n", branchRevertBranch, db)
+					}
+					for tName, tEntry := range commitTags {
+						if c.ID == tEntry.commit {
+							// The commit is also on another branch, so we're ok to delete the commit
+							tmp := commitTags[tName]
+							tmp.safe = true
+							commitTags[tName] = tmp
+						}
+					}
+				}
+			}
+
+			// Create a list of would-be-isolated tags
+			for tName, tEntry := range commitTags {
+				if tEntry.safe == false {
+					isolatedTags = append(isolatedTags, tName)
+				}
+			}
+		}
+
+		// If any tags or releases would be isolated, abort
+		if len(isolatedTags) > 0 {
+			return fmt.Errorf("Can't proceed, as isolated tags or releases would be left over")
+			// TODO: Give the user the exact list of tags / releases they'll need to remove first
+			//return fmt.Errorf("You need to delete the following tags and releases before reverting to this commit" +
+			//	"can be done")
+		}
 
 		// Count the number of commits in the updated branch
 		var commitCount int
