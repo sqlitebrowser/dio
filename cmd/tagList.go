@@ -50,7 +50,11 @@ var tagListCmd = &cobra.Command{
 			fmt.Printf("  * %s : commit %s\n\n", i, meta.Tags[i].Commit)
 			fmt.Printf("      Author: %s <%s>\n", meta.Tags[i].TaggerName, meta.Tags[i].TaggerEmail)
 			fmt.Printf("      Date: %s\n", meta.Tags[i].Date.Format(time.UnixDate))
-			fmt.Printf("      Message: %s\n\n", meta.Tags[i].Description)
+			if meta.Tags[i].Description != "" {
+				fmt.Printf("      Message: %s\n\n", meta.Tags[i].Description)
+			} else {
+				fmt.Println()
+			}
 		}
 		return nil
 	},
