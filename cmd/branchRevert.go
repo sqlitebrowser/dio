@@ -63,6 +63,17 @@ var branchRevertCmd = &cobra.Command{
 			}
 		}
 
+		// If a tag was given, make sure it exists
+		if branchRevertTag != "" {
+			tagData, ok := meta.Tags[branchRevertTag]
+			if !ok {
+				return errors.New("That tag doesn't exist")
+			}
+
+			// Use the commit associated with the tag
+			branchRevertCommit = tagData.Commit
+		}
+
 		// If no branch name was passed, use the active branch
 		if branchRevertBranch == "" {
 			branchRevertBranch = meta.ActiveBranch
@@ -94,7 +105,7 @@ var branchRevertCmd = &cobra.Command{
 
 		// Make sure the requested commit exists on the selected branch
 		if !matchFound {
-			return errors.New("The given commit id doesn't seem to exist on the selected branch")
+			return errors.New("The given commit or tag doesn't seem to exist on the selected branch")
 		}
 
 		// Abort if the database for the requested commit isn't in the local cache
@@ -129,8 +140,6 @@ var branchRevertCmd = &cobra.Command{
 
 		// TODO: * Check if there would be isolated tags or releases if this revert is done.  If so, let the user
 		//         know they'll need to remove the tags first
-
-		// TODO: Get the tag list for the database
 
 		// Count the number of commits in the updated branch
 		var commitCount int
