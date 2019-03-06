@@ -83,7 +83,7 @@ var releaseCreateCmd = &cobra.Command{
 		}
 
 		// Generate the new release info locally
-		newRelease := ReleaseEntry{
+		newRelease := releaseEntry{
 			Commit:        releaseCreateCommit,
 			Date:          releaseTimeStamp,
 			Description:   releaseCreateMsg,

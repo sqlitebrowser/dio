@@ -74,11 +74,11 @@ type metaData struct {
 	Branches     map[string]branchEntry  `json:"branches"`
 	Commits      map[string]commitEntry  `json:"commits"`
 	DefBranch    string                  `json:"default_branch"` // The default branch *on the server*
-	Releases     map[string]ReleaseEntry `json:"releases"`
+	Releases     map[string]releaseEntry `json:"releases"`
 	Tags         map[string]tagEntry     `json:"tags"`
 }
 
-type ReleaseEntry struct {
+type releaseEntry struct {
 	Commit        string    `json:"commit"`
 	Date          time.Time `json:"date"`
 	Description   string    `json:"description"`
