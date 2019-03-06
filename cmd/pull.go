@@ -14,7 +14,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var pullCmdBranch, pullCmdCommit string
+var (
+	pullCmdBranch, pullCmdCommit string
+	pullForce                    *bool
+)
 
 // Downloads a database from DBHub.io.
 var pullCmd = &cobra.Command{
@@ -48,6 +51,19 @@ var pullCmd = &cobra.Command{
 			return err
 		}
 
+		// Unless --force is specified, check whether the file has changed since the last commit, and let the user know
+		if *pullForce == false {
+			changed, err := dbChanged(db, meta)
+			if err != nil {
+				return err
+			}
+			if changed {
+				fmt.Printf("%s has been changed since the last commit.  Use --force if you really want to "+
+					"overwrite it\n", db)
+				return nil
+			}
+		}
+
 		// If given, make sure the requested branch exists
 		if pullCmdBranch != "" {
 			if _, ok := meta.Branches[pullCmdBranch]; ok == false {
@@ -62,12 +78,14 @@ var pullCmd = &cobra.Command{
 
 		// If given, make sure the requested commit exists
 		var thisSha string
+		var lastMod time.Time
 		if pullCmdCommit != "" {
 			thisCommit, ok := meta.Commits[pullCmdCommit]
 			if ok == false {
 				return errors.New("The requested commit doesn't exist")
 			}
 			thisSha = thisCommit.Tree.Entries[0].Sha256
+			lastMod = thisCommit.Tree.Entries[0].LastModified
 		} else {
 			// Determine the sha256 of the database file
 			c := meta.Branches[pullCmdBranch].Commit
@@ -76,6 +94,7 @@ var pullCmd = &cobra.Command{
 				return errors.New("The requested commit doesn't exist")
 			}
 			thisSha = thisCommit.Tree.Entries[0].Sha256
+			lastMod = thisCommit.Tree.Entries[0].LastModified
 		}
 
 		// Check if the database file already exists in local cache
@@ -88,6 +107,10 @@ var pullCmd = &cobra.Command{
 					return err
 				}
 				err = ioutil.WriteFile(db, b, 0644)
+				if err != nil {
+					return err
+				}
+				err = os.Chtimes(db, time.Now(), lastMod)
 				if err != nil {
 					return err
 				}
@@ -196,5 +219,9 @@ func init() {
 	RootCmd.AddCommand(pullCmd)
 	pullCmd.Flags().StringVar(&pullCmdBranch, "branch", "",
 		"Remote branch the database will be downloaded from")
-	pullCmd.Flags().StringVar(&pullCmdCommit, "commit", "", "Commit ID of the database to download")
+	pullCmd.Flags().StringVar(&pullCmdCommit, "commit", "",
+		"Commit ID of the database to download")
+	pullForce = pullCmd.Flags().BoolP("force", "f", false,
+		"Overwrite unsaved changes to the database?")
+
 }
