@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -82,8 +83,10 @@ var branchRevertCmd = &cobra.Command{
 
 		// Abort if the database for the requested commit isn't in the local cache
 		var shaSum string
+		var lastMod time.Time
 		if branchRevertCommit != "" {
 			shaSum = meta.Commits[branchRevertCommit].Tree.Entries[0].Sha256
+			lastMod = meta.Commits[branchRevertCommit].Tree.Entries[0].LastModified
 			// Fetch the database from DBHub.io if it's not in the local cache
 			if _, err = os.Stat(filepath.Join(".dio", db, "db", shaSum)); os.IsNotExist(err) {
 				// Download the required missing database file
@@ -142,6 +145,10 @@ var branchRevertCmd = &cobra.Command{
 			return err
 		}
 		err = ioutil.WriteFile(db, b, 0644)
+		if err != nil {
+			return err
+		}
+		err = os.Chtimes(db, time.Now(), lastMod)
 		if err != nil {
 			return err
 		}
