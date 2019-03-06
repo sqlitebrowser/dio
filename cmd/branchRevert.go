@@ -13,7 +13,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var branchRevertBranch, branchRevertCommit, branchRevertTag string
+var (
+	branchRevertBranch, branchRevertCommit, branchRevertTag string
+	branchRevertForce                                       *bool
+)
 
 // Reverts a database to a prior commit in its history
 var branchRevertCmd = &cobra.Command{
@@ -45,6 +48,19 @@ var branchRevertCmd = &cobra.Command{
 		meta, err := loadMetadata(db)
 		if err != nil {
 			return err
+		}
+
+		// Unless --force is specified, check whether the file has changed since the last commit, and let the user know
+		if *branchRevertForce == false {
+			changed, err := dbChanged(db, meta)
+			if err != nil {
+				return err
+			}
+			if changed {
+				fmt.Printf("%s has been changed since the last commit.  Use --force if you really want to "+
+					"overwrite it\n", db)
+				return nil
+			}
 		}
 
 		// If no branch name was passed, use the active branch
@@ -89,7 +105,6 @@ var branchRevertCmd = &cobra.Command{
 			lastMod = meta.Commits[branchRevertCommit].Tree.Entries[0].LastModified
 			// Fetch the database from DBHub.io if it's not in the local cache
 			if _, err = os.Stat(filepath.Join(".dio", db, "db", shaSum)); os.IsNotExist(err) {
-				// Download the required missing database file
 				_, body, err := retrieveDatabase(db, pullCmdBranch, pullCmdCommit)
 				if err != nil {
 					return err
@@ -166,7 +181,11 @@ var branchRevertCmd = &cobra.Command{
 
 func init() {
 	branchCmd.AddCommand(branchRevertCmd)
-	branchRevertCmd.Flags().StringVar(&branchRevertBranch, "branch", "", "Remote branch to operate on")
-	branchRevertCmd.Flags().StringVar(&branchRevertCommit, "commit", "", "Commit ID for the to revert to")
+	branchRevertCmd.Flags().StringVar(&branchRevertBranch, "branch", "",
+		"Branch to operate on")
+	branchRevertCmd.Flags().StringVar(&branchRevertCommit, "commit", "",
+		"Commit ID for the to revert to")
+	branchRevertForce = branchRevertCmd.Flags().BoolP("force", "f", false,
+		"Overwrite unsaved changes to the database?")
 	branchRevertCmd.Flags().StringVar(&branchRevertTag, "tag", "", "Name of tag to revert to")
 }
