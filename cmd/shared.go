@@ -64,6 +64,25 @@ func createDBTreeID(entries []dbTreeEntry) string {
 	return hex.EncodeToString(s[:])
 }
 
+// Retrieves the list of databases available to the user
+func getDatabases(url string, user string) (dbList []dbListEntry, err error) {
+	resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(fmt.Sprintf("%s/%s", url, user)).End()
+	if errs != nil {
+		e := fmt.Sprintln("Errors when retrieving the database list:")
+		for _, err := range errs {
+			e += fmt.Sprintf(err.Error())
+		}
+		err = errors.New(e)
+		return
+	}
+	defer resp.Body.Close()
+	err = json.Unmarshal([]byte(body), &dbList)
+	if err != nil {
+		fmt.Printf("Error retrieving database list: '%v'\n", err.Error())
+	}
+	return
+}
+
 // Returns a map with the list of licences available on the remote server
 func getLicences() (list map[string]licenceEntry, err error) {
 	// Retrieve the database list from the cloud
