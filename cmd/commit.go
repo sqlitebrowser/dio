@@ -39,6 +39,11 @@ var commitCmd = &cobra.Command{
 		db := args[0]
 		fi, err := os.Stat(db)
 		if err != nil {
+			// TODO: If the database file doesn't exist locally, check if it does exist on the server.
+			//         * If it does, then let the user know + abort
+			//         * If it doesn't, then this is a new database so we should initialise the local metadata and
+			//           create a first commit
+			// TODO: Remember to create a reasonable commit message for a new database, if none is provided
 			return err
 		}
 
@@ -63,9 +68,6 @@ var commitCmd = &cobra.Command{
 		if commitAuthor == "" || commitEmail == "" {
 			return errors.New("Both author name and email are required!")
 		}
-
-		// TODO: Add support for committing when the database doesn't yet exist locally, nor remotely
-		// TODO: Remember to create a reasonable commit message for a new database, if none is provided
 
 		// Load the metadata
 		meta, err := loadMetadata(db)
