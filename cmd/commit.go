@@ -39,11 +39,6 @@ var commitCmd = &cobra.Command{
 		db := args[0]
 		fi, err := os.Stat(db)
 		if err != nil {
-			// TODO: If the database file doesn't exist locally, check if it does exist on the server.
-			//         * If it does, then let the user know + abort
-			//         * If it doesn't, then this is a new database so we should initialise the local metadata and
-			//           create a first commit
-			// TODO: Remember to create a reasonable commit message for a new database, if none is provided
 			return err
 		}
 
@@ -69,10 +64,54 @@ var commitCmd = &cobra.Command{
 			return errors.New("Both author name and email are required!")
 		}
 
+		// If the database metadata doesn't exist locally, check if it does exist on the server.
+		newDB := false
+		var meta metaData
+		if _, err = os.Stat(filepath.Join(".dio", db, "db")); os.IsNotExist(err) {
+			// At the moment, since there's no better way to check for the existence of a remote database, we just
+			// grab the list of the users databases and check against that
+			dbList, err := getDatabases(cloud, certUser)
+			if err != nil {
+				return err
+			}
+			for _, j := range dbList {
+				if db == j.Name {
+					// This database already exists on DBHub.io.  We need local metadata in order to proceed, but don't
+					// yet have it.  Safest option, at least for now, is to tell the user and abort
+					return errors.New("Aborting: the database exists on the remote server, but has no " +
+						"local metadata cache.  Please retrieve the remote metadata, then run the commit command again")
+				}
+
+				// This is a new database, so we generate new metadata
+				newDB = true
+				b := branchEntry{
+					Commit:      "",
+					CommitCount: 0,
+					Description: "",
+				}
+				var initialBranch string
+				if commitCmdBranch == "" {
+					initialBranch = "master"
+				} else {
+					initialBranch = commitCmdBranch
+				}
+				meta = metaData{
+					ActiveBranch: initialBranch,
+					Branches:     map[string]branchEntry{initialBranch: b},
+					Commits:      map[string]commitEntry{},
+					DefBranch:    initialBranch,
+					Releases:     map[string]releaseEntry{},
+					Tags:         map[string]tagEntry{},
+				}
+			}
+		}
+
 		// Load the metadata
-		meta, err := loadMetadata(db)
-		if err != nil {
-			return err
+		if !newDB {
+			meta, err = loadMetadata(db)
+			if err != nil {
+				return err
+			}
 		}
 
 		// If no branch name was passed, use the active branch
@@ -85,11 +124,20 @@ var commitCmd = &cobra.Command{
 		if !ok {
 			return errors.New(fmt.Sprintf("That branch ('%s') doesn't exist", commitCmdBranch))
 		}
-		headCommit, ok := meta.Commits[head.Commit]
-		if !ok {
-			return errors.New("Aborting: info for the head commit isn't found in the local commit cache")
+		var existingLicSHA string
+		if newDB {
+			if commitCmdLicence == "" {
+				// If this is a new database, and no licence was given on the command line, then default to
+				// 'Not specified'
+				commitCmdLicence = "Not specified"
+			}
+		} else {
+			headCommit, ok := meta.Commits[head.Commit]
+			if !ok {
+				return errors.New("Aborting: info for the head commit isn't found in the local commit cache")
+			}
+			existingLicSHA = headCommit.Tree.Entries[0].LicenceSHA
 		}
-		existingLicSHA := headCommit.Tree.Entries[0].LicenceSHA
 
 		// Retrieve the list of known licences
 		licList, err := getLicences()
@@ -97,10 +145,10 @@ var commitCmd = &cobra.Command{
 			return err
 		}
 
-		// If no licence was given, use the licence from the head commit
+		// Determine the SHA256 of the requested licence
 		var licID, licSHA string
 		if commitCmdLicence != "" {
-			// Select the requested licence (SHA256) from the list
+			// Scan the licence list for a matching licence name
 			matchFound := false
 			lwrLic := strings.ToLower(commitCmdLicence)
 			for i, j := range licList {
@@ -115,12 +163,13 @@ var commitCmd = &cobra.Command{
 				return errors.New("Aborting: could not determine the name of the existing database licence")
 			}
 		} else {
+			// If no licence was given, use the licence from the previous commit
 			licSHA = existingLicSHA
 		}
 
 		// Generate an appropriate commit message if none was provided
 		if commitCmdMsg == "" {
-			if existingLicSHA != licSHA {
+			if !newDB && existingLicSHA != licSHA {
 				// * The licence has changed, so we create a reasonable commit message indicating this *
 
 				// Work out the human friendly short licence name for the current database
@@ -137,6 +186,11 @@ var commitCmd = &cobra.Command{
 					return errors.New("Aborting: could not locate the requested database licence")
 				}
 				commitCmdMsg = fmt.Sprintf("Database licence changed from '%s' to '%s'.", existingLicID, licID)
+			}
+
+			// If it's a new database and there's still no commit message, generate a reasonable one
+			if commitCmdMsg == "" {
+				commitCmdMsg = "New database created"
 			}
 		}
 
@@ -203,6 +257,12 @@ var commitCmd = &cobra.Command{
 
 		// If the database file isn't already in the local cache, then copy it there
 		if _, err = os.Stat(filepath.Join(".dio", db, "db", shaSum)); os.IsNotExist(err) {
+			if _, err = os.Stat(filepath.Join(".dio", db)); os.IsNotExist(err) {
+				err = os.MkdirAll(filepath.Join(".dio", db, "db"), 0770)
+				if err != nil {
+					return err
+				}
+			}
 			err = ioutil.WriteFile(filepath.Join(".dio", db, "db", shaSum), b, 0644)
 			if err != nil {
 				return err
