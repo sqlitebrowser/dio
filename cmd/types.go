@@ -21,10 +21,6 @@ type commitEntry struct {
 	Tree           dbTree    `json:"tree"`
 }
 
-type CommitList struct {
-	Commits []commitEntry `json:"commits"`
-}
-
 type dbListEntry struct {
 	CommitID     string `json:"commit_id"`
 	DefBranch    string `json:"default_branch"`
