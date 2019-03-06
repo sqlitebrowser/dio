@@ -1,12 +1,8 @@
 package cmd
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -37,51 +33,12 @@ var statusCmd = &cobra.Command{
 			return err
 		}
 
-		// Retrieve the sha256, file size, and last modified date from the head commit of the active branch
-		head, ok := meta.Branches[meta.ActiveBranch]
-		if !ok {
-			return errors.New("Aborting: info for the active branch isn't found in the local branch cache")
-		}
-		c, ok := meta.Commits[head.Commit]
-		if !ok {
-			return errors.New("Aborting: info for the head commit isn't found in the local commit cache")
-		}
-		metaSHASum := c.Tree.Entries[0].Sha256
-		metaFileSize := c.Tree.Entries[0].Size
-		metaLastModified := c.Tree.Entries[0].LastModified
-
-		// If the file size or last modified date in the metadata are different from the current file info, then the
-		// local file has probably changed.  Well, "probably" for the last modified day, but "definitely" if the file
-		// size is different
-		fi, err := os.Stat(db)
+		// Check if the file has changed, and let the user know
+		changed, err := dbChanged(db, meta)
 		if err != nil {
 			return err
 		}
-		fileSize := int(fi.Size())
-		lastModified := fi.ModTime()
-		if metaFileSize != fileSize || metaLastModified != lastModified {
-			fmt.Printf("  * %s: has been changed\n", db)
-			return nil
-		}
-
-		// * If the file size and last modified date are still the same, we SHA256 checksum and compare the file *
-
-		// TODO: Should we only do this for smaller files (below some TBD threshold)?
-
-		// Read the database from disk, and calculate it's sha256
-		b, err := ioutil.ReadFile(db)
-		if err != nil {
-			return err
-		}
-		if len(b) != fileSize {
-			return errors.New(numFormat.Sprintf("Aborting: # of bytes read (%d) when reading the database "+
-				"doesn't match the database file size (%d)", len(b), fileSize))
-		}
-		s := sha256.Sum256(b)
-		shaSum := hex.EncodeToString(s[:])
-
-		// Let the user know whether the file has been changed or not
-		if metaSHASum != shaSum {
+		if changed {
 			fmt.Printf("  * %s: has been changed\n", db)
 			return nil
 		}

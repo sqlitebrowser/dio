@@ -64,6 +64,61 @@ func createDBTreeID(entries []dbTreeEntry) string {
 	return hex.EncodeToString(s[:])
 }
 
+// Returns true if a database has been changed on disk since the last commit
+func dbChanged(db string, meta metaData) (changed bool, err error) {
+	// Retrieve the sha256, file size, and last modified date from the head commit of the active branch
+	head, ok := meta.Branches[meta.ActiveBranch]
+	if !ok {
+		err = errors.New("Aborting: info for the active branch isn't found in the local branch cache")
+		return
+	}
+	c, ok := meta.Commits[head.Commit]
+	if !ok {
+		err = errors.New("Aborting: info for the head commit isn't found in the local commit cache")
+		return
+	}
+	metaSHASum := c.Tree.Entries[0].Sha256
+	metaFileSize := c.Tree.Entries[0].Size
+	metaLastModified := c.Tree.Entries[0].LastModified
+
+	// If the file size or last modified date in the metadata are different from the current file info, then the
+	// local file has probably changed.  Well, "probably" for the last modified day, but "definitely" if the file
+	// size is different
+	fi, err := os.Stat(db)
+	if err != nil {
+		return
+	}
+	fileSize := int(fi.Size())
+	lastModified := fi.ModTime()
+	if metaFileSize != fileSize || metaLastModified != lastModified {
+		changed = true
+		return
+	}
+
+	// * If the file size and last modified date are still the same, we SHA256 checksum and compare the file *
+
+	// TODO: Should we only do this for smaller files (below some TBD threshold)?
+
+	// Read the database from disk, and calculate it's sha256
+	b, err := ioutil.ReadFile(db)
+	if err != nil {
+		return
+	}
+	if len(b) != fileSize {
+		err = errors.New(numFormat.Sprintf("Aborting: # of bytes read (%d) when reading the database "+
+			"doesn't match the database file size (%d)", len(b), fileSize))
+		return
+	}
+	s := sha256.Sum256(b)
+	shaSum := hex.EncodeToString(s[:])
+
+	// Check if a change has been made
+	if metaSHASum != shaSum {
+		changed = true
+	}
+	return
+}
+
 // Retrieves the list of databases available to the user
 func getDatabases(url string, user string) (dbList []dbListEntry, err error) {
 	resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(fmt.Sprintf("%s/%s", url, user)).End()
