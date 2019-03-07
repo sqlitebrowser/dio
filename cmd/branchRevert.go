@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -115,52 +113,46 @@ var branchRevertCmd = &cobra.Command{
 			return errors.New("The given commit or tag doesn't seem to exist on the selected branch")
 		}
 
-		// Abort if the database for the requested commit isn't in the local cache
+		// Make sure the correct database from the target branch is in local cache
 		var shaSum string
 		var lastMod time.Time
 		if branchRevertCommit != "" {
 			shaSum = meta.Commits[branchRevertCommit].Tree.Entries[0].Sha256
 			lastMod = meta.Commits[branchRevertCommit].Tree.Entries[0].LastModified
+
 			// Fetch the database from DBHub.io if it's not in the local cache
-			if _, err = os.Stat(filepath.Join(".dio", db, "db", shaSum)); os.IsNotExist(err) {
-				_, body, err := retrieveDatabase(db, pullCmdBranch, pullCmdCommit)
-				if err != nil {
-					return err
-				}
-
-				// Verify the SHA256 checksum of the new download
-				s := sha256.Sum256([]byte(body))
-				thisSum := hex.EncodeToString(s[:])
-				if thisSum != shaSum {
-					// The newly downloaded database file doesn't have the expected checksum.  Abort.
-					return errors.New(fmt.Sprintf("Aborting: newly downloaded database file should have "+
-						"checksum '%s', but data with checksum '%s' received\n", shaSum, thisSum))
-				}
-
-				// Write the database file to disk in the cache directory
-				err = ioutil.WriteFile(filepath.Join(".dio", db, "db", shaSum), []byte(body), 0644)
-				if err != nil {
-					return err
-				}
+			err = checkDBCache(db, shaSum)
+			if err != nil {
+				return err
 			}
+		} else {
+			return fmt.Errorf("Haven't been able to determine branch name.  This shouldn't happen")
 		}
 
-		// TODO: * Check if there would be isolated tags or releases if this revert is done.  If so, let the user
-		//         know they'll need to remove the tags first
-		// Check if deleting the commits would leave isolated tags or releases
+		// Check if deleting the commits would leave isolated tags or releases.  If so, abort and warn the user
 		type isolCheck struct {
 			safe   bool
 			commit string
 		}
 		var isolatedTags []string
+		var isolatedReleases []string
 		commitTags := map[string]isolCheck{}
+		commitReleases := map[string]isolCheck{}
 		for delCommit := range delList {
-
 			// Ensure that deleting this commit won't result in any isolated/unreachable tags
 			for tName, tEntry := range meta.Tags {
 				// Scan through the database tag list, checking if any of the tags is for the commit we're deleting
 				if tEntry.Commit == delCommit {
 					commitTags[tName] = isolCheck{safe: false, commit: delCommit}
+				}
+			}
+
+			// Ensure that deleting this commit won't result in any isolated/unreachable releases
+			for rName, rEntry := range meta.Releases {
+				// Scan through the database release list, checking if any of the releases is for the commit we're
+				// deleting
+				if rEntry.Commit == delCommit {
+					commitReleases[rName] = isolCheck{safe: false, commit: delCommit}
 				}
 			}
 		}
@@ -169,7 +161,6 @@ var branchRevertCmd = &cobra.Command{
 			// If a commit we're deleting has a tag on it, we need to check whether the commit is on other branches too
 			//   * If it is, we're ok to proceed as the tag can still be reached from the other branch(es)
 			//   * If it isn't, we need to abort this deletion (and tell the user), as the tag would become unreachable
-
 			for bName, bEntry := range meta.Branches {
 				if bName == branchRevertBranch {
 					// We only run this comparison from "other branches", not the branch whose history we're changing
@@ -213,12 +204,64 @@ var branchRevertCmd = &cobra.Command{
 			}
 		}
 
+		if len(commitReleases) > 0 {
+			// If a commit we're deleting has a release on it, we need to check whether the commit is on other branches too
+			//   * If it is, we're ok to proceed as the release can still be reached from the other branch(es)
+			//   * If it isn't, we need to abort this deletion (and tell the user), as the release would become unreachable
+			for bName, bEntry := range meta.Branches {
+				if bName == branchRevertBranch {
+					// We only run this comparison from "other branches", not the branch whose history we're changing
+					continue
+				}
+				c, ok = meta.Commits[bEntry.Commit]
+				if !ok {
+					return fmt.Errorf("Broken commit history encountered when checking for isolated releases "+
+						"while reverting in branch '%s' of database '%s'\n", branchRevertBranch, db)
+				}
+				for rName, rEntry := range commitReleases {
+					if c.ID == rEntry.commit {
+						// The commit is also on another branch, so we're ok to delete the commit
+						tmp := commitReleases[rName]
+						tmp.safe = true
+						commitReleases[rName] = tmp
+					}
+				}
+				for c.Parent != "" {
+					c, ok = meta.Commits[c.Parent]
+					if !ok {
+						return fmt.Errorf("Broken commit history encountered when checking for isolated "+
+							"releases while reverting in branch '%s' of database '%s'\n", branchRevertBranch, db)
+					}
+					for rName, rEntry := range commitReleases {
+						if c.ID == rEntry.commit {
+							// The commit is also on another branch, so we're ok to delete the commit
+							tmp := commitReleases[rName]
+							tmp.safe = true
+							commitReleases[rName] = tmp
+						}
+					}
+				}
+			}
+
+			// Create a list of would-be-isolated releases
+			for rName, rEntry := range commitReleases {
+				if rEntry.safe == false {
+					isolatedReleases = append(isolatedReleases, rName)
+				}
+			}
+		}
+
 		// If any tags or releases would be isolated, abort
-		if len(isolatedTags) > 0 {
-			return fmt.Errorf("Can't proceed, as isolated tags or releases would be left over")
-			// TODO: Give the user the exact list of tags / releases they'll need to remove first
-			//return fmt.Errorf("You need to delete the following tags and releases before reverting to this commit" +
-			//	"can be done")
+		if len(isolatedTags) > 0 || len(isolatedReleases) > 0 {
+			e := fmt.Sprint("You need to remove the following tags and releases before reverting to this " +
+				"commit:\n\n")
+			for _, j := range isolatedTags {
+				e = fmt.Sprintf("%s  * tag '%s'\n", e, j)
+			}
+			for _, j := range isolatedReleases {
+				e = fmt.Sprintf("%s  * release '%s'\n", e, j)
+			}
+			return errors.New(e)
 		}
 
 		// Count the number of commits in the updated branch
