@@ -27,7 +27,7 @@ var tagListCmd = &cobra.Command{
 		// If there is a local metadata cache for the requested database, use that.  Otherwise, retrieve it from the
 		// server first (without storing it)
 		db := args[0]
-		meta, err := localFetchMetadata(db)
+		meta, err := localFetchMetadata(db, true)
 		if err != nil {
 			return err
 		}
