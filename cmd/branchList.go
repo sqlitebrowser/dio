@@ -32,7 +32,7 @@ var branchListCmd = &cobra.Command{
 		md, err := ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
 		if err != nil {
 			// No local cache, so retrieve the info from the server
-			temp, err := retrieveMetadata(db)
+			temp, _, err := retrieveMetadata(db)
 			if err != nil {
 				return err
 			}

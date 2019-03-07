@@ -261,7 +261,7 @@ func localFetchMetadata(db string, getRemote bool) (meta metaData, err error) {
 
 		// Problem when reading local metadata, but we're ok to grab the remote. So, use that instead.
 		var temp string
-		temp, err = retrieveMetadata(db)
+		temp, _, err = retrieveMetadata(db)
 		if err != nil {
 			return
 		}
@@ -336,7 +336,6 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 					for i := 0; i <= localLength; i++ {
 						lCommit := localList[localLength-i]
 						if i > remoteLength {
-							fmt.Printf("Remote list doesn't have element %d - commit '%s'\n", i, lCommit)
 							branchesSame = false
 						} else {
 							if lCommit != remoteList[remoteLength-i] {
@@ -372,10 +371,7 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 					}
 
 					if skipFurtherChecks == false && brData.Commit != newData.Commit {
-						fmt.Printf("  * Head commit for branch %s differs between the local and remote\n"+
-							"    * Local: %s\n"+
-							"    * Remote: %s\n",
-							brName, brData.Commit, newData.Commit)
+						fmt.Printf("  * Branch '%s' has local changes, not on the server\n", brName)
 					}
 					if skipFurtherChecks == false && brData.Description != newData.Description {
 						fmt.Printf("  * Description for branch %s differs between the local and remote\n"+
@@ -501,7 +497,7 @@ func retrieveDatabase(db string, branch string, commit string) (resp rq.Response
 }
 
 // Retrieves database metadata from DBHub.io
-func retrieveMetadata(db string) (md string, err error) {
+func retrieveMetadata(db string) (md string, onCloud bool, err error) {
 	// Download the database metadata
 	resp, md, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/metadata/get").
 		Query(fmt.Sprintf("username=%s", url.QueryEscape(certUser))).
@@ -514,13 +510,16 @@ func retrieveMetadata(db string) (md string, err error) {
 		for _, err := range errs {
 			log.Print(err.Error())
 		}
-		return "", errors.New("Error when downloading database metadata")
+		return "", false, errors.New("Error when downloading database metadata")
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return "", false, nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", errors.New(fmt.Sprintf("Metadata download failed with an error: HTTP status %d - '%v'\n",
+		return "", false, errors.New(fmt.Sprintf("Metadata download failed with an error: HTTP status %d - '%v'\n",
 			resp.StatusCode, resp.Status))
 	}
-	return md, nil
+	return md, true, nil
 }
 
 // Saves the metadata to a local cache
@@ -554,7 +553,7 @@ func updateMetadata(db string, saveMeta bool) (mergedMeta metaData, err error) {
 	fmt.Println("Updating metadata")
 	newMeta := metaData{}
 	var tmp string
-	tmp, err = retrieveMetadata(db)
+	tmp, _, err = retrieveMetadata(db)
 	if err != nil {
 		return
 	}
