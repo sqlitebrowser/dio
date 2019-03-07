@@ -189,7 +189,7 @@ var commitCmd = &cobra.Command{
 			}
 
 			// If it's a new database and there's still no commit message, generate a reasonable one
-			if commitCmdMsg == "" {
+			if newDB && commitCmdMsg == "" {
 				commitCmdMsg = "New database created"
 			}
 		}
@@ -278,7 +278,9 @@ var commitCmd = &cobra.Command{
 		fmt.Printf("Commit created on '%s'\n", db)
 		fmt.Printf("  * Commit ID: %s\n", newCom.ID)
 		fmt.Printf("    Branch: %s\n", commitCmdBranch)
-		fmt.Printf("    Licence: %s\n", licID)
+		if licID != "" {
+			fmt.Printf("    Licence: %s\n", licID)
+		}
 		fmt.Printf("    Size: %d bytes\n", e.Size)
 		if commitCmdMsg != "" {
 			fmt.Printf("    Commit message: %s\n\n", commitCmdMsg)
