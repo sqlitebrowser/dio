@@ -22,8 +22,7 @@ var branchActiveGetCmd = &cobra.Command{
 			return errors.New("Only one database can be worked with at a time (for now)")
 		}
 
-		// If there is a local metadata cache for the requested database, use that.  Otherwise, retrieve it from the
-		// server first (without storing it)
+		// Load the local metadata cache, without retrieving updated metadata from the cloud
 		db := args[0]
 		meta, err := localFetchMetadata(db, false)
 		if err != nil {
