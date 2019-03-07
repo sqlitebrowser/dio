@@ -56,10 +56,16 @@ var branchListCmd = &cobra.Command{
 		for _, i := range sortedKeys {
 			fmt.Printf("  * %s - Commit: %s\n", i, meta.Branches[i].Commit)
 			if meta.Branches[i].Description != "" {
-				fmt.Printf("\n      %s\n", meta.Branches[i].Description)
+				fmt.Printf("\n      %s\n\n", meta.Branches[i].Description)
 			}
 		}
-		fmt.Printf("\n    Active branch: %s\n\n", meta.ActiveBranch)
+
+		// Extra newline is needed in some cases for consistency
+		finalSortedKey := sortedKeys[len(sortedKeys)-1]
+		if meta.Branches[finalSortedKey].Description == "" {
+			fmt.Println()
+		}
+		fmt.Printf("    Active branch: %s\n\n", meta.ActiveBranch)
 		return nil
 	},
 }
