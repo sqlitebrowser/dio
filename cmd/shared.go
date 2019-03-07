@@ -20,6 +20,30 @@ import (
 	rq "github.com/parnurzeal/gorequest"
 )
 
+// Check if the database with the given SHA256 checksum is in local cache.  If it's not then download and cache it
+func checkDBCache(db, shaSum string) (err error) {
+	if _, err = os.Stat(filepath.Join(".dio", db, "db", shaSum)); os.IsNotExist(err) {
+		var body string
+		_, body, err = retrieveDatabase(db, pullCmdBranch, pullCmdCommit)
+		if err != nil {
+			return
+		}
+
+		// Verify the SHA256 checksum of the new download
+		s := sha256.Sum256([]byte(body))
+		thisSum := hex.EncodeToString(s[:])
+		if thisSum != shaSum {
+			// The newly downloaded database file doesn't have the expected checksum.  Abort.
+			return errors.New(fmt.Sprintf("Aborting: newly downloaded database file should have "+
+				"checksum '%s', but data with checksum '%s' received\n", shaSum, thisSum))
+		}
+
+		// Write the database file to disk in the cache directory
+		err = ioutil.WriteFile(filepath.Join(".dio", db, "db", shaSum), []byte(body), 0644)
+	}
+	return
+}
+
 // Generate a stable SHA256 for a commit.
 func createCommitID(c commitEntry) string {
 	var b bytes.Buffer
