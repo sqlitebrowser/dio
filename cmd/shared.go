@@ -393,7 +393,7 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 			}
 			if !matchFound {
 				// This seems to be a branch that's not on the server, so we keep it as-is
-				fmt.Printf("  * Branch %s is local only, not on the server\n", brName)
+				fmt.Printf("  * Branch '%s' is local only, not on the server\n", brName)
 				mergedMeta.Branches[brName] = brData
 
 				// Copy across the commits from the local branch
