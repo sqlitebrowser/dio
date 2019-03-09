@@ -341,7 +341,6 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 							if lCommit != remoteList[remoteLength-i] {
 								// There are conflicting commits in this branch between the local metadata and the
 								// remote.  This will probably need to be resolved by user action.
-								fmt.Printf("Commit %d differs - local: '%s', remote: '%s'\n", i, lCommit, remoteList[i])
 								branchesSame = false
 							}
 						}
@@ -372,6 +371,17 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 
 					if skipFurtherChecks == false && brData.Commit != newData.Commit {
 						fmt.Printf("  * Branch '%s' has local changes, not on the server\n", brName)
+
+						// Copy across the commits from the local branch
+						localCommit := origMeta.Commits[brData.Commit]
+						mergedMeta.Commits[localCommit.ID] = origMeta.Commits[localCommit.ID]
+						for localCommit.Parent != "" {
+							localCommit = origMeta.Commits[localCommit.Parent]
+							mergedMeta.Commits[localCommit.ID] = origMeta.Commits[localCommit.ID]
+						}
+
+						// Copy across the branch data entry for the local branch
+						mergedMeta.Branches[brName] = brData
 					}
 					if skipFurtherChecks == false && brData.Description != newData.Description {
 						fmt.Printf("  * Description for branch %s differs between the local and remote\n"+
