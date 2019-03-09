@@ -67,11 +67,6 @@ var pushCmd = &cobra.Command{
 			return errors.New("Both author name and email are required!")
 		}
 
-		// Ensure commit message has been provided
-		if pushCmdMsg == "" {
-			return errors.New("Commit message is required!")
-		}
-
 		// Determine name to store database as
 		if pushCmdDB == "" {
 			pushCmdDB = filepath.Base(db)
@@ -121,7 +116,6 @@ var pushCmd = &cobra.Command{
 
 				// TODO: Make a loop, processing the remaining commits
 
-
 				return nil
 			}
 			err = json.Unmarshal([]byte(tmp), &newMeta)
@@ -129,10 +123,7 @@ var pushCmd = &cobra.Command{
 				return err
 			}
 
-			// TODO: To get here, the database has local metadata and a remote database
-			// TODO: Write the code for this
-			//fmt.Printf("TBD: Database exists both locally and on DBHub.io\n")
-
+			// * To get here, the database exists on the remote cloud and has local metadata *
 
 			// Check the branch exists remotely
 			remoteHead, ok := newMeta.Branches[pushCmdBranch]
@@ -145,7 +136,7 @@ var pushCmd = &cobra.Command{
 			localCommitList := []string{localHead.Commit}
 			c, ok := meta.Commits[localHead.Commit]
 			if ok == false {
-				return errors.New("Something has gone wrong.  Head commit for the local branch isn't in the "+
+				return errors.New("Something has gone wrong.  Head commit for the local branch isn't in the " +
 					"local commit list")
 			}
 			for c.Parent != "" {
@@ -158,7 +149,7 @@ var pushCmd = &cobra.Command{
 			remoteCommitList := []string{remoteHead.Commit}
 			c, ok = newMeta.Commits[remoteHead.Commit]
 			if ok == false {
-				return errors.New("Something has gone wrong.  Head commit for the remote branch isn't in the "+
+				return errors.New("Something has gone wrong.  Head commit for the remote branch isn't in the " +
 					"remote commit list")
 			}
 			for c.Parent != "" {
@@ -175,19 +166,19 @@ var pushCmd = &cobra.Command{
 				return err
 			}
 
-			// TODO: Compare the local branch to the head of the remote branch, to determine which commits need sending
+			// * Compare the local branch to the head of the remote branch, to determine which commits need sending *
 
 			// If there are more commits in the remote branch than in the local one, then the branches have diverged
 			// so abort (for now).
 			// TODO: Write the code to allow --force overwriting for this
 			if remoteCommitLength > localCommitLength {
 				return fmt.Errorf("The remote branch has more commits than the local one.  Can't push the " +
-					"branch.  If you want to overwrite changes on the remote server, consider the --force option\n")
+					"branch.  If you want to overwrite changes on the remote server, consider the --force option.")
 			}
 
 			// Check if the given branch is the same on the local and remote server.  If it is, nothing needs to be done
 			if remoteCommitLength == localCommitLength && remoteCommitList[0] == localCommitList[0] {
-				return fmt.Errorf("The local and remote branch '%s' are identical.  Push not needed\n",
+				return fmt.Errorf("The local and remote branch '%s' are identical.  Nothing to push.",
 					pushCmdBranch)
 			}
 
@@ -198,62 +189,81 @@ var pushCmd = &cobra.Command{
 			for i := 0; i <= localCommitLength; i++ {
 				lCommit := localCommitList[localCommitLength-i]
 				if i > remoteCommitLength {
-					fmt.Printf("Commit aded to push list '%s'\n", lCommit) // TODO: This can probably be removed
 					pushCommits = append(pushCommits, lCommit)
 				} else {
 					rCommit := remoteCommitList[remoteCommitLength-i]
 					if lCommit != rCommit {
 						// There are conflicting commits in this branch between the local metadata and the
 						// remote.  Abort (for now)
-						// TODO: Consider how to allow --force pushing here
+						// TODO: Consider how to allow --force pushing here.  Also remember that when doing this, there
+						//       needs a check added for potentially isolated tags and releases, same as branch revert
 						e := fmt.Sprintf("The local and remote branch have conflicting commits.\n\n")
 						e = fmt.Sprintf("%s  * local commit: %s\n", e, lCommit)
 						e = fmt.Sprintf("%s  * remote commit: %s\n\n", e, rCommit)
-						e = fmt.Sprintf("%sCan't push the branch.  If you want to overwrite changes on the " +
-							"remote server, consider the --force option\n", e)
+						e = fmt.Sprintf("%sCan't push the branch.  If you want to overwrite changes on the "+
+							"remote server, consider the --force option.", e)
 						return errors.New(e)
 					}
 				}
 			}
 
-			fmt.Printf("Number of commits to push: %v\n", len(pushCommits))
+			// Display useful info message to the user
+			numCommits := len(pushCommits)
+			if numCommits == 1 {
+				fmt.Printf("Pushing 1 commit for branch '%s'", pushCmdBranch)
+			} else {
+				fmt.Printf("Pushing %d commit(s) for branch '%s'", numCommits, pushCmdBranch)
+			}
+			fmt.Printf(" to %s...\n", cloud)
 
 			// Send the commits
 			for _, commitID := range pushCommits {
 				commitData, ok := meta.Commits[commitID]
 				if !ok {
-					return fmt.Errorf("Something went wrong.  Could not retrieve data for commit '%s' from" +
-						"local metadata commit list\n", commitID)
+					return fmt.Errorf("Something went wrong.  Could not retrieve data for commit '%s' from"+
+						"local metadata commit list.", commitID)
 				}
 
-				fmt.Printf("Pushing commit '%s'\n", commitID)
-
+				fmt.Printf("  * %s\n", commitID)
 				shaSum := commitData.Tree.Entries[0].Sha256
+				var otherParents string
+				for i, j := range commitData.OtherParents {
+					if i != 1 {
+						otherParents += ","
+					}
+					otherParents += j
+				}
 				req := rq.New().TLSClientConfig(&TLSConfig).Post(dbURL).
 					Type("multipart").
 					Query(fmt.Sprintf("branch=%s", url.QueryEscape(pushCmdBranch))).
 					Query(fmt.Sprintf("commitmsg=%s", url.QueryEscape(commitData.Message))).
 					Query(fmt.Sprintf("lastmodified=%s",
-						url.QueryEscape(commitData.Timestamp.Format(time.RFC3339)))).
+						url.QueryEscape(commitData.Tree.Entries[0].LastModified.Format(time.RFC3339)))).
 					Query(fmt.Sprintf("commit=%s", commitData.Parent)).
-					// TODO: Add the remaining required data fields.  Likely need to update the server side to add
-					//       anything missing
+					Query(fmt.Sprintf("authoremail=%s", url.QueryEscape(commitData.AuthorEmail))).
+					Query(fmt.Sprintf("authorname=%s", url.QueryEscape(commitData.AuthorName))).
+					Query(fmt.Sprintf("committeremail=%s", url.QueryEscape(commitData.CommitterEmail))).
+					Query(fmt.Sprintf("committername=%s", url.QueryEscape(commitData.CommitterName))).
+					Query(fmt.Sprintf("commitlastmodified=%s",
+						url.QueryEscape(commitData.Timestamp.Format(time.RFC3339)))).
+					Query(fmt.Sprintf("otherparents=%s", url.QueryEscape(otherParents))).
+					Query(fmt.Sprintf("dbshasum=%s", url.QueryEscape(shaSum))).
 					//Query(fmt.Sprintf("public=%v", pushCmdPublic)).
 					//Query(fmt.Sprintf("force=%v", pushCmdForce)).
-					SendFile(filepath.Join(".dio", db, "db", shaSum, "", "file1"))
+					SendFile(filepath.Join(".dio", db, "db", shaSum), db, "file1")
 				if pushCmdLicence != "" {
 					req.Query(fmt.Sprintf("licence=%s", url.QueryEscape(pushCmdLicence)))
 				}
 				resp, body, errs := req.End()
 				if errs != nil {
-					log.Print("Errors when uploading database to the cloud:")
+					e := fmt.Sprintln("Errors when uploading database to the cloud:")
 					for _, err := range errs {
-						log.Print(err.Error())
+						e = err.Error()
 					}
-					return errors.New("Error when uploading database to the cloud")
+					return errors.New(e)
 				}
 				if resp != nil && resp.StatusCode != http.StatusCreated {
-					return errors.New(fmt.Sprintf("Upload failed with an error: HTTP status %d - '%v'\n",
+					return errors.New(fmt.Sprintf("Upload failed with an error: HTTP status %d - '%v'",
 						resp.StatusCode, resp.Status))
 				}
 
@@ -261,8 +271,18 @@ var pushCmd = &cobra.Command{
 				parsedResponse := map[string]string{}
 				err = json.Unmarshal([]byte(body), &parsedResponse)
 				if err != nil {
-					fmt.Printf("Error parsing server response: '%v'\n", err.Error())
+					fmt.Printf("Error parsing server response: '%v'", err.Error())
 					return err
+				}
+
+				// Check that the ID for the new commit as generated by the server matches the ID generated locally
+				remoteCommitID, ok := parsedResponse["commit_id"]
+				if !ok {
+					return errors.New("Unexpected response from server, doesn't contain new commit ID.")
+				}
+				if remoteCommitID != commitID {
+					return fmt.Errorf("Error.  The Commit ID generated on the server (%s) doesn't match the "+
+						"local Commit ID (%s)", remoteCommitID, commitID)
 				}
 			}
 
@@ -272,9 +292,8 @@ var pushCmd = &cobra.Command{
 
 			// TODO: Make a loop, processing the remaining commits
 
+			fmt.Println("All commits pushed.")
 			return nil
-
-
 		}
 
 		// To get here, the database doesn't already exist on DBHub.io, so we just use the original file upload
@@ -337,7 +356,7 @@ func init() {
 		"Remote branch the database will be uploaded to")
 	pushCmd.Flags().StringVar(&pushCmdCommit, "commit", "",
 		"ID of the previous commit, for appending this new database to")
-	//pushCmd.Flags().StringVar(&pushCmdDB, "dbname", "", "Override for the database name")
+	pushCmd.Flags().StringVar(&pushCmdDB, "dbname", "", "Override for the database name")
 	//pushCmd.Flags().StringVar(&pushCmdEmail, "email", "", "Email address of the author")
 	pushCmd.Flags().BoolVar(&pushCmdForce, "force", false, "Overwrite existing commit history?")
 	pushCmd.Flags().StringVar(&pushCmdLicence, "licence", "",
