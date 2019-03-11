@@ -119,6 +119,15 @@ var commitCmd = &cobra.Command{
 			commitCmdBranch = meta.ActiveBranch
 		}
 
+		// Check if the database is unchanged from the previous commit, and if so we abort the commit
+		changed, err := dbChanged(db, meta)
+		if err != nil {
+			return err
+		}
+		if !changed {
+			return fmt.Errorf("Database is unchanged from last commit.  No need to commit anything.")
+		}
+
 		// Get the current head commit for the selected branch, as that will be the parent commit for this new one
 		head, ok := meta.Branches[commitCmdBranch]
 		if !ok {
