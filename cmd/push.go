@@ -245,16 +245,31 @@ var pushCmd = &cobra.Command{
 						"local Commit ID (%s)", remoteCommitID, newCommit)
 				}
 
+				// Count the number of commits in the new fork
+				d := meta.Commits[newCommit]
+				forkCommitCtr := 1
+				for d.Parent != "" {
+					d = meta.Commits[d.Parent]
+					forkCommitCtr++
+				}
+
 				// Add the new (forked) branch to the local list of remote metadata
 				newMeta.Branches[pushCmdBranch] = branchEntry{
 					Commit:      newCommit,
-					CommitCount: baseBranchCounter + 1,
+					CommitCount: forkCommitCtr,
 					Description: meta.Branches[pushCmdBranch].Description,
 				}
 				remoteHead = newMeta.Branches[pushCmdBranch]
 
 				// Add the newly generated commit to the local list of remote metadata
 				newMeta.Commits[newCommit] = meta.Commits[newCommit]
+
+				// If this fork only had the one commit (eg no further commits to push), then finish here
+				if len(localCommitList) == forkCommitCtr {
+					fmt.Printf("New branch '%s' created and all commits for it pushed to %s\n", pushCmdBranch,
+						cloud)
+					return nil
+				}
 
 				// * Now that the initial commit for the new branch is on the remote server, we can continue on
 				// "as per normal", using the existing code to loop around adding the remaining commits *
@@ -264,8 +279,8 @@ var pushCmd = &cobra.Command{
 			remoteCommitList := []string{remoteHead.Commit}
 			c, ok = newMeta.Commits[remoteHead.Commit]
 			if ok == false {
-				return errors.New("Something has gone wrong.  Head commit for the remote branch isn't in the " +
-					"remote commit list")
+				return errors.New("Something has gone wrong.  Head commit for the remote branch isn't in " +
+					"the remote commit list")
 			}
 			for c.Parent != "" {
 				c = newMeta.Commits[c.Parent]
