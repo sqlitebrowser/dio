@@ -65,7 +65,7 @@ var commitCmd = &cobra.Command{
 		}
 
 		// If the database metadata doesn't exist locally, check if it does exist on the server.
-		newDB := false
+		var newDB, localPresent bool
 		var meta metaData
 		if _, err = os.Stat(filepath.Join(".dio", db, "db")); os.IsNotExist(err) {
 			// At the moment, since there's no better way to check for the existence of a remote database, we just
@@ -84,26 +84,11 @@ var commitCmd = &cobra.Command{
 
 				// This is a new database, so we generate new metadata
 				newDB = true
-				b := branchEntry{
-					Commit:      "",
-					CommitCount: 0,
-					Description: "",
-				}
-				var initialBranch string
-				if commitCmdBranch == "" {
-					initialBranch = "master"
-				} else {
-					initialBranch = commitCmdBranch
-				}
-				meta = metaData{
-					ActiveBranch: initialBranch,
-					Branches:     map[string]branchEntry{initialBranch: b},
-					Commits:      map[string]commitEntry{},
-					DefBranch:    initialBranch,
-					Releases:     map[string]releaseEntry{},
-					Tags:         map[string]tagEntry{},
-				}
+				meta = newMeta(commitCmdBranch)
 			}
+		} else {
+			// We have local metaData
+			localPresent = true
 		}
 
 		// Load the metadata
@@ -120,12 +105,14 @@ var commitCmd = &cobra.Command{
 		}
 
 		// Check if the database is unchanged from the previous commit, and if so we abort the commit
-		changed, err := dbChanged(db, meta)
-		if err != nil {
-			return err
-		}
-		if !changed {
-			return fmt.Errorf("Database is unchanged from last commit.  No need to commit anything.")
+		if localPresent {
+			changed, err := dbChanged(db, meta)
+			if err != nil {
+				return err
+			}
+			if !changed {
+				return fmt.Errorf("Database is unchanged from last commit.  No need to commit anything.")
+			}
 		}
 
 		// Get the current head commit for the selected branch, as that will be the parent commit for this new one
@@ -141,11 +128,14 @@ var commitCmd = &cobra.Command{
 				commitCmdLicence = "Not specified"
 			}
 		} else {
-			headCommit, ok := meta.Commits[head.Commit]
-			if !ok {
-				return errors.New("Aborting: info for the head commit isn't found in the local commit cache")
+			if localPresent {
+				// We can only use commit data if local metadata is present
+				headCommit, ok := meta.Commits[head.Commit]
+				if !ok {
+					return errors.New("Aborting: info for the head commit isn't found in the local commit cache")
+				}
+				existingLicSHA = headCommit.Tree.Entries[0].LicenceSHA
 			}
-			existingLicSHA = headCommit.Tree.Entries[0].LicenceSHA
 		}
 
 		// Retrieve the list of known licences
@@ -311,4 +301,28 @@ func init() {
 	commitCmd.Flags().StringVar(&commitCmdMsg, "message", "",
 		"Description / commit message")
 	commitCmd.Flags().StringVar(&commitCmdName, "name", "", "Name of the commit author")
+}
+
+// Creates a new metadata structure in memory
+func newMeta(branch string) (meta metaData) {
+	b := branchEntry{
+		Commit:      "",
+		CommitCount: 0,
+		Description: "",
+	}
+	var initialBranch string
+	if branch == "" {
+		initialBranch = "master"
+	} else {
+		initialBranch = branch
+	}
+	meta = metaData{
+		ActiveBranch: initialBranch,
+		Branches:     map[string]branchEntry{initialBranch: b},
+		Commits:      map[string]commitEntry{},
+		DefBranch:    initialBranch,
+		Releases:     map[string]releaseEntry{},
+		Tags:         map[string]tagEntry{},
+	}
+	return
 }
