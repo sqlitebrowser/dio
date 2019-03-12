@@ -534,6 +534,17 @@ func retrieveMetadata(db string) (md string, onCloud bool, err error) {
 
 // Saves the metadata to a local cache
 func saveMetadata(db string, meta metaData) (err error) {
+	// Create the metadata directory if needed
+	if _, err = os.Stat(filepath.Join(".dio", db)); os.IsNotExist(err) {
+		// We create the "db" directory instead, as that'll be needed anyway and MkdirAll() ensures the .dio/<db>
+		// directory will be created on the way through
+		err = os.MkdirAll(filepath.Join(".dio", db, "db"), 0770)
+		if err != nil {
+			return
+		}
+	}
+
+	// Serialise the metadata to JSON
 	var jsonString []byte
 	jsonString, err = json.MarshalIndent(meta, "", "  ")
 	if err != nil {
