@@ -72,9 +72,9 @@ var pushCmd = &cobra.Command{
 			pushCmdDB = filepath.Base(db)
 		}
 
-		// TODO: New approach.  Check if there's local metadata.  If there is, we compare the local branch metadata
-		//       with that on the server.  Then we go through a simple loop, uploading each outstanding commit to the
-		//       remote server along with it's metadata (in appropriate headers)
+		// Check if there's local metadata.  If there is, we compare the local branch metadata with that on the server.
+		// Then we go through a simple loop, uploading each outstanding commit to the remote server along with it's
+		// metadata (via appropriate http headers)
 		var meta metaData
 		dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, db)
 		if _, err = os.Stat(filepath.Join(".dio", db, "metadata.json")); err == nil {
@@ -95,36 +95,6 @@ var pushCmd = &cobra.Command{
 				return errors.New(fmt.Sprintf("That branch ('%s') doesn't exist", pushCmdBranch))
 			}
 
-			// Download the latest database metadata
-			newMeta := metaData{}
-			var tmp string
-			var found bool
-			tmp, found, err = retrieveMetadata(db)
-			if err != nil {
-				return err
-			}
-			if !found {
-				// The database only exists locally, so we'll need to start with the first commit for the branch onwards
-				// TODO: Write the code for this
-				fmt.Printf("TBD: Database only exists locally, and isn't yet present on DBHub.io")
-
-				// TODO: Make a list of the commits in the local branch
-
-				// TODO: Copy the commit metadata from the first commit into appropriate headers for the upload
-
-				// TODO: Do the upload
-
-				// TODO: Make a loop, processing the remaining commits
-
-				return nil
-			}
-			err = json.Unmarshal([]byte(tmp), &newMeta)
-			if err != nil {
-				return err
-			}
-
-			// * To get here, the database exists on the remote cloud and has local metadata *
-
 			// Build a list of the commits in the local branch
 			localCommitList := []string{localHead.Commit}
 			c, ok := meta.Commits[localHead.Commit]
@@ -138,14 +108,47 @@ var pushCmd = &cobra.Command{
 			}
 			localCommitLength := len(localCommitList) - 1
 
+			// Download the latest database metadata
+			extraCtr := 0
+			newMeta := metaData{}
+			var tmp string
+			var found bool
+			tmp, found, err = retrieveMetadata(db)
+			if err != nil {
+				return err
+			}
+			if !found {
+				// The database only exists locally, so we create use the first commit to create the remote database,
+				// then loop around pushing the remaining commits
+				newCommit := meta.Commits[localCommitList[len(localCommitList)-1]].ID
+				err = sendCommit(meta, db, dbURL, newCommit)
+				if err != nil {
+					return err
+				}
+				fmt.Printf("Created new database '%s' on %s\n", db, cloud)
+
+				// Fetch the remote metadata, now that the database exists remotely.  This lets us use the existing
+				// code below to add the remaining commits
+				tmp, found, err = retrieveMetadata(db)
+				if err != nil {
+					return err
+				}
+				extraCtr++
+			}
+			err = json.Unmarshal([]byte(tmp), &newMeta)
+			if err != nil {
+				return err
+			}
+
+			// * To get here, the database exists on the remote cloud and has local metadata *
+
 			// Check the branch exists remotely
-			isFork := 0
 			remoteHead, ok := newMeta.Branches[pushCmdBranch]
 			if !ok {
 				// * The branch doesn't exist remotely, so create a fork on the remote cloud *
 
 				// Determine which of the commits in the local branch is the first one not also on the server
-				isFork++
+				extraCtr++
 				var baseBranchCounter int
 				remoteBranchCommitCounter := make(map[string]int)
 				for brName, brEntry := range newMeta.Branches {
@@ -182,67 +185,9 @@ var pushCmd = &cobra.Command{
 
 				// Create the new (forked) branch on DBHub.io
 				newCommit := localCommitList[localCommitLength-baseBranchCounter]
-				commitData, ok := meta.Commits[newCommit]
-				if !ok {
-					return fmt.Errorf("Something went wrong.  Could not retrieve data for commit '%s' from"+
-						"local metadata commit list.", newCommit)
-				}
-
-				shaSum := commitData.Tree.Entries[0].Sha256
-				var otherParents string
-				for i, j := range commitData.OtherParents {
-					if i != 1 {
-						otherParents += ","
-					}
-					otherParents += j
-				}
-				req := rq.New().TLSClientConfig(&TLSConfig).Post(dbURL).
-					Type("multipart").
-					Query(fmt.Sprintf("branch=%s", url.QueryEscape(pushCmdBranch))).
-					Query(fmt.Sprintf("commitmsg=%s", url.QueryEscape(commitData.Message))).
-					Query(fmt.Sprintf("lastmodified=%s",
-						url.QueryEscape(commitData.Tree.Entries[0].LastModified.Format(time.RFC3339)))).
-					Query(fmt.Sprintf("commit=%s", commitData.Parent)).
-					Query(fmt.Sprintf("authoremail=%s", url.QueryEscape(commitData.AuthorEmail))).
-					Query(fmt.Sprintf("authorname=%s", url.QueryEscape(commitData.AuthorName))).
-					Query(fmt.Sprintf("committeremail=%s", url.QueryEscape(commitData.CommitterEmail))).
-					Query(fmt.Sprintf("committername=%s", url.QueryEscape(commitData.CommitterName))).
-					Query(fmt.Sprintf("commitlastmodified=%s",
-						url.QueryEscape(commitData.Timestamp.Format(time.RFC3339)))).
-					Query(fmt.Sprintf("otherparents=%s", url.QueryEscape(otherParents))).
-					Query(fmt.Sprintf("dbshasum=%s", url.QueryEscape(shaSum))).
-					SendFile(filepath.Join(".dio", db, "db", shaSum), db, "file1")
-				if pushCmdLicence != "" {
-					req.Query(fmt.Sprintf("licence=%s", url.QueryEscape(pushCmdLicence)))
-				}
-				resp, body, errs := req.End()
-				if errs != nil {
-					e := fmt.Sprintln("Errors when uploading database to the cloud:")
-					for _, err := range errs {
-						e = err.Error()
-					}
-					return errors.New(e)
-				}
-				if resp != nil && resp.StatusCode != http.StatusCreated {
-					return errors.New(fmt.Sprintf("Upload failed with an error: '%v'", body))
-				}
-
-				// Process the JSON format response data
-				parsedResponse := map[string]string{}
-				err = json.Unmarshal([]byte(body), &parsedResponse)
+				err = sendCommit(meta, db, dbURL, newCommit)
 				if err != nil {
-					fmt.Printf("Error parsing server response: '%v'", err.Error())
 					return err
-				}
-
-				// Check that the ID for the new commit as generated by the server matches the ID generated locally
-				remoteCommitID, ok := parsedResponse["commit_id"]
-				if !ok {
-					return errors.New("Unexpected response from server, doesn't contain new commit ID.")
-				}
-				if remoteCommitID != newCommit {
-					return fmt.Errorf("Error.  The Commit ID generated on the server (%s) doesn't match the "+
-						"local Commit ID (%s)", remoteCommitID, newCommit)
 				}
 
 				// Count the number of commits in the new fork
@@ -338,7 +283,7 @@ var pushCmd = &cobra.Command{
 			}
 
 			// Display useful info message to the user
-			numCommits := len(pushCommits) + isFork
+			numCommits := len(pushCommits) + extraCtr
 			if numCommits == 1 {
 				fmt.Printf("Pushing 1 commit for branch '%s'", pushCmdBranch)
 			} else {
@@ -346,75 +291,13 @@ var pushCmd = &cobra.Command{
 			}
 			fmt.Printf(" to %s...\n", cloud)
 
-			// Send the commits
+			// Send the commits to the cloud
 			for _, commitID := range pushCommits {
-				commitData, ok := meta.Commits[commitID]
-				if !ok {
-					return fmt.Errorf("Something went wrong.  Could not retrieve data for commit '%s' from"+
-						"local metadata commit list.", commitID)
-				}
-
-				fmt.Printf("  * %s\n", commitID)
-				shaSum := commitData.Tree.Entries[0].Sha256
-				var otherParents string
-				for i, j := range commitData.OtherParents {
-					if i != 1 {
-						otherParents += ","
-					}
-					otherParents += j
-				}
-				req := rq.New().TLSClientConfig(&TLSConfig).Post(dbURL).
-					Type("multipart").
-					Query(fmt.Sprintf("branch=%s", url.QueryEscape(pushCmdBranch))).
-					Query(fmt.Sprintf("commitmsg=%s", url.QueryEscape(commitData.Message))).
-					Query(fmt.Sprintf("lastmodified=%s",
-						url.QueryEscape(commitData.Tree.Entries[0].LastModified.Format(time.RFC3339)))).
-					Query(fmt.Sprintf("commit=%s", commitData.Parent)).
-					Query(fmt.Sprintf("authoremail=%s", url.QueryEscape(commitData.AuthorEmail))).
-					Query(fmt.Sprintf("authorname=%s", url.QueryEscape(commitData.AuthorName))).
-					Query(fmt.Sprintf("committeremail=%s", url.QueryEscape(commitData.CommitterEmail))).
-					Query(fmt.Sprintf("committername=%s", url.QueryEscape(commitData.CommitterName))).
-					Query(fmt.Sprintf("commitlastmodified=%s",
-						url.QueryEscape(commitData.Timestamp.Format(time.RFC3339)))).
-					Query(fmt.Sprintf("otherparents=%s", url.QueryEscape(otherParents))).
-					Query(fmt.Sprintf("dbshasum=%s", url.QueryEscape(shaSum))).
-					//Query(fmt.Sprintf("public=%v", pushCmdPublic)).
-					//Query(fmt.Sprintf("force=%v", pushCmdForce)).
-					SendFile(filepath.Join(".dio", db, "db", shaSum), db, "file1")
-				if pushCmdLicence != "" {
-					req.Query(fmt.Sprintf("licence=%s", url.QueryEscape(pushCmdLicence)))
-				}
-				resp, body, errs := req.End()
-				if errs != nil {
-					e := fmt.Sprintln("Errors when uploading database to the cloud:")
-					for _, err := range errs {
-						e = err.Error()
-					}
-					return errors.New(e)
-				}
-				if resp != nil && resp.StatusCode != http.StatusCreated {
-					return errors.New(fmt.Sprintf("Upload failed with an error: '%v'", body))
-				}
-
-				// Process the JSON format response data
-				parsedResponse := map[string]string{}
-				err = json.Unmarshal([]byte(body), &parsedResponse)
+				err = sendCommit(meta, db, dbURL, commitID)
 				if err != nil {
-					fmt.Printf("Error parsing server response: '%v'", err.Error())
 					return err
 				}
-
-				// Check that the ID for the new commit as generated by the server matches the ID generated locally
-				remoteCommitID, ok := parsedResponse["commit_id"]
-				if !ok {
-					return errors.New("Unexpected response from server, doesn't contain new commit ID.")
-				}
-				if remoteCommitID != commitID {
-					return fmt.Errorf("Error.  The Commit ID generated on the server (%s) doesn't match the "+
-						"local Commit ID (%s)", remoteCommitID, commitID)
-				}
 			}
-
 			fmt.Println("All commits pushed.")
 			return nil
 		}
@@ -489,4 +372,72 @@ func init() {
 	pushCmd.Flags().StringVar(&pushCmdMsg, "message", "",
 		"(Required) Commit message for this upload")
 	pushCmd.Flags().BoolVar(&pushCmdPublic, "public", false, "Should the database be public?")
+}
+
+// Sends a commit to the cloud
+func sendCommit(meta metaData, db string, dbURL string, newCommit string) (err error) {
+	commitData, ok := meta.Commits[newCommit]
+	if !ok {
+		return fmt.Errorf("Something went wrong.  Could not retrieve data for commit '%s' from"+
+			"local metadata commit list.", newCommit)
+	}
+	shaSum := commitData.Tree.Entries[0].Sha256
+	var otherParents string
+	for i, j := range commitData.OtherParents {
+		if i != 1 {
+			otherParents += ","
+		}
+		otherParents += j
+	}
+
+	// Push the first commit to the remote cloud, to create the database there
+	req := rq.New().TLSClientConfig(&TLSConfig).Post(dbURL).
+		Type("multipart").
+		Query(fmt.Sprintf("branch=%s", url.QueryEscape(pushCmdBranch))).
+		Query(fmt.Sprintf("commitmsg=%s", url.QueryEscape(commitData.Message))).
+		Query(fmt.Sprintf("lastmodified=%s",
+			url.QueryEscape(commitData.Tree.Entries[0].LastModified.Format(time.RFC3339)))).
+		Query(fmt.Sprintf("commit=%s", commitData.Parent)).
+		Query(fmt.Sprintf("authoremail=%s", url.QueryEscape(commitData.AuthorEmail))).
+		Query(fmt.Sprintf("authorname=%s", url.QueryEscape(commitData.AuthorName))).
+		Query(fmt.Sprintf("committeremail=%s", url.QueryEscape(commitData.CommitterEmail))).
+		Query(fmt.Sprintf("committername=%s", url.QueryEscape(commitData.CommitterName))).
+		Query(fmt.Sprintf("commitlastmodified=%s",
+			url.QueryEscape(commitData.Timestamp.Format(time.RFC3339)))).
+		Query(fmt.Sprintf("otherparents=%s", url.QueryEscape(otherParents))).
+		Query(fmt.Sprintf("dbshasum=%s", url.QueryEscape(shaSum))).
+		SendFile(filepath.Join(".dio", db, "db", shaSum), db, "file1")
+	if pushCmdLicence != "" {
+		req.Query(fmt.Sprintf("licence=%s", url.QueryEscape(pushCmdLicence)))
+	}
+	resp, body, errs := req.End()
+	if errs != nil {
+		e := fmt.Sprintln("Errors when uploading database to the cloud:")
+		for _, err := range errs {
+			e = err.Error()
+		}
+		return errors.New(e)
+	}
+	if resp != nil && resp.StatusCode != http.StatusCreated {
+		return errors.New(fmt.Sprintf("Upload failed with an error: '%v'", body))
+	}
+
+	// Process the JSON format response data
+	parsedResponse := map[string]string{}
+	err = json.Unmarshal([]byte(body), &parsedResponse)
+	if err != nil {
+		fmt.Printf("Error parsing server response: '%v'", err.Error())
+		return err
+	}
+
+	// Check that the ID for the new commit as generated by the server matches the ID generated locally
+	remoteCommitID, ok := parsedResponse["commit_id"]
+	if !ok {
+		return errors.New("Unexpected response from server, doesn't contain new commit ID.")
+	}
+	if remoteCommitID != newCommit {
+		return fmt.Errorf("Error.  The Commit ID generated on the server (%s) doesn't match the "+
+			"local Commit ID (%s)", remoteCommitID, newCommit)
+	}
+	return
 }
