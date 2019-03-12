@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -125,6 +128,27 @@ var pushCmd = &cobra.Command{
 				if err != nil {
 					return err
 				}
+
+				// If there was only a single commit to push, there's nothing more to do
+				if len(localCommitList) == 1 {
+					fmt.Printf("Database uploaded to %s\n\n", cloud)
+					fmt.Printf("  * Name: %s\n", pushCmdDB)
+					fmt.Printf("    Branch: %s\n", pushCmdBranch)
+					if pushCmdLicence != "" {
+						fmt.Printf("    Licence: %s\n", pushCmdLicence)
+					}
+					_, err = numFormat.Printf("    Size: %d bytes\n", fi.Size())
+					if err != nil {
+						fmt.Println(err)
+					}
+					if pushCmdMsg != "" {
+						fmt.Printf("    Commit message: %s\n", pushCmdMsg)
+					}
+					fmt.Println()
+					return nil
+				}
+
+				// Let the user know the remote database has been created
 				fmt.Printf("Created new database '%s' on %s\n", db, cloud)
 
 				// Fetch the remote metadata, now that the database exists remotely.  This lets us use the existing
@@ -305,6 +329,12 @@ var pushCmd = &cobra.Command{
 		// To get here, the database doesn't already exist on DBHub.io, and we don't have existing metadata.
 		// We just use the original file upload code, which creates the database remotely and creates the local
 		// metadata.
+		b, err := ioutil.ReadFile(db)
+		if err != nil {
+			return err
+		}
+		s := sha256.Sum256(b)
+		shaSum := hex.EncodeToString(s[:])
 		req := rq.New().TLSClientConfig(&TLSConfig).Post(dbURL).
 			Type("multipart").
 			Query(fmt.Sprintf("branch=%s", url.QueryEscape(pushCmdBranch))).
@@ -313,11 +343,12 @@ var pushCmd = &cobra.Command{
 			Query(fmt.Sprintf("commit=%s", pushCmdCommit)).
 			Query(fmt.Sprintf("public=%v", pushCmdPublic)).
 			Query(fmt.Sprintf("force=%v", pushCmdForce)).
+			Query(fmt.Sprintf("dbshasum=%s", url.QueryEscape(shaSum))).
 			SendFile(db, "", "file1")
 		if pushCmdLicence != "" {
 			req.Query(fmt.Sprintf("licence=%s", url.QueryEscape(pushCmdLicence)))
 		}
-		resp, body, errs := req.End()
+		resp, _, errs := req.End()
 		if errs != nil {
 			log.Print("Errors when uploading database to the cloud:")
 			for _, err := range errs {
@@ -330,17 +361,29 @@ var pushCmd = &cobra.Command{
 				resp.StatusCode, resp.Status))
 		}
 
-		// Process the JSON format response data
-		parsedResponse := map[string]string{}
-		err = json.Unmarshal([]byte(body), &parsedResponse)
+		// Retrieve updated metadata
+		var tmp string
+		tmp, _, err = retrieveMetadata(db)
 		if err != nil {
-			fmt.Printf("Error parsing server response: '%v'\n", err.Error())
 			return err
+		}
+		err = json.Unmarshal([]byte(tmp), &meta)
+		if err != nil {
+			return err
+		}
+		meta.ActiveBranch = meta.DefBranch
+		if pushCmdBranch == "" {
+			pushCmdBranch = meta.ActiveBranch
 		}
 
 		// Save the updated metadata back to disk
-		// TODO: Make sure this sets the active branch correctly?
 		err = saveMetadata(db, meta)
+		if err != nil {
+			return err
+		}
+
+		// If the database isn't in the local metadata cache, then copy it there
+		err = ioutil.WriteFile(filepath.Join(".dio", db, "db", shaSum), b, 0644)
 		if err != nil {
 			return err
 		}
@@ -351,8 +394,14 @@ var pushCmd = &cobra.Command{
 		if pushCmdLicence != "" {
 			fmt.Printf("    Licence: %s\n", pushCmdLicence)
 		}
-		fmt.Printf("    Size: %d bytes\n", fi.Size())
-		fmt.Printf("    Commit message: %s\n\n", pushCmdMsg)
+		_, err = numFormat.Printf("    Size: %d bytes\n", fi.Size())
+		if err != nil {
+			fmt.Println(err)
+		}
+		if pushCmdMsg != "" {
+			fmt.Printf("    Commit message: %s\n", pushCmdMsg)
+		}
+		fmt.Println()
 		return nil
 	},
 }
