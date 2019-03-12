@@ -124,7 +124,7 @@ var pushCmd = &cobra.Command{
 				// The database only exists locally, so we create use the first commit to create the remote database,
 				// then loop around pushing the remaining commits
 				newCommit := meta.Commits[localCommitList[len(localCommitList)-1]].ID
-				err = sendCommit(meta, db, dbURL, newCommit)
+				err = sendCommit(meta, db, dbURL, newCommit, pushCmdPublic)
 				if err != nil {
 					return err
 				}
@@ -209,7 +209,7 @@ var pushCmd = &cobra.Command{
 
 				// Create the new (forked) branch on DBHub.io
 				newCommit := localCommitList[localCommitLength-baseBranchCounter]
-				err = sendCommit(meta, db, dbURL, newCommit)
+				err = sendCommit(meta, db, dbURL, newCommit, pushCmdPublic)
 				if err != nil {
 					return err
 				}
@@ -317,7 +317,7 @@ var pushCmd = &cobra.Command{
 
 			// Send the commits to the cloud
 			for _, commitID := range pushCommits {
-				err = sendCommit(meta, db, dbURL, commitID)
+				err = sendCommit(meta, db, dbURL, commitID, pushCmdPublic)
 				if err != nil {
 					return err
 				}
@@ -337,13 +337,15 @@ var pushCmd = &cobra.Command{
 		shaSum := hex.EncodeToString(s[:])
 		req := rq.New().TLSClientConfig(&TLSConfig).Post(dbURL).
 			Type("multipart").
+			Query(fmt.Sprintf("authoremail=%s", url.QueryEscape(pushEmail))).
+			Query(fmt.Sprintf("authorname=%s", url.QueryEscape(pushAuthor))).
 			Query(fmt.Sprintf("branch=%s", url.QueryEscape(pushCmdBranch))).
-			Query(fmt.Sprintf("commitmsg=%s", url.QueryEscape(pushCmdMsg))).
-			Query(fmt.Sprintf("lastmodified=%s", url.QueryEscape(fi.ModTime().Format(time.RFC3339)))).
 			Query(fmt.Sprintf("commit=%s", pushCmdCommit)).
-			Query(fmt.Sprintf("public=%v", pushCmdPublic)).
-			Query(fmt.Sprintf("force=%v", pushCmdForce)).
+			Query(fmt.Sprintf("commitmsg=%s", url.QueryEscape(pushCmdMsg))).
 			Query(fmt.Sprintf("dbshasum=%s", url.QueryEscape(shaSum))).
+			Query(fmt.Sprintf("force=%v", pushCmdForce)).
+			Query(fmt.Sprintf("lastmodified=%s", url.QueryEscape(fi.ModTime().Format(time.RFC3339)))).
+			Query(fmt.Sprintf("public=%v", pushCmdPublic)).
 			SendFile(db, "", "file1")
 		if pushCmdLicence != "" {
 			req.Query(fmt.Sprintf("licence=%s", url.QueryEscape(pushCmdLicence)))
@@ -408,13 +410,13 @@ var pushCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(pushCmd)
-	//pushCmd.Flags().StringVar(&pushCmdName, "author", "", "Author name")
+	pushCmd.Flags().StringVar(&pushCmdName, "author", "", "Author name")
 	pushCmd.Flags().StringVar(&pushCmdBranch, "branch", "",
 		"Remote branch the database will be uploaded to")
 	pushCmd.Flags().StringVar(&pushCmdCommit, "commit", "",
 		"ID of the previous commit, for appending this new database to")
 	pushCmd.Flags().StringVar(&pushCmdDB, "dbname", "", "Override for the database name")
-	//pushCmd.Flags().StringVar(&pushCmdEmail, "email", "", "Email address of the author")
+	pushCmd.Flags().StringVar(&pushCmdEmail, "email", "", "Email address of the author")
 	pushCmd.Flags().BoolVar(&pushCmdForce, "force", false, "Overwrite existing commit history?")
 	pushCmd.Flags().StringVar(&pushCmdLicence, "licence", "",
 		"The licence (ID) for the database, as per 'dio licence list'")
@@ -424,7 +426,7 @@ func init() {
 }
 
 // Sends a commit to the cloud
-func sendCommit(meta metaData, db string, dbURL string, newCommit string) (err error) {
+func sendCommit(meta metaData, db string, dbURL string, newCommit string, public bool) (err error) {
 	commitData, ok := meta.Commits[newCommit]
 	if !ok {
 		return fmt.Errorf("Something went wrong.  Could not retrieve data for commit '%s' from"+
