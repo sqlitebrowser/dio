@@ -144,7 +144,7 @@ func dbChanged(db string, meta metaData) (changed bool, err error) {
 }
 
 // Retrieves the list of databases available to the user
-func getDatabases(url string, user string) (dbList []dbListEntry, err error) {
+var getDatabases = func(url string, user string) (dbList []dbListEntry, err error) {
 	resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(fmt.Sprintf("%s/%s", url, user)).End()
 	if errs != nil {
 		e := fmt.Sprintln("Errors when retrieving the database list:")
@@ -163,7 +163,7 @@ func getDatabases(url string, user string) (dbList []dbListEntry, err error) {
 }
 
 // Returns a map with the list of licences available on the remote server
-func getLicences() (list map[string]licenceEntry, err error) {
+var getLicences = func() (list map[string]licenceEntry, err error) {
 	// Retrieve the database list from the cloud
 	resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/licence/list").End()
 	if errs != nil {

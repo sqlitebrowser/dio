@@ -37,6 +37,22 @@
   version = "v1.0"
 
 [[projects]]
+  digest = "1:ca955a9cd5b50b0f43d2cc3aeb35c951473eeca41b34eb67507f1dbcc0542394"
+  name = "github.com/kr/pretty"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "73f6ac0b30a98e433b289500d779f50c1a6f0712"
+  version = "v0.1.0"
+
+[[projects]]
+  digest = "1:15b5cc79aad436d47019f814fde81a10221c740dc8ddf769221a65097fb6c2e9"
+  name = "github.com/kr/text"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e2ffdb16a802fe2bb95e2e35ff34f0e53aeef34f"
+  version = "v0.1.0"
+
+[[projects]]
   digest = "1:c568d7727aa262c32bdf8a3f7db83614f7af0ed661474b24588de635c20024c7"
   name = "github.com/magiconair/properties"
   packages = ["."]
@@ -194,6 +210,14 @@
   version = "v0.3.0"
 
 [[projects]]
+  branch = "v1"
+  digest = "1:af715ae33cc1f5695c4b2a4e4b21d008add8802a99e15bb467ac7c32edb5000d"
+  name = "gopkg.in/check.v1"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "788fd78401277ebd861206a03c884797c6ec5541"
+
+[[projects]]
   digest = "1:4d2e5a73dc1500038e504a8d78b986630e3626dc027bc030ba5c75da257cdb96"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
@@ -211,6 +235,7 @@
     "github.com/spf13/cobra",
     "github.com/spf13/viper",
     "golang.org/x/text/message",
+    "gopkg.in/check.v1",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
