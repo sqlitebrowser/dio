@@ -459,9 +459,10 @@ func (s *DioSuite) Test0120_BranchUpdateDelDesc(c *chk.C) {
 
 func (s *DioSuite) Test0130_TagCreate(c *chk.C) {
 	// Check the tag to be created doesn't yet exist
+	tagCreateTag = "testtag1"
 	meta, err := localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
-	tg, ok := meta.Tags["testtag1"]
+	tg, ok := meta.Tags[tagCreateTag]
 	c.Assert(ok, chk.Equals, false)
 
 	// Create the tag
@@ -470,14 +471,13 @@ func (s *DioSuite) Test0130_TagCreate(c *chk.C) {
 	tagCreateEmail = "sometagger@example.org"
 	tagCreateMsg = "This is a test tag"
 	tagCreateName = "A test tagger"
-	tagCreateTag = "testtag1"
 	err = tagCreate([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
 
 	// Check the tag was created
 	meta, err = localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
-	tg, ok = meta.Tags["testtag1"]
+	tg, ok = meta.Tags[tagCreateTag]
 	c.Assert(ok, chk.Equals, true)
 	c.Check(tg.Commit, chk.Equals, tagCreateCommit)
 	c.Check(tg.Date, chk.Equals, time.Date(2019, time.March, 15, 18, 1, 5, 0, time.UTC))
@@ -487,6 +487,27 @@ func (s *DioSuite) Test0130_TagCreate(c *chk.C) {
 
 	// Verify the output given to the user
 	c.Check(strings.TrimSpace(s.buf.String()), chk.Equals, "Tag creation succeeded")
+}
+
+func (s *DioSuite) Test0140_TagList(c *chk.C) {
+	// Retrieve the tag list
+	err := tagList([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// The tag created by the previous test should be listed
+	lines := bufio.NewScanner(&s.buf)
+	var tagFound bool
+	for lines.Scan() {
+		l := strings.TrimSpace(lines.Text())
+		if strings.HasPrefix(l, "*") {
+			p := strings.Split(lines.Text(), "'")
+			if len(p) > 2 && p[1] == tagCreateTag {
+				c.Check(p, chk.HasLen, 3)
+				tagFound = true
+			}
+		}
+	}
+	c.Check(tagFound, chk.Equals, true)
 }
 
 // Mocked functions
