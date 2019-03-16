@@ -510,6 +510,29 @@ func (s *DioSuite) Test0140_TagList(c *chk.C) {
 	c.Check(tagFound, chk.Equals, true)
 }
 
+func (s *DioSuite) Test0150_TagRemove(c *chk.C) {
+	// Verify that (prior to the tag remove) the tag exists
+	meta, err := localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	_, ok := meta.Tags[tagCreateTag]
+	c.Assert(ok, chk.Equals, true)
+
+	// Remove the tag
+	tagRemoveTag = tagCreateTag
+	err = tagRemove([]string{s.dbName})
+	c.Check(err, chk.IsNil)
+
+	// Verify the tag has been removed
+	meta, err = localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	_, ok = meta.Tags[tagCreateTag]
+	c.Check(ok, chk.Equals, false)
+
+	// Verify the output given to the user
+	p := strings.Split(s.buf.String(), "'")
+	c.Check(strings.TrimSpace(p[1]), chk.Equals, tagCreateTag)
+}
+
 // Mocked functions
 func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error) {
 	dbList = append(dbList, dbListEntry{
