@@ -382,6 +382,35 @@ func (s *DioSuite) Test0090_BranchRemoveSuccess(c *chk.C) {
 	c.Check(strings.TrimSpace(p[1]), chk.Equals, branchRemoveBranch)
 }
 
+func (s *DioSuite) Test0100_BranchRevert(c *chk.C) {
+	// Verify that (prior to the revert) the master branch still points to the 2nd commit
+	meta, err := localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	br, ok := meta.Branches["master"]
+	c.Assert(ok, chk.Equals, true)
+	c.Check(br.Commit, chk.Equals, "09d05ae9a69e82be44f61ac22cb7e3fcd15a0783973c283fd723e3228bd6c9da")
+	c.Check(br.CommitCount, chk.Equals, 2)
+	c.Check(br.Description, chk.Equals, "")
+
+	// Revert the master branch back to the original commit
+	branchRevertBranch = "master"
+	branchRevertCommit = "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"
+	err = branchRevert([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the master branch now points to the original commit
+	meta, err = localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	br, ok = meta.Branches["master"]
+	c.Assert(ok, chk.Equals, true)
+	c.Check(br.Commit, chk.Equals, "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889")
+	c.Check(br.CommitCount, chk.Equals, 1)
+	c.Check(br.Description, chk.Equals, "")
+
+	// Verify the output given to the user
+	c.Check(strings.TrimSpace(s.buf.String()), chk.Equals, "Branch reverted")
+}
+
 // Mocked functions
 func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error) {
 	dbList = append(dbList, dbListEntry{
