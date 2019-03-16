@@ -457,6 +457,38 @@ func (s *DioSuite) Test0120_BranchUpdateDelDesc(c *chk.C) {
 	c.Check(strings.TrimSpace(s.buf.String()), chk.Equals, "Branch updated")
 }
 
+func (s *DioSuite) Test0130_TagCreate(c *chk.C) {
+	// Check the tag to be created doesn't yet exist
+	meta, err := localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	tg, ok := meta.Tags["testtag1"]
+	c.Assert(ok, chk.Equals, false)
+
+	// Create the tag
+	tagCreateCommit = "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"
+	tagCreateDate = "2019-03-15T18:01:05Z"
+	tagCreateEmail = "sometagger@example.org"
+	tagCreateMsg = "This is a test tag"
+	tagCreateName = "A test tagger"
+	tagCreateTag = "testtag1"
+	err = tagCreate([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Check the tag was created
+	meta, err = localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	tg, ok = meta.Tags["testtag1"]
+	c.Assert(ok, chk.Equals, true)
+	c.Check(tg.Commit, chk.Equals, tagCreateCommit)
+	c.Check(tg.Date, chk.Equals, time.Date(2019, time.March, 15, 18, 1, 5, 0, time.UTC))
+	c.Check(tg.Description, chk.Equals, tagCreateMsg)
+	c.Check(tg.TaggerName, chk.Equals, tagCreateName)
+	c.Check(tg.TaggerEmail, chk.Equals, tagCreateEmail)
+
+	// Verify the output given to the user
+	c.Check(strings.TrimSpace(s.buf.String()), chk.Equals, "Tag creation succeeded")
+}
+
 // Mocked functions
 func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error) {
 	dbList = append(dbList, dbListEntry{

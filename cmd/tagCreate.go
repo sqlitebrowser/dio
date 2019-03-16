@@ -19,82 +19,7 @@ var tagCreateCmd = &cobra.Command{
 	Use:   "create [database name] --tag xxx --commit yyy",
 	Short: "Create a tag for a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Ensure a database file was given
-		if len(args) == 0 {
-			return errors.New("No database file specified")
-		}
-		// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
-		// TODO  into a for loop
-		if len(args) > 1 {
-			return errors.New("Only one database can be changed at a time (for now)")
-		}
-
-		// Ensure a new tag name and commit ID were given
-		if tagCreateTag == "" {
-			return errors.New("No tag name given")
-		}
-		if tagCreateCommit == "" {
-			return errors.New("No commit ID given")
-		}
-
-		// Make sure we have the email and name of the tag creator.  Either by loading it from the config file, or
-		// getting it from the command line arguments
-		if tagCreateEmail == "" {
-			if viper.IsSet("user.email") == false {
-				return errors.New("No email address provided")
-			}
-			tagCreateEmail = viper.GetString("user.email")
-		}
-
-		if tagCreateName == "" {
-			if viper.IsSet("user.name") == false {
-				return errors.New("No name provided")
-			}
-			tagCreateName = viper.GetString("user.name")
-		}
-
-		// If a date was given, parse it to ensure the format is correct.  Warn the user if it isn't,
-		tagTimeStamp := time.Now()
-		var err error
-		if tagCreateDate != "" {
-			tagTimeStamp, err = time.Parse(time.RFC3339, tagCreateDate)
-			if err != nil {
-				return err
-			}
-		}
-
-		// Load the metadata
-		db := args[0]
-		meta, err := loadMetadata(db)
-		if err != nil {
-			return err
-		}
-
-		// Ensure a tag with the same name doesn't already exist
-		if _, ok := meta.Tags[tagCreateTag]; ok == true {
-			return errors.New("A tag with that name already exists")
-		}
-
-		// Generate the new tag info locally
-		newTag := tagEntry{
-			Commit:      tagCreateCommit,
-			Date:        tagTimeStamp,
-			Description: tagCreateMsg,
-			TaggerEmail: tagCreateEmail,
-			TaggerName:  tagCreateName,
-		}
-
-		// Add the new tag to the local metadata cache
-		meta.Tags[tagCreateTag] = newTag
-
-		// Save the updated metadata back to disk
-		err = saveMetadata(db, meta)
-		if err != nil {
-			return err
-		}
-
-		fmt.Println("Tag creation succeeded")
-		return nil
+		return tagCreate(args)
 	},
 }
 
@@ -106,4 +31,81 @@ func init() {
 	tagCreateCmd.Flags().StringVar(&tagCreateMsg, "message", "", "Description / message for the tag")
 	tagCreateCmd.Flags().StringVar(&tagCreateName, "name", "", "Name of tagger")
 	tagCreateCmd.Flags().StringVar(&tagCreateTag, "tag", "", "Name of tag to create")
+}
+
+func tagCreate(args []string) error {
+	// Ensure a database file was given
+	if len(args) == 0 {
+		return errors.New("No database file specified")
+	}
+	if len(args) > 1 {
+		return errors.New("Only one database can be changed at a time (for now)")
+	}
+
+	// Ensure a new tag name and commit ID were given
+	if tagCreateTag == "" {
+		return errors.New("No tag name given")
+	}
+	if tagCreateCommit == "" {
+		return errors.New("No commit ID given")
+	}
+
+	// Make sure we have the email and name of the tag creator.  Either by loading it from the config file, or
+	// getting it from the command line arguments
+	if tagCreateEmail == "" {
+		if viper.IsSet("user.email") == false {
+			return errors.New("No email address provided")
+		}
+		tagCreateEmail = viper.GetString("user.email")
+	}
+
+	if tagCreateName == "" {
+		if viper.IsSet("user.name") == false {
+			return errors.New("No name provided")
+		}
+		tagCreateName = viper.GetString("user.name")
+	}
+
+	// If a date was given, parse it to ensure the format is correct.  Warn the user if it isn't,
+	tagTimeStamp := time.Now()
+	var err error
+	if tagCreateDate != "" {
+		tagTimeStamp, err = time.Parse(time.RFC3339, tagCreateDate)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Load the metadata
+	db := args[0]
+	meta, err := loadMetadata(db)
+	if err != nil {
+		return err
+	}
+
+	// Ensure a tag with the same name doesn't already exist
+	if _, ok := meta.Tags[tagCreateTag]; ok == true {
+		return errors.New("A tag with that name already exists")
+	}
+
+	// Generate the new tag info locally
+	newTag := tagEntry{
+		Commit:      tagCreateCommit,
+		Date:        tagTimeStamp,
+		Description: tagCreateMsg,
+		TaggerEmail: tagCreateEmail,
+		TaggerName:  tagCreateName,
+	}
+
+	// Add the new tag to the local metadata cache
+	meta.Tags[tagCreateTag] = newTag
+
+	// Save the updated metadata back to disk
+	err = saveMetadata(db, meta)
+	if err != nil {
+		return err
+	}
+
+	_, err = fmt.Fprintln(fOut, "Tag creation succeeded")
+	return err
 }
