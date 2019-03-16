@@ -317,11 +317,11 @@ func (s *DioSuite) Test0060BranchList(c *chk.C) {
 	for lines.Scan() {
 		p := strings.Split(lines.Text(), "'")
 		if len(p) > 2 && p[1] == "master" {
-			c.Assert(p, chk.HasLen, 3)
+			c.Check(p, chk.HasLen, 3)
 			masterFound = true
 		}
 		if len(p) > 2 && p[1] == "branchtwo" {
-			c.Assert(p, chk.HasLen, 3)
+			c.Check(p, chk.HasLen, 3)
 			branchTwoFound = true
 		}
 	}
