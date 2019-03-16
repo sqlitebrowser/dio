@@ -114,7 +114,7 @@ func (s *DioSuite) TearDownTest(c *chk.C) {
 }
 
 // Test the "dio commit" command
-func (s *DioSuite) Test0010Commit(c *chk.C) {
+func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	// Set up the replacement functions
 	getDatabases = mockGetDatabases
 	getLicences = mockGetLicences
@@ -186,7 +186,7 @@ func (s *DioSuite) Test0010Commit(c *chk.C) {
 	c.Check(br.Description, chk.Equals, "")
 }
 
-func (s *DioSuite) Test0020Commit2(c *chk.C) {
+func (s *DioSuite) Test0020_Commit2(c *chk.C) {
 	// Change the last modified date on the database file
 	err := os.Chtimes(s.dbFile, time.Now(), time.Date(2019, time.March, 15, 18, 1, 2, 0, time.UTC))
 	if err != nil {
@@ -256,7 +256,7 @@ func (s *DioSuite) Test0020Commit2(c *chk.C) {
 }
 
 // Test the "dio branch" commands
-func (s *DioSuite) Test0030BranchActiveGet(c *chk.C) {
+func (s *DioSuite) Test0030_BranchActiveGet(c *chk.C) {
 	// Query the active branch
 	err := branchActiveGet([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
@@ -267,7 +267,7 @@ func (s *DioSuite) Test0030BranchActiveGet(c *chk.C) {
 	c.Check(strings.TrimSpace(p[1]), chk.Equals, "master")
 }
 
-func (s *DioSuite) Test0040BranchCreate(c *chk.C) {
+func (s *DioSuite) Test0040_BranchCreate(c *chk.C) {
 	// Create a new branch
 	branchCreateBranch = "branchtwo"
 	branchCreateCommit = "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"
@@ -290,8 +290,8 @@ func (s *DioSuite) Test0040BranchCreate(c *chk.C) {
 	c.Check(strings.TrimSpace(p[1]), chk.Equals, branchCreateBranch)
 }
 
-func (s *DioSuite) Test0050BranchSet(c *chk.C) {
-	// Create a new branch
+func (s *DioSuite) Test0050_BranchSetBranchTwo(c *chk.C) {
+	// Switch to the new branch
 	branchActiveSetBranch = "branchtwo"
 	err := branchActiveSet([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
@@ -303,10 +303,10 @@ func (s *DioSuite) Test0050BranchSet(c *chk.C) {
 
 	// Verify the output given to the user
 	p := strings.Split(s.buf.String(), "'")
-	c.Check(strings.TrimSpace(p[1]), chk.Equals, branchCreateBranch)
+	c.Check(strings.TrimSpace(p[1]), chk.Equals, branchActiveSetBranch)
 }
 
-func (s *DioSuite) Test0060BranchList(c *chk.C) {
+func (s *DioSuite) Test0060_BranchList(c *chk.C) {
 	// Create a new branch
 	err := branchList([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
@@ -327,6 +327,59 @@ func (s *DioSuite) Test0060BranchList(c *chk.C) {
 	}
 	c.Check(masterFound, chk.Equals, true)
 	c.Check(branchTwoFound, chk.Equals, true)
+}
+
+func (s *DioSuite) Test0070_BranchRemoveFail(c *chk.C) {
+	// Attempt to remove the branch (should fail)
+	branchRemoveBranch = "branchtwo"
+	err := branchRemove([]string{s.dbName})
+	c.Assert(err, chk.Not(chk.IsNil))
+
+	// Make sure both the "master" and "branchtwo" branches are still present on disk
+	meta, err := localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	_, ok := meta.Branches["master"]
+	c.Assert(ok, chk.Equals, true)
+	_, ok = meta.Branches["branchtwo"]
+	c.Assert(ok, chk.Equals, true)
+
+	// TODO: When the display of error messages to the user is a bit better finalised,
+	//       add a check of the output here
+}
+
+func (s *DioSuite) Test0080_BranchSetMaster(c *chk.C) {
+	// Switch to the master branch
+	branchActiveSetBranch = "master"
+	err := branchActiveSet([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the active branch was changed in the on disk metadata
+	meta, err := localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	c.Check(meta.ActiveBranch, chk.Equals, branchActiveSetBranch)
+
+	// Verify the output given to the user
+	p := strings.Split(s.buf.String(), "'")
+	c.Check(strings.TrimSpace(p[1]), chk.Equals, branchActiveSetBranch)
+}
+
+func (s *DioSuite) Test0090_BranchRemoveSuccess(c *chk.C) {
+	// Attempt to remove the branch (should succeed)
+	branchRemoveBranch = "branchtwo"
+	err := branchRemove([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Make sure the "master" branch is still present on disk, but "branchtwo" isn't
+	meta, err := localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	_, ok := meta.Branches["master"]
+	c.Assert(ok, chk.Equals, true)
+	_, ok = meta.Branches["branchtwo"]
+	c.Assert(ok, chk.Equals, false)
+
+	// Verify the output given to the user
+	p := strings.Split(s.buf.String(), "'")
+	c.Check(strings.TrimSpace(p[1]), chk.Equals, branchRemoveBranch)
 }
 
 // Mocked functions
