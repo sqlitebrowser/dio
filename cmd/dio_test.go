@@ -15,6 +15,8 @@ import (
 
 type DioSuite struct {
 	config string
+	dbFile string
+	dbName string
 	dir    string
 }
 
@@ -62,22 +64,19 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 	cfgFile = s.config
 
 	// Add test database
+	s.dbName = "19kB.sqlite"
 	db, err := ioutil.ReadFile(filepath.Join(d, "..", "test_data", "19kB.sqlite"))
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
-	dbFile := filepath.Join(s.dir, "19kB.sqlite")
-	err = ioutil.WriteFile(dbFile, db, 0644)
+	s.dbFile = filepath.Join(s.dir, s.dbName)
+	err = ioutil.WriteFile(s.dbFile, db, 0644)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
 
 	// Set the last modified date of the database file to a known value
-	lastMod := time.Date(2019, time.March, 15, 18, 1, 0, 0, time.UTC)
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
-	err = os.Chtimes(dbFile, time.Now(), lastMod)
+	err = os.Chtimes(s.dbFile, time.Now(), time.Date(2019, time.March, 15, 18, 1, 0, 0, time.UTC))
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
@@ -120,8 +119,7 @@ func (s *DioSuite) TestCommit(c *chk.C) {
 	commitCmdMsg = "The first commit in our test run"
 	commitCmdAuthName = "Default test user"
 	commitCmdTimestamp = "2019-03-15T18:01:01Z"
-	dbName := "19kB.sqlite"
-	err = commit([]string{dbName})
+	err = commit([]string{s.dbName})
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
@@ -131,7 +129,7 @@ func (s *DioSuite) TestCommit(c *chk.C) {
 
 	// Check if the metadata file exists on disk
 	var meta metaData
-	meta, err = localFetchMetadata(dbName, false)
+	meta, err = localFetchMetadata(s.dbName, false)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
@@ -156,7 +154,7 @@ func (s *DioSuite) TestCommit(c *chk.C) {
 	c.Check(com.Tree.Entries[0].LicenceSHA, chk.Equals, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") // e3b... is the SHA256 for the "Not specified" licence option
 	c.Check(com.Tree.Entries[0].Sha256, chk.Equals, dbShaSum)
 	c.Check(com.Tree.Entries[0].Size, chk.Equals, 19456)
-	c.Check(com.Tree.Entries[0].Name, chk.Equals, dbName)
+	c.Check(com.Tree.Entries[0].Name, chk.Equals, s.dbName)
 
 	// Verify the branch info
 	br, ok := meta.Branches["master"]
@@ -167,7 +165,67 @@ func (s *DioSuite) TestCommit(c *chk.C) {
 
 	// Check the database has been written to the cache area using its checksum as filename
 	// TODO: Should we read in the db file to calculate its sha256, and do the same for the cached one?
-	_, err = os.Stat(filepath.Join(".dio", dbName, "db", dbShaSum))
+	_, err = os.Stat(filepath.Join(".dio", s.dbName, "db", dbShaSum))
+	c.Assert(err, chk.IsNil)
+}
+
+func (s *DioSuite) TestCommit2(c *chk.C) {
+	// Change the last modified date on the database file
+	err := os.Chtimes(s.dbFile, time.Now(), time.Date(2019, time.March, 15, 18, 1, 2, 0, time.UTC))
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	// Create another commit
+	commitCmdMsg = "The second commit in our test run"
+	commitCmdTimestamp = "2019-03-15T18:01:03Z"
+	err = commit([]string{s.dbName})
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	c.Assert(err, chk.IsNil)
+
+	// * Verify the new commit data on disk matches our expectations *
+
+	// Check if the metadata file exists on disk
+	var meta metaData
+	meta, err = localFetchMetadata(s.dbName, false)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	c.Assert(err, chk.IsNil)
+	c.Check(len(meta.Commits), chk.Equals, 2)
+
+	// Verify the values in the commit data match the values we provided
+	dbShaSum := "e8cab91dec32b3990b427b28380e4e052288054f99c4894742f07dee0c924efd"
+	com, ok := meta.Commits["09d05ae9a69e82be44f61ac22cb7e3fcd15a0783973c283fd723e3228bd6c9da"] // This commit ID is what the given values should generate a commit ID as
+	c.Assert(ok, chk.Equals, true)
+	c.Check(com.AuthorName, chk.Equals, commitCmdAuthName)
+	c.Check(com.AuthorEmail, chk.Equals, commitCmdAuthEmail)
+	c.Check(com.Message, chk.Equals, commitCmdMsg)
+	c.Check(com.Timestamp, chk.Equals, time.Date(2019, time.March, 15, 18, 1, 3, 0, time.UTC))
+	c.Check(com.Parent, chk.Equals, "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889")
+	c.Check(com.OtherParents, chk.IsNil)
+	c.Check(com.CommitterName, chk.Equals, "Some One")
+	c.Check(com.CommitterEmail, chk.Equals, "someone@example.org")
+	c.Check(com.ID, chk.Equals, "09d05ae9a69e82be44f61ac22cb7e3fcd15a0783973c283fd723e3228bd6c9da")
+	c.Check(com.Tree.Entries[0].EntryType, chk.Equals, dbTreeEntryType(DATABASE))
+	c.Check(com.Tree.Entries[0].LastModified.UTC(), chk.Equals, time.Date(2019, time.March, 15, 18, 1, 2, 0, time.UTC))
+	c.Check(com.Tree.Entries[0].LicenceSHA, chk.Equals, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") // e3b... is the SHA256 for the "Not specified" licence option
+	c.Check(com.Tree.Entries[0].Sha256, chk.Equals, dbShaSum)
+	c.Check(com.Tree.Entries[0].Size, chk.Equals, 19456)
+	c.Check(com.Tree.Entries[0].Name, chk.Equals, s.dbName)
+
+	// Verify the branch info
+	br, ok := meta.Branches["master"]
+	c.Assert(ok, chk.Equals, true)
+	c.Check(br.Commit, chk.Equals, "09d05ae9a69e82be44f61ac22cb7e3fcd15a0783973c283fd723e3228bd6c9da")
+	c.Check(br.CommitCount, chk.Equals, 2)
+	c.Check(br.Description, chk.Equals, "")
+
+	// Check the database has been written to the cache area using its checksum as filename
+	// TODO: Should we read in the db file to calculate its sha256, and do the same for the cached one?
+	_, err = os.Stat(filepath.Join(".dio", s.dbName, "db", dbShaSum))
 	c.Assert(err, chk.IsNil)
 }
 
