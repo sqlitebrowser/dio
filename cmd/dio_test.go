@@ -411,6 +411,44 @@ func (s *DioSuite) Test0100_BranchRevert(c *chk.C) {
 	c.Check(strings.TrimSpace(s.buf.String()), chk.Equals, "Branch reverted")
 }
 
+func (s *DioSuite) Test0110_BranchUpdate(c *chk.C) {
+	// Verify that (prior to the update) the master branch has an empty description
+	meta, err := localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	br, ok := meta.Branches["master"]
+	c.Assert(ok, chk.Equals, true)
+	c.Check(br.Description, chk.Equals, "")
+
+	// Update description for the master branch
+	branchUpdateBranch = "master"
+	branchUpdateMsg = "This is a new description"
+	err = branchUpdate([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the description was correctly updated
+	meta, err = localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	br, ok = meta.Branches["master"]
+	c.Assert(ok, chk.Equals, true)
+	c.Check(br.Description, chk.Equals, branchUpdateMsg)
+
+	// Delete the description for the master branch
+	s.buf.Reset()
+	*descDel = true
+	err = branchUpdate([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the description was deleted
+	meta, err = localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	br, ok = meta.Branches["master"]
+	c.Assert(ok, chk.Equals, true)
+	c.Check(br.Description, chk.Equals, "")
+
+	// Verify the output given to the user
+	c.Check(strings.TrimSpace(s.buf.String()), chk.Equals, "Branch updated")
+}
+
 // Mocked functions
 func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error) {
 	dbList = append(dbList, dbListEntry{
