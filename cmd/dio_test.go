@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -18,10 +19,12 @@ import (
 )
 
 type DioSuite struct {
+	buf    bytes.Buffer
 	config string
 	dbFile string
 	dbName string
 	dir    string
+	oldOut io.Writer
 }
 
 const (
@@ -94,6 +97,21 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 	}
 }
 
+func (s *DioSuite) SetUpTest(c *chk.C) {
+	// TODO: Should we use io.TeeReader if showFlag has been set?
+	// Redirect display output to a temp buffer
+	s.oldOut = fOut
+	fOut = &s.buf
+}
+
+func (s *DioSuite) TearDownTest(c *chk.C) {
+	// Restore the display output redirection
+	fOut = s.oldOut
+
+	// Clear the buffered contents
+	s.buf.Reset()
+}
+
 // Test the "dio commit" command
 func (s *DioSuite) Test0010Commit(c *chk.C) {
 	// Set up the replacement functions
@@ -124,11 +142,7 @@ func (s *DioSuite) Test0010Commit(c *chk.C) {
 	// * Verify the new commit data on disk matches our expectations *
 
 	// Check if the metadata file exists on disk
-	var meta metaData
-	meta, err = localFetchMetadata(s.dbName, false)
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
+	meta, err := localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
 	c.Check(meta.Commits, chk.HasLen, 1)
 
@@ -171,7 +185,7 @@ func (s *DioSuite) Test0010Commit(c *chk.C) {
 	c.Check(br.Description, chk.Equals, "")
 }
 
-func (s *DioSuite) Test0020Commit(c *chk.C) {
+func (s *DioSuite) Test0020Commit2(c *chk.C) {
 	// Change the last modified date on the database file
 	err := os.Chtimes(s.dbFile, time.Now(), time.Date(2019, time.March, 15, 18, 1, 2, 0, time.UTC))
 	if err != nil {
@@ -235,41 +249,44 @@ func (s *DioSuite) Test0020Commit(c *chk.C) {
 	c.Check(br.Commit, chk.Equals, "09d05ae9a69e82be44f61ac22cb7e3fcd15a0783973c283fd723e3228bd6c9da")
 	c.Check(br.CommitCount, chk.Equals, 2)
 	c.Check(br.Description, chk.Equals, "")
+
+	// TODO: Now that we can capture the display output for checking, we should probably verify the
+	//       info displayed in the output too
 }
 
 // Test the "dio branch" commands
 func (s *DioSuite) Test0030BranchActiveGet(c *chk.C) {
-	// Set up the replacement functions
-	getDatabases = mockGetDatabases
-	getLicences = mockGetLicences
-
-	// Change to the temp directory
-	err := os.Chdir(s.dir)
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
-
-	// TODO: Should we use io.TeeReader if showFlag has been set?
-
-	// Redirect display output to a temp buffer
-	oldOut := fOut
-	var b bytes.Buffer
-	fOut = &b
-
 	// Query the active branch
-	err = branchActiveGet([]string{s.dbName})
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
+	err := branchActiveGet([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
 
 	// Verify the active branch is set to "master"
-	p := strings.Split(b.String(), ":")
+	p := strings.Split(s.buf.String(), ":")
 	c.Assert(p, chk.HasLen, 2)
 	c.Check(strings.TrimSpace(p[1]), chk.Matches, "master")
+}
 
-	// Restore the display output redirection
-	fOut = oldOut
+func (s *DioSuite) Test0040BranchCreate(c *chk.C) {
+	// Create a new branch
+	branchCreateBranch = "branchtwo"
+	branchCreateCommit = "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"
+	branchCreateMsg = "A new branch"
+	err := branchCreate([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the new branch is in the metadata on disk
+	meta, err := localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	br, ok := meta.Branches["branchtwo"]
+	c.Assert(ok, chk.Equals, true)
+	c.Check(br.Commit, chk.Equals, "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889")
+	c.Check(br.CommitCount, chk.Equals, 1)
+	c.Check(br.Description, chk.Equals, "A new branch")
+
+	// Verify the output given to the user
+	p := strings.Split(s.buf.String(), "'")
+	c.Assert(p, chk.HasLen, 3)
+	c.Check(strings.TrimSpace(p[1]), chk.Matches, branchCreateBranch)
 }
 
 // Mocked functions
