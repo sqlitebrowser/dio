@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -119,6 +121,7 @@ func (s *DioSuite) TestCommit(c *chk.C) {
 	commitCmdMsg = "The first commit in our test run"
 	commitCmdAuthName = "Default test user"
 	commitCmdTimestamp = "2019-03-15T18:01:01Z"
+	// TODO: Adjust commit() to return the commit ID, so we don't need to hard code it below
 	err = commit([]string{s.dbName})
 	if err != nil {
 		log.Fatalln(err.Error())
@@ -137,7 +140,6 @@ func (s *DioSuite) TestCommit(c *chk.C) {
 	c.Check(len(meta.Commits), chk.Equals, 1)
 
 	// Verify the values in the commit data match the values we provided
-	dbShaSum := "e8cab91dec32b3990b427b28380e4e052288054f99c4894742f07dee0c924efd"
 	com, ok := meta.Commits["e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"] // This commit ID is what the given values should generate a commit ID as
 	c.Assert(ok, chk.Equals, true)
 	c.Check(com.AuthorName, chk.Equals, commitCmdAuthName)
@@ -152,9 +154,21 @@ func (s *DioSuite) TestCommit(c *chk.C) {
 	c.Check(com.Tree.Entries[0].EntryType, chk.Equals, dbTreeEntryType(DATABASE))
 	c.Check(com.Tree.Entries[0].LastModified.UTC(), chk.Equals, time.Date(2019, time.March, 15, 18, 1, 0, 0, time.UTC))
 	c.Check(com.Tree.Entries[0].LicenceSHA, chk.Equals, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") // e3b... is the SHA256 for the "Not specified" licence option
-	c.Check(com.Tree.Entries[0].Sha256, chk.Equals, dbShaSum)
 	c.Check(com.Tree.Entries[0].Size, chk.Equals, 19456)
 	c.Check(com.Tree.Entries[0].Name, chk.Equals, s.dbName)
+
+	// Check the database has been written to the cache area using its checksum as filename
+	cacheFile := filepath.Join(".dio", s.dbName, "db", com.Tree.Entries[0].Sha256)
+	_, err = os.Stat(cacheFile)
+	c.Assert(err, chk.IsNil)
+
+	// Verify the contents of the cached database match the size and sha256 recorded in the commit
+	b, err := ioutil.ReadFile(cacheFile)
+	c.Assert(err, chk.IsNil)
+	c.Check(len(b), chk.Equals, com.Tree.Entries[0].Size)
+	z := sha256.Sum256(b)
+	shaSum := hex.EncodeToString(z[:])
+	c.Check(shaSum, chk.Equals, com.Tree.Entries[0].Sha256)
 
 	// Verify the branch info
 	br, ok := meta.Branches["master"]
@@ -162,11 +176,6 @@ func (s *DioSuite) TestCommit(c *chk.C) {
 	c.Check(br.Commit, chk.Equals, "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889")
 	c.Check(br.CommitCount, chk.Equals, 1)
 	c.Check(br.Description, chk.Equals, "")
-
-	// Check the database has been written to the cache area using its checksum as filename
-	// TODO: Should we read in the db file to calculate its sha256, and do the same for the cached one?
-	_, err = os.Stat(filepath.Join(".dio", s.dbName, "db", dbShaSum))
-	c.Assert(err, chk.IsNil)
 }
 
 func (s *DioSuite) TestCommit2(c *chk.C) {
@@ -197,7 +206,6 @@ func (s *DioSuite) TestCommit2(c *chk.C) {
 	c.Check(len(meta.Commits), chk.Equals, 2)
 
 	// Verify the values in the commit data match the values we provided
-	dbShaSum := "e8cab91dec32b3990b427b28380e4e052288054f99c4894742f07dee0c924efd"
 	com, ok := meta.Commits["09d05ae9a69e82be44f61ac22cb7e3fcd15a0783973c283fd723e3228bd6c9da"] // This commit ID is what the given values should generate a commit ID as
 	c.Assert(ok, chk.Equals, true)
 	c.Check(com.AuthorName, chk.Equals, commitCmdAuthName)
@@ -212,9 +220,21 @@ func (s *DioSuite) TestCommit2(c *chk.C) {
 	c.Check(com.Tree.Entries[0].EntryType, chk.Equals, dbTreeEntryType(DATABASE))
 	c.Check(com.Tree.Entries[0].LastModified.UTC(), chk.Equals, time.Date(2019, time.March, 15, 18, 1, 2, 0, time.UTC))
 	c.Check(com.Tree.Entries[0].LicenceSHA, chk.Equals, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") // e3b... is the SHA256 for the "Not specified" licence option
-	c.Check(com.Tree.Entries[0].Sha256, chk.Equals, dbShaSum)
 	c.Check(com.Tree.Entries[0].Size, chk.Equals, 19456)
 	c.Check(com.Tree.Entries[0].Name, chk.Equals, s.dbName)
+
+	// Check the database has been written to the cache area using its checksum as filename
+	cacheFile := filepath.Join(".dio", s.dbName, "db", com.Tree.Entries[0].Sha256)
+	_, err = os.Stat(cacheFile)
+	c.Assert(err, chk.IsNil)
+
+	// Verify the contents of the cached database match the size and sha256 recorded in the commit
+	b, err := ioutil.ReadFile(cacheFile)
+	c.Assert(err, chk.IsNil)
+	c.Check(len(b), chk.Equals, com.Tree.Entries[0].Size)
+	z := sha256.Sum256(b)
+	shaSum := hex.EncodeToString(z[:])
+	c.Check(shaSum, chk.Equals, com.Tree.Entries[0].Sha256)
 
 	// Verify the branch info
 	br, ok := meta.Branches["master"]
@@ -222,11 +242,6 @@ func (s *DioSuite) TestCommit2(c *chk.C) {
 	c.Check(br.Commit, chk.Equals, "09d05ae9a69e82be44f61ac22cb7e3fcd15a0783973c283fd723e3228bd6c9da")
 	c.Check(br.CommitCount, chk.Equals, 2)
 	c.Check(br.Description, chk.Equals, "")
-
-	// Check the database has been written to the cache area using its checksum as filename
-	// TODO: Should we read in the db file to calculate its sha256, and do the same for the cached one?
-	_, err = os.Stat(filepath.Join(".dio", s.dbName, "db", dbShaSum))
-	c.Assert(err, chk.IsNil)
 }
 
 // Mocked functions
