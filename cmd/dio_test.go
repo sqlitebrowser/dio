@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
@@ -303,6 +304,29 @@ func (s *DioSuite) Test0050BranchSet(c *chk.C) {
 	// Verify the output given to the user
 	p := strings.Split(s.buf.String(), "'")
 	c.Check(strings.TrimSpace(p[1]), chk.Equals, branchCreateBranch)
+}
+
+func (s *DioSuite) Test0060BranchList(c *chk.C) {
+	// Create a new branch
+	err := branchList([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Verify entries are present for both "master" and "branchtwo"
+	lines := bufio.NewScanner(&s.buf)
+	var branchTwoFound, masterFound bool
+	for lines.Scan() {
+		p := strings.Split(lines.Text(), "'")
+		if len(p) > 2 && p[1] == "master" {
+			c.Assert(p, chk.HasLen, 3)
+			masterFound = true
+		}
+		if len(p) > 2 && p[1] == "branchtwo" {
+			c.Assert(p, chk.HasLen, 3)
+			branchTwoFound = true
+		}
+	}
+	c.Check(masterFound, chk.Equals, true)
+	c.Check(branchTwoFound, chk.Equals, true)
 }
 
 // Mocked functions
