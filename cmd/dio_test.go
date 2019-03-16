@@ -411,7 +411,7 @@ func (s *DioSuite) Test0100_BranchRevert(c *chk.C) {
 	c.Check(strings.TrimSpace(s.buf.String()), chk.Equals, "Branch reverted")
 }
 
-func (s *DioSuite) Test0110_BranchUpdate(c *chk.C) {
+func (s *DioSuite) Test0110_BranchUpdateChgDesc(c *chk.C) {
 	// Verify that (prior to the update) the master branch has an empty description
 	meta, err := localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
@@ -431,9 +431,17 @@ func (s *DioSuite) Test0110_BranchUpdate(c *chk.C) {
 	br, ok = meta.Branches["master"]
 	c.Assert(ok, chk.Equals, true)
 	c.Check(br.Description, chk.Equals, branchUpdateMsg)
+}
+
+func (s *DioSuite) Test0120_BranchUpdateDelDesc(c *chk.C) {
+	// Verify that (prior to the update) the master branch has a non-empty description
+	meta, err := localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	br, ok := meta.Branches["master"]
+	c.Assert(ok, chk.Equals, true)
+	c.Check(br.Description, chk.Not(chk.Equals), "")
 
 	// Delete the description for the master branch
-	s.buf.Reset()
 	*descDel = true
 	err = branchUpdate([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
