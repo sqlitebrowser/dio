@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -20,8 +21,9 @@ const (
 )
 
 var (
-	cfgFile, cloud string
 	certUser       string
+	cfgFile, cloud string
+	fOut           = io.Writer(os.Stdout)
 	numFormat      *message.Printer
 	TLSConfig      tls.Config
 )

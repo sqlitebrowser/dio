@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -92,17 +94,8 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 	}
 }
 
-func (s *DioSuite) TearDownSuite(c *chk.C) {
-	if !*showFlag {
-		err := fOut.Close()
-		if err != nil {
-			log.Fatalln(err)
-		}
-	}
-}
-
 // Test the "dio commit" command
-func (s *DioSuite) TestCommit(c *chk.C) {
+func (s *DioSuite) Test0010Commit(c *chk.C) {
 	// Set up the replacement functions
 	getDatabases = mockGetDatabases
 	getLicences = mockGetLicences
@@ -137,7 +130,7 @@ func (s *DioSuite) TestCommit(c *chk.C) {
 		log.Fatalln(err.Error())
 	}
 	c.Assert(err, chk.IsNil)
-	c.Check(len(meta.Commits), chk.Equals, 1)
+	c.Check(meta.Commits, chk.HasLen, 1)
 
 	// Verify the values in the commit data match the values we provided
 	com, ok := meta.Commits["e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"] // This commit ID is what the given values should generate a commit ID as
@@ -165,7 +158,7 @@ func (s *DioSuite) TestCommit(c *chk.C) {
 	// Verify the contents of the cached database match the size and sha256 recorded in the commit
 	b, err := ioutil.ReadFile(cacheFile)
 	c.Assert(err, chk.IsNil)
-	c.Check(len(b), chk.Equals, com.Tree.Entries[0].Size)
+	c.Check(b, chk.HasLen, com.Tree.Entries[0].Size)
 	z := sha256.Sum256(b)
 	shaSum := hex.EncodeToString(z[:])
 	c.Check(shaSum, chk.Equals, com.Tree.Entries[0].Sha256)
@@ -178,7 +171,7 @@ func (s *DioSuite) TestCommit(c *chk.C) {
 	c.Check(br.Description, chk.Equals, "")
 }
 
-func (s *DioSuite) TestCommit2(c *chk.C) {
+func (s *DioSuite) Test0020Commit(c *chk.C) {
 	// Change the last modified date on the database file
 	err := os.Chtimes(s.dbFile, time.Now(), time.Date(2019, time.March, 15, 18, 1, 2, 0, time.UTC))
 	if err != nil {
@@ -203,7 +196,7 @@ func (s *DioSuite) TestCommit2(c *chk.C) {
 		log.Fatalln(err.Error())
 	}
 	c.Assert(err, chk.IsNil)
-	c.Check(len(meta.Commits), chk.Equals, 2)
+	c.Check(meta.Commits, chk.HasLen, 2)
 
 	// Verify the values in the commit data match the values we provided
 	com, ok := meta.Commits["09d05ae9a69e82be44f61ac22cb7e3fcd15a0783973c283fd723e3228bd6c9da"] // This commit ID is what the given values should generate a commit ID as
@@ -231,7 +224,7 @@ func (s *DioSuite) TestCommit2(c *chk.C) {
 	// Verify the contents of the cached database match the size and sha256 recorded in the commit
 	b, err := ioutil.ReadFile(cacheFile)
 	c.Assert(err, chk.IsNil)
-	c.Check(len(b), chk.Equals, com.Tree.Entries[0].Size)
+	c.Check(b, chk.HasLen, com.Tree.Entries[0].Size)
 	z := sha256.Sum256(b)
 	shaSum := hex.EncodeToString(z[:])
 	c.Check(shaSum, chk.Equals, com.Tree.Entries[0].Sha256)
@@ -242,6 +235,41 @@ func (s *DioSuite) TestCommit2(c *chk.C) {
 	c.Check(br.Commit, chk.Equals, "09d05ae9a69e82be44f61ac22cb7e3fcd15a0783973c283fd723e3228bd6c9da")
 	c.Check(br.CommitCount, chk.Equals, 2)
 	c.Check(br.Description, chk.Equals, "")
+}
+
+// Test the "dio branch" commands
+func (s *DioSuite) Test0030BranchActiveGet(c *chk.C) {
+	// Set up the replacement functions
+	getDatabases = mockGetDatabases
+	getLicences = mockGetLicences
+
+	// Change to the temp directory
+	err := os.Chdir(s.dir)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	// TODO: Should we use io.TeeReader if showFlag has been set?
+
+	// Redirect display output to a temp buffer
+	oldOut := fOut
+	var b bytes.Buffer
+	fOut = &b
+
+	// Query the active branch
+	err = branchActiveGet([]string{s.dbName})
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	c.Assert(err, chk.IsNil)
+
+	// Verify the active branch is set to "master"
+	p := strings.Split(b.String(), ":")
+	c.Assert(p, chk.HasLen, 2)
+	c.Check(strings.TrimSpace(p[1]), chk.Matches, "master")
+
+	// Restore the display output redirection
+	fOut = oldOut
 }
 
 // Mocked functions

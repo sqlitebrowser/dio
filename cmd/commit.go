@@ -29,8 +29,23 @@ var (
 			return commit(args)
 		},
 	}
-	fOut = os.Stdout
 )
+
+func init() {
+	RootCmd.AddCommand(commitCmd)
+	commitCmd.Flags().StringVar(&commitCmdBranch, "branch", "",
+		"The branch this commit will be appended to")
+	commitCmd.Flags().StringVar(&commitCmdCommit, "commit", "",
+		"ID of the previous commit, for appending this new database to")
+	commitCmd.Flags().StringVar(&commitCmdAuthEmail, "email", "",
+		"Email address of the commit author")
+	commitCmd.Flags().StringVar(&commitCmdLicence, "licence", "",
+		"The licence (ID) for the database, as per 'dio licence list'")
+	commitCmd.Flags().StringVar(&commitCmdMsg, "message", "",
+		"Description / commit message")
+	commitCmd.Flags().StringVar(&commitCmdAuthName, "name", "", "Name of the commit author")
+	commitCmd.Flags().StringVar(&commitCmdTimestamp, "timestamp", "", "Timestamp for the commit")
+}
 
 func commit(args []string) error {
 	// Ensure a database file was given
@@ -321,22 +336,6 @@ func commit(args []string) error {
 		}
 	}
 	return nil
-}
-
-func init() {
-	RootCmd.AddCommand(commitCmd)
-	commitCmd.Flags().StringVar(&commitCmdBranch, "branch", "",
-		"The branch this commit will be appended to")
-	commitCmd.Flags().StringVar(&commitCmdCommit, "commit", "",
-		"ID of the previous commit, for appending this new database to")
-	commitCmd.Flags().StringVar(&commitCmdAuthEmail, "email", "",
-		"Email address of the commit author")
-	commitCmd.Flags().StringVar(&commitCmdLicence, "licence", "",
-		"The licence (ID) for the database, as per 'dio licence list'")
-	commitCmd.Flags().StringVar(&commitCmdMsg, "message", "",
-		"Description / commit message")
-	commitCmd.Flags().StringVar(&commitCmdAuthName, "name", "", "Name of the commit author")
-	commitCmd.Flags().StringVar(&commitCmdTimestamp, "timestamp", "", "Timestamp for the commit")
 }
 
 // Creates a new metadata structure in memory
