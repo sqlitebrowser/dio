@@ -67,9 +67,9 @@ func branchActiveSet(args []string) error {
 			return err
 		}
 		if changed {
-			fmt.Printf("%s has been changed since the last commit.  Use --force if you really want to "+
+			_, err = fmt.Fprintf(fOut, "%s has been changed since the last commit.  Use --force if you really want to "+
 				"overwrite it\n", db)
-			return nil
+			return err
 		}
 	}
 
@@ -87,7 +87,7 @@ func branchActiveSet(args []string) error {
 		return err
 	}
 
-	// Copy the database from local cache, so it matchesthe new branch head commit
+	// Copy the database from local cache, so it matches the new branch head commit
 	var b []byte
 	b, err = ioutil.ReadFile(filepath.Join(".dio", db, "db", shaSum))
 	if err != nil {
