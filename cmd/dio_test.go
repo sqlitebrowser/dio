@@ -263,7 +263,7 @@ func (s *DioSuite) Test0030BranchActiveGet(c *chk.C) {
 	// Verify the active branch is set to "master"
 	p := strings.Split(s.buf.String(), ":")
 	c.Assert(p, chk.HasLen, 2)
-	c.Check(strings.TrimSpace(p[1]), chk.Matches, "master")
+	c.Check(strings.TrimSpace(p[1]), chk.Equals, "master")
 }
 
 func (s *DioSuite) Test0040BranchCreate(c *chk.C) {
@@ -286,7 +286,23 @@ func (s *DioSuite) Test0040BranchCreate(c *chk.C) {
 	// Verify the output given to the user
 	p := strings.Split(s.buf.String(), "'")
 	c.Assert(p, chk.HasLen, 3)
-	c.Check(strings.TrimSpace(p[1]), chk.Matches, branchCreateBranch)
+	c.Check(strings.TrimSpace(p[1]), chk.Equals, branchCreateBranch)
+}
+
+func (s *DioSuite) Test0050BranchSet(c *chk.C) {
+	// Create a new branch
+	branchActiveSetBranch = "branchtwo"
+	err := branchActiveSet([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the active branch was changed in the on disk metadata
+	meta, err := localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	c.Check(meta.ActiveBranch, chk.Equals, branchActiveSetBranch)
+
+	// Verify the output given to the user
+	p := strings.Split(s.buf.String(), "'")
+	c.Check(strings.TrimSpace(p[1]), chk.Equals, branchCreateBranch)
 }
 
 // Mocked functions
