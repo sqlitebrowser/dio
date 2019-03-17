@@ -511,7 +511,7 @@ func (s *DioSuite) Test0140_TagList(c *chk.C) {
 }
 
 func (s *DioSuite) Test0150_TagRemove(c *chk.C) {
-	// Verify that (prior to the tag remove) the tag exists
+	// Verify that (prior to this removal) the tag exists
 	meta, err := localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
 	_, ok := meta.Tags[tagCreateTag]
@@ -584,6 +584,29 @@ func (s *DioSuite) Test0170_ReleaseList(c *chk.C) {
 		}
 	}
 	c.Check(relFound, chk.Equals, true)
+}
+
+func (s *DioSuite) Test0180_ReleaseRemove(c *chk.C) {
+	// Verify that (prior to this removal) the release exists
+	meta, err := localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	_, ok := meta.Releases[releaseCreateRelease]
+	c.Assert(ok, chk.Equals, true)
+
+	// Remove the release
+	releaseRemoveRelease = releaseCreateRelease
+	err = releaseRemove([]string{s.dbName})
+	c.Check(err, chk.IsNil)
+
+	// Verify the release has been removed
+	meta, err = localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	_, ok = meta.Releases[releaseCreateRelease]
+	c.Check(ok, chk.Equals, false)
+
+	// Verify the output given to the user
+	p := strings.Split(s.buf.String(), "'")
+	c.Check(strings.TrimSpace(p[1]), chk.Equals, releaseCreateRelease)
 }
 
 // Mocked functions
