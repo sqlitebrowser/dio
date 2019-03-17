@@ -242,6 +242,15 @@ func loadMetadata(db string) (meta metaData, err error) {
 		return
 	}
 	err = json.Unmarshal([]byte(md), &meta)
+
+	// If the tag or release maps are missing, create initial empty ones.
+	// This is a safety check, not sure if it's really needed
+	if meta.Tags == nil {
+		meta.Tags = make(map[string]tagEntry)
+	}
+	if meta.Releases == nil {
+		meta.Releases = make(map[string]releaseEntry)
+	}
 	return
 }
 
