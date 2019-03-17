@@ -609,6 +609,27 @@ func (s *DioSuite) Test0180_ReleaseRemove(c *chk.C) {
 	c.Check(strings.TrimSpace(p[1]), chk.Equals, releaseCreateRelease)
 }
 
+func (s *DioSuite) Test0190_Log(c *chk.C) {
+	// Retrieve the commit list
+	err := branchLog([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// The original commit should be listed
+	lines := bufio.NewScanner(&s.buf)
+	var comFound bool
+	for lines.Scan() {
+		l := strings.TrimSpace(lines.Text())
+		if strings.HasPrefix(l, "*") {
+			p := strings.Split(lines.Text(), ":")
+			if len(p) >= 2 && strings.TrimSpace(p[1]) == "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889" {
+				c.Check(p, chk.HasLen, 2)
+				comFound = true
+			}
+		}
+	}
+	c.Check(comFound, chk.Equals, true)
+}
+
 // Mocked functions
 func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error) {
 	dbList = append(dbList, dbListEntry{
