@@ -462,7 +462,7 @@ func (s *DioSuite) Test0130_TagCreate(c *chk.C) {
 	tagCreateTag = "testtag1"
 	meta, err := localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
-	tg, ok := meta.Tags[tagCreateTag]
+	z, ok := meta.Tags[tagCreateTag]
 	c.Assert(ok, chk.Equals, false)
 
 	// Create the tag
@@ -477,13 +477,13 @@ func (s *DioSuite) Test0130_TagCreate(c *chk.C) {
 	// Check the tag was created
 	meta, err = localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
-	tg, ok = meta.Tags[tagCreateTag]
+	z, ok = meta.Tags[tagCreateTag]
 	c.Assert(ok, chk.Equals, true)
-	c.Check(tg.Commit, chk.Equals, tagCreateCommit)
-	c.Check(tg.Date, chk.Equals, time.Date(2019, time.March, 15, 18, 1, 5, 0, time.UTC))
-	c.Check(tg.Description, chk.Equals, tagCreateMsg)
-	c.Check(tg.TaggerName, chk.Equals, tagCreateName)
-	c.Check(tg.TaggerEmail, chk.Equals, tagCreateEmail)
+	c.Check(z.Commit, chk.Equals, tagCreateCommit)
+	c.Check(z.Date, chk.Equals, time.Date(2019, time.March, 15, 18, 1, 5, 0, time.UTC))
+	c.Check(z.Description, chk.Equals, tagCreateMsg)
+	c.Check(z.TaggerName, chk.Equals, tagCreateName)
+	c.Check(z.TaggerEmail, chk.Equals, tagCreateEmail)
 
 	// Verify the output given to the user
 	c.Check(strings.TrimSpace(s.buf.String()), chk.Equals, "Tag creation succeeded")
@@ -531,6 +531,38 @@ func (s *DioSuite) Test0150_TagRemove(c *chk.C) {
 	// Verify the output given to the user
 	p := strings.Split(s.buf.String(), "'")
 	c.Check(strings.TrimSpace(p[1]), chk.Equals, tagCreateTag)
+}
+
+func (s *DioSuite) Test0160_ReleaseCreate(c *chk.C) {
+	// Check the release to be created doesn't yet exist
+	releaseCreateRelease = "testrelease1"
+	meta, err := localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	z, ok := meta.Releases[releaseCreateRelease]
+	c.Assert(ok, chk.Equals, false)
+
+	// Create the release
+	releaseCreateCommit = "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"
+	releaseCreateCreatorEmail = "somereleaser@example.org"
+	releaseCreateCreatorName = "A test releaser"
+	releaseCreateMsg = "This is a test release"
+	releaseCreateReleaseDate = "2019-03-15T18:01:06Z"
+	err = releaseCreate([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Check the release was created
+	meta, err = localFetchMetadata(s.dbName, false)
+	c.Assert(err, chk.IsNil)
+	z, ok = meta.Releases[releaseCreateRelease]
+	c.Assert(ok, chk.Equals, true)
+	c.Check(z.Commit, chk.Equals, releaseCreateCommit)
+	c.Check(z.Date, chk.Equals, time.Date(2019, time.March, 15, 18, 1, 6, 0, time.UTC))
+	c.Check(z.Description, chk.Equals, releaseCreateMsg)
+	c.Check(z.ReleaserName, chk.Equals, releaseCreateCreatorName)
+	c.Check(z.ReleaserEmail, chk.Equals, releaseCreateCreatorEmail)
+
+	// Verify the output given to the user
+	c.Check(strings.TrimSpace(s.buf.String()), chk.Equals, "Release creation succeeded")
 }
 
 // Mocked functions
