@@ -117,7 +117,7 @@ func commit(args []string) error {
 
 		// This is a new database, so we generate new metadata
 		newDB = true
-		meta = newMeta(commitCmdBranch)
+		meta = newMetaStruct(commitCmdBranch)
 	} else {
 		// We have local metaData
 		localPresent = true
@@ -339,7 +339,7 @@ func commit(args []string) error {
 }
 
 // Creates a new metadata structure in memory
-func newMeta(branch string) (meta metaData) {
+func newMetaStruct(branch string) (meta metaData) {
 	b := branchEntry{
 		Commit:      "",
 		CommitCount: 0,

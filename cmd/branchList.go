@@ -36,19 +36,19 @@ func branchList(args []string) error {
 	// If there is a local metadata cache for the requested database, use that.  Otherwise, retrieve it from the
 	// server first (without storing it)
 	db := args[0]
+	meta := metaData{}
 	md, err := ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
-	if err != nil {
-		// No local cache, so retrieve the info from the server
-		temp, _, err := retrieveMetadata(db)
+	if err == nil {
+		err = json.Unmarshal([]byte(md), &meta)
 		if err != nil {
 			return err
 		}
-		md = []byte(temp)
-	}
-	meta := metaData{}
-	err = json.Unmarshal([]byte(md), &meta)
-	if err != nil {
-		return err
+	} else {
+		// No local cache, so retrieve the info from the server
+		meta, _, err = retrieveMetadata(db)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Sort the list alphabetically

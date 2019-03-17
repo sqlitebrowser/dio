@@ -113,10 +113,7 @@ var pushCmd = &cobra.Command{
 
 			// Download the latest database metadata
 			extraCtr := 0
-			newMeta := metaData{}
-			var tmp string
-			var found bool
-			tmp, found, err = retrieveMetadata(db)
+			newMeta, found, err := retrieveMetadata(db)
 			if err != nil {
 				return err
 			}
@@ -153,15 +150,11 @@ var pushCmd = &cobra.Command{
 
 				// Fetch the remote metadata, now that the database exists remotely.  This lets us use the existing
 				// code below to add the remaining commits
-				tmp, found, err = retrieveMetadata(db)
+				newMeta, found, err = retrieveMetadata(db)
 				if err != nil {
 					return err
 				}
 				extraCtr++
-			}
-			err = json.Unmarshal([]byte(tmp), &newMeta)
-			if err != nil {
-				return err
 			}
 
 			// * To get here, the database exists on the remote cloud and has local metadata *
@@ -364,12 +357,7 @@ var pushCmd = &cobra.Command{
 		}
 
 		// Retrieve updated metadata
-		var tmp string
-		tmp, _, err = retrieveMetadata(db)
-		if err != nil {
-			return err
-		}
-		err = json.Unmarshal([]byte(tmp), &meta)
+		meta, _, err = retrieveMetadata(db)
 		if err != nil {
 			return err
 		}
