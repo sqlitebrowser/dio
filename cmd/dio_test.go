@@ -565,6 +565,27 @@ func (s *DioSuite) Test0160_ReleaseCreate(c *chk.C) {
 	c.Check(strings.TrimSpace(s.buf.String()), chk.Equals, "Release creation succeeded")
 }
 
+func (s *DioSuite) Test0170_ReleaseList(c *chk.C) {
+	// Retrieve the release list
+	err := releaseList([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// The release created by the previous test should be listed
+	lines := bufio.NewScanner(&s.buf)
+	var relFound bool
+	for lines.Scan() {
+		l := strings.TrimSpace(lines.Text())
+		if strings.HasPrefix(l, "*") {
+			p := strings.Split(lines.Text(), "'")
+			if len(p) > 2 && p[1] == releaseCreateRelease {
+				c.Check(p, chk.HasLen, 3)
+				relFound = true
+			}
+		}
+	}
+	c.Check(relFound, chk.Equals, true)
+}
+
 // Mocked functions
 func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error) {
 	dbList = append(dbList, dbListEntry{

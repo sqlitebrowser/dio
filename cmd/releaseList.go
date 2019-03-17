@@ -14,53 +14,76 @@ var releaseListCmd = &cobra.Command{
 	Use:   "releases [database name]",
 	Short: "Displays a list of releases for a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Ensure a database file was given
-		if len(args) == 0 {
-			return errors.New("No database file specified")
-		}
-		// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
-		// TODO  into a for loop
-		if len(args) > 1 {
-			return errors.New("Only one database can be worked with at a time (for now)")
-		}
-
-		// If there is a local metadata cache for the requested database, use that.  Otherwise, retrieve it from the
-		// server first (without storing it)
-		db := args[0]
-		meta, err := localFetchMetadata(db, true)
-		if err != nil {
-			return err
-		}
-
-		if len(meta.Releases) == 0 {
-			fmt.Printf("Database %s has no releases\n", db)
-			return nil
-		}
-
-		// Sort the list alphabetically
-		var sortedKeys []string
-		for k := range meta.Releases {
-			sortedKeys = append(sortedKeys, k)
-		}
-		sort.Strings(sortedKeys)
-
-		// Display the list of releases
-		fmt.Printf("Releases for %s:\n\n", db)
-		for _, i := range sortedKeys {
-			fmt.Printf("  * %s : commit %s\n\n", i, meta.Releases[i].Commit)
-			fmt.Printf("      Author: %s <%s>\n", meta.Releases[i].ReleaserName, meta.Releases[i].ReleaserEmail)
-			fmt.Printf("      Date: %s\n", meta.Releases[i].Date.Format(time.UnixDate))
-			numFormat.Printf("      Size: %d\n", meta.Releases[i].Size)
-			if meta.Releases[i].Description != "" {
-				fmt.Printf("      Message: %s\n\n", meta.Releases[i].Description)
-			} else {
-				fmt.Println()
-			}
-		}
-		return nil
+		return releaseList(args)
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(releaseListCmd)
+}
+
+func releaseList(args []string) error {
+	// Ensure a database file was given
+	if len(args) == 0 {
+		return errors.New("No database file specified")
+	}
+	if len(args) > 1 {
+		return errors.New("Only one database can be worked with at a time (for now)")
+	}
+
+	// If there is a local metadata cache for the requested database, use that.  Otherwise, retrieve it from the
+	// server first (without storing it)
+	db := args[0]
+	meta, err := localFetchMetadata(db, true)
+	if err != nil {
+		return err
+	}
+
+	if len(meta.Releases) == 0 {
+		_, err = fmt.Fprintf(fOut, "Database %s has no releases\n", db)
+		return err
+	}
+
+	// Sort the list alphabetically
+	var sortedKeys []string
+	for k := range meta.Releases {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	// Display the list of releases
+	_, err = fmt.Fprintf(fOut, "Releases for %s:\n\n", db)
+	if err != nil {
+		return err
+	}
+	for _, i := range sortedKeys {
+		_, err = fmt.Fprintf(fOut, "  * '%s' : commit %s\n\n", i, meta.Releases[i].Commit)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(fOut, "      Author: %s <%s>\n", meta.Releases[i].ReleaserName, meta.Releases[i].ReleaserEmail)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(fOut, "      Date: %s\n", meta.Releases[i].Date.Format(time.UnixDate))
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(fOut, numFormat.Sprintf("      Size: %d", meta.Releases[i].Size))
+		if err != nil {
+			return err
+		}
+		if meta.Releases[i].Description != "" {
+			_, err = fmt.Fprintf(fOut, "      Message: %s\n\n", meta.Releases[i].Description)
+			if err != nil {
+				return err
+			}
+		} else {
+			_, err = fmt.Fprintln(fOut)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
