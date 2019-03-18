@@ -38,52 +38,7 @@ var licenceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Displays a list of the known licences",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Retrieve the list of known licences
-		licList, err := getLicences()
-		if err != nil {
-			return err
-		}
-
-		// Display the list of licences
-		if len(licList) == 0 {
-			fmt.Printf("Cloud '%s' knows no licences\n", cloud)
-			return nil
-		}
-		fmt.Printf("Licences on %s\n\n", cloud)
-
-		// Sort the licences by display order
-		var licOrder displayOrderSlice
-		for i, j := range licList {
-			licOrder = append(licOrder, displayOrder{key: i, order: j.Order})
-		}
-		sort.Sort(displayOrderSlice(licOrder))
-
-		// Display the licences
-		for _, j := range licOrder {
-			astShown := false
-			if n := licList[j.key].FullName; n != "" {
-				fmt.Printf("  * Full name: %s\n", n)
-				astShown = true
-			}
-
-			// Include the asterisk if the Full Name line wasn't displayed
-			if astShown {
-				fmt.Printf("    ")
-			} else {
-				fmt.Printf("  * ")
-				astShown = true
-			}
-			fmt.Printf("ID: %s\n", j.key)
-
-			if s := licList[j.key].URL; s != "" {
-				fmt.Printf("    Source URL: %s\n", s)
-			}
-			if licenceListDisplayOrder {
-				fmt.Printf("    Display order: %d\n", licList[j.key].Order)
-			}
-			fmt.Printf("    SHA256: %s\n\n", licList[j.key].Sha256)
-		}
-		return nil
+		return licenceList()
 	},
 }
 
@@ -91,4 +46,80 @@ func init() {
 	licenceCmd.AddCommand(licenceListCmd)
 	licenceListCmd.Flags().BoolVar(&licenceListDisplayOrder, "display-order", false,
 		"Show the display order number of each licence")
+}
+
+func licenceList() error {
+	// Retrieve the list of known licences
+	licList, err := getLicences()
+	if err != nil {
+		return err
+	}
+
+	// Display the list of licences
+	if len(licList) == 0 {
+		_, err = fmt.Fprintf(fOut, "Cloud '%s' knows no licences\n", cloud)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	_, err = fmt.Fprintf(fOut, "Licences on %s\n\n", cloud)
+	if err != nil {
+		return err
+	}
+
+	// Sort the licences by display order
+	var licOrder displayOrderSlice
+	for i, j := range licList {
+		licOrder = append(licOrder, displayOrder{key: i, order: j.Order})
+	}
+	sort.Sort(displayOrderSlice(licOrder))
+
+	// Display the licences
+	for _, j := range licOrder {
+		astShown := false
+		if n := licList[j.key].FullName; n != "" {
+			_, err = fmt.Fprintf(fOut, "  * Full name: %s\n", n)
+			if err != nil {
+				return err
+			}
+			astShown = true
+		}
+
+		// Include the asterisk if the Full Name line wasn't displayed
+		if astShown {
+			_, err = fmt.Fprintf(fOut, "    ")
+			if err != nil {
+				return err
+			}
+		} else {
+			_, err = fmt.Fprintf(fOut, "  * ")
+			if err != nil {
+				return err
+			}
+			astShown = true
+		}
+		_, err = fmt.Fprintf(fOut, "ID: %s\n", j.key)
+		if err != nil {
+			return err
+		}
+
+		if s := licList[j.key].URL; s != "" {
+			_, err = fmt.Fprintf(fOut, "    Source URL: %s\n", s)
+			if err != nil {
+				return err
+			}
+		}
+		if licenceListDisplayOrder {
+			_, err = fmt.Fprintf(fOut, "    Display order: %d\n", licList[j.key].Order)
+			if err != nil {
+				return err
+			}
+		}
+		_, err = fmt.Fprintf(fOut, "    SHA256: %s\n\n", licList[j.key].Sha256)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

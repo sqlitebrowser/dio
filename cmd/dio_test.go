@@ -96,6 +96,14 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 			log.Fatalln(err)
 		}
 	}
+
+	// Set up the replacement functions
+	getDatabases = mockGetDatabases
+	getLicences = mockGetLicences
+
+	// Change to the temp directory
+	err = os.Chdir(s.dir)
+	c.Assert(err, chk.IsNil)
 }
 
 func (s *DioSuite) SetUpTest(c *chk.C) {
@@ -115,14 +123,6 @@ func (s *DioSuite) TearDownTest(c *chk.C) {
 
 // Test the "dio commit" command
 func (s *DioSuite) Test0010_Commit(c *chk.C) {
-	// Set up the replacement functions
-	getDatabases = mockGetDatabases
-	getLicences = mockGetLicences
-
-	// Change to the temp directory
-	err := os.Chdir(s.dir)
-	c.Assert(err, chk.IsNil)
-
 	// Call the commit code
 	commitCmdBranch = "master"
 	commitCmdCommit = ""
@@ -132,7 +132,7 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	commitCmdAuthName = "Default test user"
 	commitCmdTimestamp = "2019-03-15T18:01:01Z"
 	// TODO: Adjust commit() to return the commit ID, so we don't need to hard code it below
-	err = commit([]string{s.dbName})
+	err := commit([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
 
 	// * Verify the new commit data on disk matches our expectations *
@@ -694,6 +694,32 @@ func (s *DioSuite) Test0210_StatusChanged(c *chk.C) {
 
 	// Restore the original mocked function
 	retrieveMetadata = oldRet
+}
+
+func (s *DioSuite) Test0220_LicenceList(c *chk.C) {
+	// NOTE - We don't need to mock the call to the server here, as it's already been done in SetUpSuite()
+
+	// Retrieve the licence list
+	err := licenceList()
+	c.Assert(err, chk.IsNil)
+
+	// Make sure an entry for "No licence specified" is given on the output
+	numEntries := 0
+	licFound := false
+	lines := bufio.NewScanner(&s.buf)
+	for lines.Scan() {
+		l := strings.TrimSpace(lines.Text())
+		if strings.HasPrefix(l, "*") {
+			numEntries++
+			p := strings.Split(lines.Text(), ":")
+			if len(p) >= 2 && strings.TrimSpace(p[1]) == "No licence specified" {
+				c.Check(p, chk.HasLen, 2)
+				licFound = true
+			}
+		}
+	}
+	c.Check(numEntries, chk.Equals, 1)
+	c.Check(licFound, chk.Equals, true)
 }
 
 // Mocked functions
