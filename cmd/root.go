@@ -119,6 +119,7 @@ func init() {
 	TLSConfig = tls.Config{
 		Certificates:             []tls.Certificate{cert},
 		ClientCAs:                ourCAPool,
+		InsecureSkipVerify:       true,
 		MinVersion:               tls.VersionTLS12,
 		PreferServerCipherSuites: true,
 		RootCAs:                  ourCAPool,

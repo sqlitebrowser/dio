@@ -4,28 +4,33 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
 	chk "gopkg.in/check.v1"
 )
 
 type DioSuite struct {
-	buf    bytes.Buffer
-	config string
-	dbFile string
-	dbName string
-	dir    string
-	oldOut io.Writer
+	buf     bytes.Buffer
+	config  string
+	dbFile  string
+	dbName  string
+	dir     string
+	licFile string
+	oldOut  io.Writer
 }
 
 const (
@@ -34,16 +39,26 @@ cachain = "%s"
 cert = "%s"
 
 [general]
-cloud = "https://localhost:5550"
+cloud = "https://localhost:5551"
 
 [user]
 name = "Some One"
-email = "someone@example.org"\n`
+email = "someone@example.org"
+`
 )
 
 var (
-	_        = chk.Suite(&DioSuite{})
-	showFlag = flag.Bool("show", false, "Don't redirect test command output to /dev/null")
+	_       = chk.Suite(&DioSuite{})
+	licList = map[string]licenceEntry{"Not specified": {
+		FileFormat: "text",
+		FullName:   "No licence specified",
+		Order:      100,
+		Sha256:     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+		URL:        "",
+	}}
+	newServer *http.Server
+	origDir   string
+	showFlag  = flag.Bool("show", false, "Don't redirect test command output to /dev/null")
 )
 
 func Test(t *testing.T) {
@@ -63,13 +78,22 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
+	origDir = d
 	_, err = fmt.Fprintf(f, CONFIG,
 		filepath.Join(d, "..", "test_data", "ca-chain-docker.cert.pem"),
 		filepath.Join(d, "..", "test_data", "default.cert.pem"))
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
-	cfgFile = s.config
+
+	// Drop any old config loaded automatically by viper, and use our temporary test config instead
+	viper.Reset()
+	viper.SetConfigFile(s.config)
+	if err = viper.ReadInConfig(); err != nil {
+		log.Fatalf("Error loading test config file: %s", err.Error())
+		return
+	}
+	cloud = viper.GetString("general.cloud")
 
 	// Add test database
 	s.dbName = "19kB.sqlite"
@@ -85,6 +109,17 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 
 	// Set the last modified date of the database file to a known value
 	err = os.Chtimes(s.dbFile, time.Now(), time.Date(2019, time.March, 15, 18, 1, 0, 0, time.UTC))
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	// Add a test licence
+	lic, err := ioutil.ReadFile(filepath.Join(d, "..", "LICENSE"))
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	s.licFile = filepath.Join(s.dir, "test.licence")
+	err = ioutil.WriteFile(s.licFile, lic, 0644)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
@@ -697,8 +732,6 @@ func (s *DioSuite) Test0210_StatusChanged(c *chk.C) {
 }
 
 func (s *DioSuite) Test0220_LicenceList(c *chk.C) {
-	// NOTE - We don't need to mock the call to the server here, as it's already been done in SetUpSuite()
-
 	// Retrieve the licence list
 	err := licenceList()
 	c.Assert(err, chk.IsNil)
@@ -722,6 +755,40 @@ func (s *DioSuite) Test0220_LicenceList(c *chk.C) {
 	c.Check(licFound, chk.Equals, true)
 }
 
+func (s *DioSuite) Test0230_LicenceAdd(c *chk.C) {
+	// Spin up a local https listener to catch what licenceAdd() sends
+	go mockServer()
+
+	// Add a licence (to our mocked up server)
+	licenceAddDisplayOrder = 200
+	licenceAddFileFormat = "text"
+	licenceAddFullName = "GNU AFFERO GENERAL PUBLIC LICENSE"
+	licenceAddFile = s.licFile
+	licenceAddURL = "https://www.gnu.org/licenses/agpl-3.0.en.html"
+	err := licenceAdd([]string{"AGPL3"})
+	c.Assert(err, chk.IsNil)
+
+	// Calculate the SHA256 of the licence file
+	b, err := ioutil.ReadFile(s.licFile)
+	c.Assert(err, chk.IsNil)
+	z := sha256.Sum256(b)
+	shaSum := hex.EncodeToString(z[:])
+
+	// Verify the info sent via licenceAdd
+	licList, err := getLicences()
+	c.Assert(err, chk.IsNil)
+
+	licVerify := licList["AGPL3"]
+	c.Assert(licVerify.FileFormat, chk.Equals, licenceAddFileFormat)
+	c.Assert(licVerify.FullName, chk.Equals, licenceAddFullName)
+	c.Assert(licVerify.Order, chk.Equals, licenceAddDisplayOrder)
+	c.Assert(licVerify.Sha256, chk.Equals, shaSum)
+	c.Assert(licVerify.URL, chk.Equals, licenceAddURL)
+
+	// Shut down the mock server
+	_ = newServer.Close()
+}
+
 // Mocked functions
 func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error) {
 	dbList = append(dbList, dbListEntry{
@@ -742,14 +809,7 @@ func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error)
 }
 
 func mockGetLicences() (list map[string]licenceEntry, err error) {
-	list = make(map[string]licenceEntry)
-	list["Not specified"] = licenceEntry{
-		FileFormat: "text",
-		FullName:   "No licence specified",
-		Order:      100,
-		Sha256:     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-		URL:        "",
-	}
+	list = licList
 	return
 }
 
@@ -786,4 +846,60 @@ func mockRetrieveMetadata(db string) (meta metaData, onCloud bool, err error) {
 	meta.Tags = make(map[string]tagEntry)
 	meta.Releases = make(map[string]releaseEntry)
 	return
+}
+
+func mockServer() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/licence/add", mockServerLicenceAddHandler)
+	newServer = &http.Server{
+		Addr:         "localhost:5551",
+		Handler:      mux,
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
+	}
+	_ = newServer.ListenAndServeTLS(filepath.Join(origDir, "..", "test_data", "docker-dev.dbhub.io.cert.pem"),
+		filepath.Join(origDir, "..", "test_data", "docker-dev.dbhub.io.key.pem"))
+}
+
+func mockServerLicenceAddHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract the form variables
+	licID := r.FormValue("licence_id")
+	licName := r.FormValue("licence_name")
+	do := r.FormValue("display_order")
+	dispOrder, err := strconv.Atoi(do)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	ff := r.FormValue("file_format")
+	su := r.FormValue("source_url")
+	tempFile, _, err := r.FormFile("file1")
+	if err != nil {
+		log.Printf("Uploading licence failed: %v\n", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer tempFile.Close()
+
+	// Calculate the SHA256 of the uploaded licence text
+	licText := new(bytes.Buffer)
+	_, err = io.Copy(licText, tempFile)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	tmpSHA := sha256.Sum256(licText.Bytes())
+	licSHA := hex.EncodeToString(tmpSHA[:])
+
+	// Add the licence to the in memory licence list
+	licList[licID] = licenceEntry{
+		FullName:   licName,
+		FileFormat: ff,
+		Sha256:     licSHA,
+		Order:      dispOrder,
+		URL:        su,
+	}
+
+	// Send a success message back to the client
+	w.WriteHeader(http.StatusCreated)
+	_, _ = fmt.Fprintf(w, "Success")
 }
