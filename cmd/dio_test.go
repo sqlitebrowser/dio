@@ -73,7 +73,7 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 
 	// Add test database
 	s.dbName = "19kB.sqlite"
-	db, err := ioutil.ReadFile(filepath.Join(d, "..", "test_data", "19kB.sqlite"))
+	db, err := ioutil.ReadFile(filepath.Join(d, "..", "test_data", s.dbName))
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
@@ -121,9 +121,7 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 
 	// Change to the temp directory
 	err := os.Chdir(s.dir)
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
+	c.Assert(err, chk.IsNil)
 
 	// Call the commit code
 	commitCmdBranch = "master"
@@ -135,9 +133,6 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	commitCmdTimestamp = "2019-03-15T18:01:01Z"
 	// TODO: Adjust commit() to return the commit ID, so we don't need to hard code it below
 	err = commit([]string{s.dbName})
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
 	c.Assert(err, chk.IsNil)
 
 	// * Verify the new commit data on disk matches our expectations *
@@ -189,17 +184,12 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 func (s *DioSuite) Test0020_Commit2(c *chk.C) {
 	// Change the last modified date on the database file
 	err := os.Chtimes(s.dbFile, time.Now(), time.Date(2019, time.March, 15, 18, 1, 2, 0, time.UTC))
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
+	c.Assert(err, chk.IsNil)
 
 	// Create another commit
 	commitCmdMsg = "The second commit in our test run"
 	commitCmdTimestamp = "2019-03-15T18:01:03Z"
 	err = commit([]string{s.dbName})
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
 	c.Assert(err, chk.IsNil)
 
 	// * Verify the new commit data on disk matches our expectations *
@@ -207,9 +197,6 @@ func (s *DioSuite) Test0020_Commit2(c *chk.C) {
 	// Check if the metadata file exists on disk
 	var meta metaData
 	meta, err = localFetchMetadata(s.dbName, false)
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
 	c.Assert(err, chk.IsNil)
 	c.Check(meta.Commits, chk.HasLen, 2)
 
@@ -630,6 +617,85 @@ func (s *DioSuite) Test0190_Log(c *chk.C) {
 	c.Check(comFound, chk.Equals, true)
 }
 
+func (s *DioSuite) Test0200_StatusUnchanged(c *chk.C) {
+	// Mock the retrieveMetadata() function
+	oldRet := retrieveMetadata
+	retrieveMetadata = mockRetrieveMetadata
+
+	// Run the status check command
+	err := status([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the output
+	lines := bufio.NewScanner(&s.buf)
+	numEntries := 0
+	unchangedFound := false
+	for lines.Scan() {
+		l := strings.TrimSpace(lines.Text())
+		if strings.HasPrefix(l, "*") {
+			numEntries++
+			p := strings.Split(lines.Text(), "'")
+			if len(p) >= 2 && strings.TrimSpace(p[1]) == s.dbName {
+				c.Check(p, chk.HasLen, 3)
+				if strings.HasSuffix(p[2], "unchanged") {
+					unchangedFound = true
+				}
+			}
+		}
+	}
+	c.Check(numEntries, chk.Equals, 1)
+	c.Check(unchangedFound, chk.Equals, true)
+
+	// Restore the original mocked function
+	retrieveMetadata = oldRet
+}
+
+func (s *DioSuite) Test0210_StatusChanged(c *chk.C) {
+	// Mock the retrieveMetadata() function
+	oldRet := retrieveMetadata
+	retrieveMetadata = mockRetrieveMetadata
+
+	// Get the current last modified date for the database file
+	f, err := os.Stat(s.dbFile)
+	c.Assert(err, chk.IsNil)
+	lastMod := f.ModTime()
+
+	// Update last modified date on the database file
+	err = os.Chtimes(s.dbFile, time.Now(), time.Date(2019, time.March, 15, 18, 1, 8, 0, time.UTC))
+	c.Assert(err, chk.IsNil)
+
+	// Run the status check command
+	err = status([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the output
+	lines := bufio.NewScanner(&s.buf)
+	numEntries := 0
+	changedFound := false
+	for lines.Scan() {
+		l := strings.TrimSpace(lines.Text())
+		if strings.HasPrefix(l, "*") {
+			numEntries++
+			p := strings.Split(lines.Text(), "'")
+			if len(p) >= 2 && strings.TrimSpace(p[1]) == s.dbName {
+				c.Check(p, chk.HasLen, 3)
+				if strings.HasSuffix(p[2], "changed") {
+					changedFound = true
+				}
+			}
+		}
+	}
+	c.Check(numEntries, chk.Equals, 1)
+	c.Check(changedFound, chk.Equals, true)
+
+	// Restore the last modified date on the database file
+	err = os.Chtimes(s.dbFile, time.Now(), lastMod)
+	c.Assert(err, chk.IsNil)
+
+	// Restore the original mocked function
+	retrieveMetadata = oldRet
+}
+
 // Mocked functions
 func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error) {
 	dbList = append(dbList, dbListEntry{
@@ -658,5 +724,40 @@ func mockGetLicences() (list map[string]licenceEntry, err error) {
 		Sha256:     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 		URL:        "",
 	}
+	return
+}
+
+// Returns metadata of a database with a single commit, on the master branch
+func mockRetrieveMetadata(db string) (meta metaData, onCloud bool, err error) {
+	meta.Commits["e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"] = commitEntry{
+		ID:             "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889",
+		CommitterEmail: "someone@example.org",
+		CommitterName:  "Some One",
+		AuthorEmail:    "testdefault@dbhub.io",
+		AuthorName:     "Default test user",
+		Message:        "The first commit in our test run",
+		Timestamp:      time.Date(2019, time.March, 15, 18, 1, 1, 0, time.UTC),
+		Tree: dbTree{
+			ID: "8983130ceda4a2e39a3ad002945d57748987494907f475539fe766f8893cc278",
+			Entries: []dbTreeEntry{{
+				EntryType:    dbTreeEntryType(DATABASE),
+				LastModified: time.Date(2019, time.March, 15, 18, 1, 0, 0, time.UTC),
+				LicenceSHA:   "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+				Name:         "19kB.sqlite",
+				Sha256:       "e8cab91dec32b3990b427b28380e4e052288054f99c4894742f07dee0c924efd",
+				Size:         19456},
+			},
+		},
+	}
+	meta.Branches["master"] = branchEntry{
+		Commit:      "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889",
+		CommitCount: 1,
+		Description: "",
+	}
+	meta.DefBranch = "master"
+
+	// No need for tags nor releases at this stage
+	meta.Tags = make(map[string]tagEntry)
+	meta.Releases = make(map[string]releaseEntry)
 	return
 }

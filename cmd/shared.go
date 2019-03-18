@@ -281,6 +281,7 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 	mergedMeta.Branches = make(map[string]branchEntry)
 	mergedMeta.Commits = make(map[string]commitEntry)
 	mergedMeta.Tags = make(map[string]tagEntry)
+	mergedMeta.Releases = make(map[string]releaseEntry)
 	if len(origMeta.Commits) > 0 {
 		// Start by check branches which exist locally
 		// TODO: Change sort order to be by alphabetical branch name, as the current unordered approach leads to
@@ -355,8 +356,11 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 					// newer commits in the remote branch
 					if branchesSame {
 						if remoteLength > localLength {
-							fmt.Printf("  * Remote branch '%s' has %d new commit(s)... merged\n", brName,
-								remoteLength-localLength)
+							_, err = fmt.Fprintf(fOut, "  * Remote branch '%s' has %d new commit(s)... merged\n",
+								brName, remoteLength-localLength)
+							if err != nil {
+								return
+							}
 							for _, j := range remoteList {
 								mergedMeta.Commits[j] = newMeta.Commits[j]
 							}
@@ -364,7 +368,10 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 						} else {
 							// The local and remote branches are the same, so copy the local branch commits across to
 							// the merged data structure
-							fmt.Printf("  * Branch '%s' is unchanged\n", brName)
+							_, err = fmt.Fprintf(fOut, "  * Branch '%s' is unchanged\n", brName)
+							if err != nil {
+								return
+							}
 							for _, j := range localList {
 								mergedMeta.Commits[j] = origMeta.Commits[j]
 							}
@@ -375,7 +382,11 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 					}
 
 					if skipFurtherChecks == false && brData.Commit != newData.Commit {
-						fmt.Printf("  * Branch '%s' has local changes, not on the server\n", brName)
+						_, err = fmt.Fprintf(fOut, "  * Branch '%s' has local changes, not on the server\n",
+							brName)
+						if err != nil {
+							return
+						}
 
 						// Copy across the commits from the local branch
 						localCommit := origMeta.Commits[brData.Commit]
@@ -389,16 +400,22 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 						mergedMeta.Branches[brName] = brData
 					}
 					if skipFurtherChecks == false && brData.Description != newData.Description {
-						fmt.Printf("  * Description for branch %s differs between the local and remote\n"+
+						_, err = fmt.Fprintf(fOut, "  * Description for branch %s differs between the local "+
+							"and remote\n"+
 							"    * Local: '%s'\n"+
-							"    * Remote: '%s'\n",
-							brName, brData.Description, newData.Description)
+							"    * Remote: '%s'\n", brName, brData.Description, newData.Description)
+						if err != nil {
+							return
+						}
 					}
 				}
 			}
 			if !matchFound {
 				// This seems to be a branch that's not on the server, so we keep it as-is
-				fmt.Printf("  * Branch '%s' is local only, not on the server\n", brName)
+				_, err = fmt.Fprintf(fOut, "  * Branch '%s' is local only, not on the server\n", brName)
+				if err != nil {
+					return
+				}
 				mergedMeta.Branches[brName] = brData
 
 				// Copy across the commits from the local branch
@@ -428,7 +445,10 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 				// Copy their branch data
 				mergedMeta.Branches[remoteName] = remoteData
 
-				fmt.Printf("  * New remote branch '%s' merged\n", remoteName)
+				_, err = fmt.Fprintf(fOut, "  * New remote branch '%s' merged\n", remoteName)
+				if err != nil {
+					return
+				}
 			}
 		}
 
@@ -441,10 +461,33 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 		for tagName, tagData := range newMeta.Tags {
 			// Only add tags which aren't already in the merged metadata structure
 			if _, tagFound := mergedMeta.Tags[tagName]; tagFound == false {
-				// Also make sure it's commit is in the commit list.  If it's not, then skip adding the tag
+				// Also make sure its commit is in the commit list.  If it's not, then skip adding the tag
 				if _, commitFound := mergedMeta.Commits[tagData.Commit]; commitFound == true {
-					fmt.Printf("  * New tag '%s' merged\n", tagName)
+					_, err = fmt.Fprintf(fOut, "  * New tag '%s' merged\n", tagName)
+					if err != nil {
+						return
+					}
 					mergedMeta.Tags[tagName] = tagData
+				}
+			}
+		}
+
+		// Preserve existing releases
+		for relName, relData := range origMeta.Releases {
+			mergedMeta.Releases[relName] = relData
+		}
+
+		// Add new releases
+		for relName, relData := range newMeta.Releases {
+			// Only add releases which aren't already in the merged metadata structure
+			if _, relFound := mergedMeta.Releases[relName]; relFound == false {
+				// Also make sure its commit is in the commit list.  If it's not, then skip adding the release
+				if _, commitFound := mergedMeta.Commits[relData.Commit]; commitFound == true {
+					_, err = fmt.Fprintf(fOut, "  * New release '%s' merged\n", relName)
+					if err != nil {
+						return
+					}
+					mergedMeta.Releases[relName] = relData
 				}
 			}
 		}
@@ -512,7 +555,7 @@ func retrieveDatabase(db string, branch string, commit string) (resp rq.Response
 }
 
 // Retrieves database metadata from DBHub.io
-func retrieveMetadata(db string) (meta metaData, onCloud bool, err error) {
+var retrieveMetadata = func(db string) (meta metaData, onCloud bool, err error) {
 	// Download the database metadata
 	resp, md, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/metadata/get").
 		Query(fmt.Sprintf("username=%s", url.QueryEscape(certUser))).
@@ -581,7 +624,10 @@ func updateMetadata(db string, saveMeta bool) (mergedMeta metaData, err error) {
 	}
 
 	// Download the latest database metadata
-	fmt.Println("Updating metadata")
+	_, err = fmt.Fprintln(fOut, "Updating metadata")
+	if err != nil {
+		return
+	}
 	newMeta, _, err := retrieveMetadata(db)
 	if err != nil {
 		return
