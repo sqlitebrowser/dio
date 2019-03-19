@@ -157,7 +157,11 @@ var getDatabases = func(url string, user string) (dbList []dbListEntry, err erro
 	defer resp.Body.Close()
 	err = json.Unmarshal([]byte(body), &dbList)
 	if err != nil {
-		fmt.Printf("Error retrieving database list: '%v'\n", err.Error())
+		_, errInner := fmt.Fprintf(fOut, "Error retrieving database list: '%v'\n", err.Error())
+		if errInner != nil {
+			err = fmt.Errorf("%s: %s", err, errInner)
+			return
+		}
 	}
 	return
 }
@@ -503,7 +507,10 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 			mergedMeta.ActiveBranch = newMeta.DefBranch
 		}
 
-		fmt.Println()
+		_, err = fmt.Fprintln(fOut)
+		if err != nil {
+			return
+		}
 	} else {
 		// No existing metadata, so just copy across the remote metadata
 		mergedMeta = newMeta

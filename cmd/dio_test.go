@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -28,7 +29,6 @@ type DioSuite struct {
 	config string
 	dbFile string
 	dbName string
-	dir    string
 	oldOut io.Writer
 }
 
@@ -59,6 +59,7 @@ var (
 	newServer *http.Server
 	origDir   string
 	showFlag  = flag.Bool("show", false, "Don't redirect test command output to /dev/null")
+	tempDir   string
 )
 
 func Test(t *testing.T) {
@@ -67,9 +68,9 @@ func Test(t *testing.T) {
 
 func (s *DioSuite) SetUpSuite(c *chk.C) {
 	// Create initial config file in a temp directory
-	s.dir = c.MkDir()
-	fmt.Printf("Temp dir: %s\n", s.dir)
-	s.config = filepath.Join(s.dir, "config.toml")
+	tempDir = c.MkDir()
+	fmt.Printf("Temp dir: %s\n", tempDir)
+	s.config = filepath.Join(tempDir, "config.toml")
 	f, err := os.Create(s.config)
 	if err != nil {
 		log.Fatalln(err.Error())
@@ -101,7 +102,7 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
-	s.dbFile = filepath.Join(s.dir, s.dbName)
+	s.dbFile = filepath.Join(tempDir, s.dbName)
 	err = ioutil.WriteFile(s.dbFile, db, 0644)
 	if err != nil {
 		log.Fatalln(err.Error())
@@ -118,7 +119,7 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
-	licFile = filepath.Join(s.dir, "test.licence")
+	licFile = filepath.Join(tempDir, "test.licence")
 	err = ioutil.WriteFile(licFile, lic, 0644)
 	if err != nil {
 		log.Fatalln(err.Error())
@@ -137,7 +138,7 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 	getLicences = mockGetLicences
 
 	// Change to the temp directory
-	err = os.Chdir(s.dir)
+	err = os.Chdir(tempDir)
 	c.Assert(err, chk.IsNil)
 }
 
@@ -800,7 +801,7 @@ func (s *DioSuite) Test0240_LicenceGet(c *chk.C) {
 	origSHASum := hex.EncodeToString(z[:])
 
 	// Make sure "AGPL3.txt" doesn't exist in the current directory before the call to licenceGet()
-	getFile := filepath.Join(s.dir, "AGPL3.txt")
+	getFile := filepath.Join(tempDir, "AGPL3.txt")
 	_, err = os.Stat(getFile)
 	c.Assert(err, chk.Not(chk.IsNil))
 
@@ -905,6 +906,50 @@ func (s *DioSuite) Test0260_PullLocal(c *chk.C) {
 	_ = newServer.Close()
 }
 
+func (s *DioSuite) Test0270_PullRemote(c *chk.C) {
+	// Mock the retrieveMetadata() function
+	oldRet := retrieveMetadata
+	retrieveMetadata = mockRetrieveMetadata
+
+	// Start our mock https server
+	go mockServer()
+
+	// Calculate the SHA256 of the test database
+	b, err := ioutil.ReadFile(s.dbFile)
+	c.Assert(err, chk.IsNil)
+	z := sha256.Sum256(b)
+	origSHASum := hex.EncodeToString(z[:])
+
+	// Rename the local copy of our test database
+	err = os.Rename(s.dbFile, s.dbFile+"-renamed")
+	c.Assert(err, chk.IsNil)
+
+	// Remove the local metadata and cache for our test database
+	metaDir := filepath.Join(".dio", s.dbName)
+	err = os.RemoveAll(metaDir)
+	c.Assert(err, chk.IsNil)
+
+	// Grab the database from our mock server
+	pullCmdBranch = ""
+	pullCmdCommit = "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"
+	*pullForce = true
+	err = pull([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the SHA256 of the retrieved database matches
+	b, err = ioutil.ReadFile(s.dbFile)
+	c.Assert(err, chk.IsNil)
+	z = sha256.Sum256(b)
+	newSHASum := hex.EncodeToString(z[:])
+	c.Check(newSHASum, chk.Equals, origSHASum)
+
+	// Shut down the mock server
+	_ = newServer.Close()
+
+	// Restore the original mocked function
+	retrieveMetadata = oldRet
+}
+
 // Mocked functions
 func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error) {
 	dbList = append(dbList, dbListEntry{
@@ -930,6 +975,8 @@ func mockGetLicences() (map[string]licenceEntry, error) {
 
 // Returns metadata of a database with a single commit, on the master branch
 func mockRetrieveMetadata(db string) (meta metaData, onCloud bool, err error) {
+	meta.Branches = make(map[string]branchEntry)
+	meta.Commits = make(map[string]commitEntry)
 	meta.Commits["e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"] = commitEntry{
 		ID:             "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889",
 		CommitterEmail: "someone@example.org",
@@ -968,6 +1015,7 @@ func mockServer() {
 	mux.HandleFunc("/licence/add", mockServerLicenceAddHandler)
 	mux.HandleFunc("/licence/get", mockServerLicenceGetHandler)
 	mux.HandleFunc("/licence/remove", mockServerLicenceRemoveHandler)
+	mux.HandleFunc("/default/19kB.sqlite", mockServerPullHandler)
 	newServer = &http.Server{
 		Addr:         "localhost:5551",
 		Handler:      mux,
@@ -1056,4 +1104,25 @@ func mockServerLicenceRemoveHandler(w http.ResponseWriter, r *http.Request) {
 	// Send a success message back to the client
 	w.WriteHeader(http.StatusOK)
 	_, _ = fmt.Fprintf(w, "Success")
+}
+
+func mockServerPullHandler(w http.ResponseWriter, r *http.Request) {
+	// This code is copied from the DB4S end point retrieveDatabase() call, with the values for 19kb.sqlite added
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"; modification-date="%s";`,
+		url.QueryEscape("19kB.sqlite"), time.Date(2019, time.March, 15, 18, 1, 0, 0, time.UTC).Format(time.RFC3339)))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", 19456))
+	w.Header().Set("Content-Type", "application/x-sqlite3")
+	w.Header().Set("Branch", "master")
+	w.Header().Set("Commit-ID", "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889")
+	f, err := os.Open(filepath.Join(tempDir, "19kB.sqlite-renamed"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+	_, err = io.Copy(w, f)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
