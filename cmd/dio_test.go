@@ -24,13 +24,12 @@ import (
 )
 
 type DioSuite struct {
-	buf     bytes.Buffer
-	config  string
-	dbFile  string
-	dbName  string
-	dir     string
-	licFile string
-	oldOut  io.Writer
+	buf    bytes.Buffer
+	config string
+	dbFile string
+	dbName string
+	dir    string
+	oldOut io.Writer
 }
 
 const (
@@ -49,6 +48,7 @@ email = "someone@example.org"
 
 var (
 	_       = chk.Suite(&DioSuite{})
+	licFile string
 	licList = map[string]licenceEntry{"Not specified": {
 		FileFormat: "text",
 		FullName:   "No licence specified",
@@ -118,8 +118,8 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
-	s.licFile = filepath.Join(s.dir, "test.licence")
-	err = ioutil.WriteFile(s.licFile, lic, 0644)
+	licFile = filepath.Join(s.dir, "test.licence")
+	err = ioutil.WriteFile(licFile, lic, 0644)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
@@ -756,20 +756,20 @@ func (s *DioSuite) Test0220_LicenceList(c *chk.C) {
 }
 
 func (s *DioSuite) Test0230_LicenceAdd(c *chk.C) {
-	// Spin up a local https listener to catch what licenceAdd() sends
+	// Start our mock https server
 	go mockServer()
 
 	// Add a licence (to our mocked up server)
 	licenceAddDisplayOrder = 200
 	licenceAddFileFormat = "text"
 	licenceAddFullName = "GNU AFFERO GENERAL PUBLIC LICENSE"
-	licenceAddFile = s.licFile
+	licenceAddFile = licFile
 	licenceAddURL = "https://www.gnu.org/licenses/agpl-3.0.en.html"
 	err := licenceAdd([]string{"AGPL3"})
 	c.Assert(err, chk.IsNil)
 
 	// Calculate the SHA256 of the licence file
-	b, err := ioutil.ReadFile(s.licFile)
+	b, err := ioutil.ReadFile(licFile)
 	c.Assert(err, chk.IsNil)
 	z := sha256.Sum256(b)
 	shaSum := hex.EncodeToString(z[:])
@@ -784,6 +784,38 @@ func (s *DioSuite) Test0230_LicenceAdd(c *chk.C) {
 	c.Assert(licVerify.Order, chk.Equals, licenceAddDisplayOrder)
 	c.Assert(licVerify.Sha256, chk.Equals, shaSum)
 	c.Assert(licVerify.URL, chk.Equals, licenceAddURL)
+
+	// Shut down the mock server
+	_ = newServer.Close()
+}
+
+func (s *DioSuite) Test0240_LicenceGet(c *chk.C) {
+	// Start our mock https server
+	go mockServer()
+
+	// Calculate the SHA256 of the original licence file
+	b, err := ioutil.ReadFile(licFile)
+	c.Assert(err, chk.IsNil)
+	z := sha256.Sum256(b)
+	origSHASum := hex.EncodeToString(z[:])
+
+	// Make sure "AGPL3.txt" doesn't exist in the current directory before the call to licenceGet()
+	getFile := filepath.Join(s.dir, "AGPL3.txt")
+	_, err = os.Stat(getFile)
+	c.Assert(err, chk.Not(chk.IsNil))
+
+	// Retrieve the AGPL3 licence from the mock server using licenceGet()
+	err = licenceGet([]string{"AGPL3"})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the AGPL3.txt licence now exists, and its contents match what's expected
+	_, err = os.Stat(getFile)
+	c.Assert(err, chk.IsNil)
+	y, err := ioutil.ReadFile(licFile)
+	c.Assert(err, chk.IsNil)
+	z = sha256.Sum256(y)
+	newSHASum := hex.EncodeToString(z[:])
+	c.Check(newSHASum, chk.Equals, origSHASum)
 
 	// Shut down the mock server
 	_ = newServer.Close()
@@ -851,6 +883,7 @@ func mockRetrieveMetadata(db string) (meta metaData, onCloud bool, err error) {
 func mockServer() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/licence/add", mockServerLicenceAddHandler)
+	mux.HandleFunc("/licence/get", mockServerLicenceGetHandler)
 	newServer = &http.Server{
 		Addr:         "localhost:5551",
 		Handler:      mux,
@@ -902,4 +935,26 @@ func mockServerLicenceAddHandler(w http.ResponseWriter, r *http.Request) {
 	// Send a success message back to the client
 	w.WriteHeader(http.StatusCreated)
 	_, _ = fmt.Fprintf(w, "Success")
+}
+
+func mockServerLicenceGetHandler(w http.ResponseWriter, r *http.Request) {
+	// Make sure the correct licence is being requested
+	if r.FormValue("licence") != "AGPL3" {
+		http.Error(w, "Wrong licence requested", http.StatusNotFound)
+		return
+	}
+
+	// Send the licence file to the client
+	lic, err := ioutil.ReadFile(licFile)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Disposition", "attachment; filename=AGPL3.txt")
+	w.Header().Set("Content-Type", "text/plain")
+	_, err = fmt.Fprint(w, lic)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
