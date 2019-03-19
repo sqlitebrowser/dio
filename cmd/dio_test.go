@@ -873,6 +873,38 @@ func (s *DioSuite) Test0250_LicenceRemove(c *chk.C) {
 	_ = newServer.Close()
 }
 
+func (s *DioSuite) Test0260_PullLocal(c *chk.C) {
+	// Start our mock https server
+	go mockServer()
+
+	// Calculate the SHA256 of the test database
+	b, err := ioutil.ReadFile(s.dbFile)
+	c.Assert(err, chk.IsNil)
+	z := sha256.Sum256(b)
+	origSHASum := hex.EncodeToString(z[:])
+
+	// Remove the local copy of our test database
+	err = os.Remove(s.dbFile)
+	c.Assert(err, chk.IsNil)
+
+	// Grab the database from local cache
+	pullCmdBranch = "master"
+	pullCmdCommit = ""
+	*pullForce = true
+	err = pull([]string{s.dbName})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the SHA256 of the retrieved database matches
+	b, err = ioutil.ReadFile(s.dbFile)
+	c.Assert(err, chk.IsNil)
+	z = sha256.Sum256(b)
+	newSHASum := hex.EncodeToString(z[:])
+	c.Check(newSHASum, chk.Equals, origSHASum)
+
+	// Shut down the mock server
+	_ = newServer.Close()
+}
+
 // Mocked functions
 func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error) {
 	dbList = append(dbList, dbListEntry{
