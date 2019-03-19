@@ -821,6 +821,58 @@ func (s *DioSuite) Test0240_LicenceGet(c *chk.C) {
 	_ = newServer.Close()
 }
 
+func (s *DioSuite) Test0250_LicenceRemove(c *chk.C) {
+	// Start our mock https server
+	go mockServer()
+
+	// Verify the AGPL3 licence exists on the mock server prior to our licenceRemove() call
+	numEntries := 0
+	licFound := false
+	err := licenceList()
+	c.Assert(err, chk.IsNil)
+	lines := bufio.NewScanner(&s.buf)
+	for lines.Scan() {
+		l := strings.TrimSpace(lines.Text())
+		if strings.HasPrefix(l, "*") {
+			numEntries++
+			p := strings.Split(lines.Text(), ":")
+			if len(p) >= 2 && strings.TrimSpace(p[1]) == "GNU AFFERO GENERAL PUBLIC LICENSE" {
+				c.Check(p, chk.HasLen, 2)
+				licFound = true
+			}
+		}
+	}
+	c.Check(numEntries, chk.Equals, 2)
+	c.Check(licFound, chk.Equals, true)
+
+	// Run the licence removal call
+	err = licenceRemove([]string{"AGPL3"})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the licence has been removed
+	err = licenceList()
+	c.Assert(err, chk.IsNil)
+	numEntries = 0
+	licFound = false
+	lines = bufio.NewScanner(&s.buf)
+	for lines.Scan() {
+		l := strings.TrimSpace(lines.Text())
+		if strings.HasPrefix(l, "*") {
+			numEntries++
+			p := strings.Split(lines.Text(), ":")
+			if len(p) >= 2 && strings.TrimSpace(p[1]) == "AGPL3" {
+				c.Check(p, chk.HasLen, 2)
+				licFound = true
+			}
+		}
+	}
+	c.Check(numEntries, chk.Equals, 1)
+	c.Check(licFound, chk.Equals, false)
+
+	// Shut down the mock server
+	_ = newServer.Close()
+}
+
 // Mocked functions
 func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error) {
 	dbList = append(dbList, dbListEntry{
@@ -840,9 +892,8 @@ func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error)
 	return
 }
 
-func mockGetLicences() (list map[string]licenceEntry, err error) {
-	list = licList
-	return
+func mockGetLicences() (map[string]licenceEntry, error) {
+	return licList, nil
 }
 
 // Returns metadata of a database with a single commit, on the master branch
@@ -884,6 +935,7 @@ func mockServer() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/licence/add", mockServerLicenceAddHandler)
 	mux.HandleFunc("/licence/get", mockServerLicenceGetHandler)
+	mux.HandleFunc("/licence/remove", mockServerLicenceRemoveHandler)
 	newServer = &http.Server{
 		Addr:         "localhost:5551",
 		Handler:      mux,
@@ -957,4 +1009,19 @@ func mockServerLicenceGetHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func mockServerLicenceRemoveHandler(w http.ResponseWriter, r *http.Request) {
+	// Make sure the correct licence is being requested
+	if r.FormValue("licence_id") != "AGPL3" {
+		http.Error(w, "Wrong licence requested", http.StatusNotFound)
+		return
+	}
+
+	// Remove the licence
+	delete(licList, "AGPL3")
+
+	// Send a success message back to the client
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(w, "Success")
 }
