@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -56,10 +57,33 @@ var (
 		Sha256:     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 		URL:        "",
 	}}
-	newServer *http.Server
-	origDir   string
-	showFlag  = flag.Bool("show", false, "Don't redirect test command output to /dev/null")
-	tempDir   string
+	newServer     *http.Server
+	origDir       string
+	showFlag      = flag.Bool("show", false, "Don't redirect test command output to /dev/null")
+	tempDir       string
+	mockDBEntries = []dbListEntry{{
+		CommitID:     "316b246eda1e1779b21e9ac338cab4a71847c5268c03911ebfed974ffbab03bc",
+		DefBranch:    "master",
+		LastModified: "12 Mar 19 13:56 AEDT",
+		Licence:      "Not specified",
+		Name:         "2.5mbv13.sqlite",
+		OneLineDesc:  "",
+		Public:       true,
+		RepoModified: "12 Mar 19 13:59 AEDT",
+		SHA256:       "SHA256",
+		Size:         2666496,
+		Type:         "database",
+		URL:          fmt.Sprintf("%s/default/%s", cloud, "2.5mbv13.sqlite?commit=316b246eda1e1779b21e9ac338cab4a71847c5268c03911ebfed974ffbab03bc&branch=master"),
+	}}
+	mockMetaData = map[string]metaData{
+		"19kBv3.sqlite": {
+			Branches:  make(map[string]branchEntry),
+			DefBranch: "master",
+			Commits:   make(map[string]commitEntry),
+			Releases:  make(map[string]releaseEntry),
+			Tags:      make(map[string]tagEntry),
+		},
+	}
 )
 
 func Test(t *testing.T) {
@@ -134,8 +158,11 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 	}
 
 	// Set up the replacement functions
-	getDatabases = mockGetDatabases
 	getLicences = mockGetLicences
+
+	// Start our mock https server
+	go mockServer()
+	time.Sleep(250 * time.Millisecond) // Small pause here, to allow the mock server to finish starting
 
 	// Change to the temp directory
 	err = os.Chdir(tempDir)
@@ -147,6 +174,11 @@ func (s *DioSuite) SetUpTest(c *chk.C) {
 	// Redirect display output to a temp buffer
 	s.oldOut = fOut
 	fOut = &s.buf
+}
+
+func (s *DioSuite) TearDownSuite(c *chk.C) {
+	// Shut down the mock server
+	_ = newServer.Close()
 }
 
 func (s *DioSuite) TearDownTest(c *chk.C) {
@@ -166,7 +198,7 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	commitCmdLicence = "Not specified"
 	commitCmdMsg = "The first commit in our test run"
 	commitCmdAuthName = "Default test user"
-	commitCmdTimestamp = "2019-03-15T18:01:01Z"
+	commitCmdTimestamp = time.Date(2019, time.March, 15, 18, 1, 1, 0, time.UTC).Format(time.RFC3339)
 	// TODO: Adjust commit() to return the commit ID, so we don't need to hard code it below
 	err := commit([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
@@ -179,7 +211,7 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	c.Check(meta.Commits, chk.HasLen, 1)
 
 	// Verify the values in the commit data match the values we provided
-	com, ok := meta.Commits["e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"] // This commit ID is what the given values should generate a commit ID as
+	com, ok := meta.Commits["485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"] // This commit ID is what the given values should generate a commit ID as
 	c.Assert(ok, chk.Equals, true)
 	c.Check(com.AuthorName, chk.Equals, commitCmdAuthName)
 	c.Check(com.AuthorEmail, chk.Equals, commitCmdAuthEmail)
@@ -189,7 +221,7 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	c.Check(com.OtherParents, chk.IsNil)
 	c.Check(com.CommitterName, chk.Equals, "Some One")
 	c.Check(com.CommitterEmail, chk.Equals, "someone@example.org")
-	c.Check(com.ID, chk.Equals, "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889")
+	c.Check(com.ID, chk.Equals, "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb")
 	c.Check(com.Tree.Entries[0].EntryType, chk.Equals, dbTreeEntryType(DATABASE))
 	c.Check(com.Tree.Entries[0].LastModified.UTC(), chk.Equals, time.Date(2019, time.March, 15, 18, 1, 0, 0, time.UTC))
 	c.Check(com.Tree.Entries[0].LicenceSHA, chk.Equals, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") // e3b... is the SHA256 for the "Not specified" licence option
@@ -212,7 +244,7 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	// Verify the branch info
 	br, ok := meta.Branches["master"]
 	c.Assert(ok, chk.Equals, true)
-	c.Check(br.Commit, chk.Equals, "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889")
+	c.Check(br.Commit, chk.Equals, "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb")
 	c.Check(br.CommitCount, chk.Equals, 1)
 	c.Check(br.Description, chk.Equals, "")
 }
@@ -237,17 +269,17 @@ func (s *DioSuite) Test0020_Commit2(c *chk.C) {
 	c.Check(meta.Commits, chk.HasLen, 2)
 
 	// Verify the values in the commit data match the values we provided
-	com, ok := meta.Commits["09d05ae9a69e82be44f61ac22cb7e3fcd15a0783973c283fd723e3228bd6c9da"] // This commit ID is what the given values should generate a commit ID as
+	com, ok := meta.Commits["9c4eab0f96134063f856fc48604f49c7c1e225a79f3eebc4e226dc01b4cfe9bc"] // This commit ID is what the given values should generate a commit ID as
 	c.Assert(ok, chk.Equals, true)
 	c.Check(com.AuthorName, chk.Equals, commitCmdAuthName)
 	c.Check(com.AuthorEmail, chk.Equals, commitCmdAuthEmail)
 	c.Check(com.Message, chk.Equals, commitCmdMsg)
 	c.Check(com.Timestamp, chk.Equals, time.Date(2019, time.March, 15, 18, 1, 3, 0, time.UTC))
-	c.Check(com.Parent, chk.Equals, "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889")
+	c.Check(com.Parent, chk.Equals, "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb")
 	c.Check(com.OtherParents, chk.IsNil)
 	c.Check(com.CommitterName, chk.Equals, "Some One")
 	c.Check(com.CommitterEmail, chk.Equals, "someone@example.org")
-	c.Check(com.ID, chk.Equals, "09d05ae9a69e82be44f61ac22cb7e3fcd15a0783973c283fd723e3228bd6c9da")
+	c.Check(com.ID, chk.Equals, "9c4eab0f96134063f856fc48604f49c7c1e225a79f3eebc4e226dc01b4cfe9bc")
 	c.Check(com.Tree.Entries[0].EntryType, chk.Equals, dbTreeEntryType(DATABASE))
 	c.Check(com.Tree.Entries[0].LastModified.UTC(), chk.Equals, time.Date(2019, time.March, 15, 18, 1, 2, 0, time.UTC))
 	c.Check(com.Tree.Entries[0].LicenceSHA, chk.Equals, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") // e3b... is the SHA256 for the "Not specified" licence option
@@ -270,12 +302,12 @@ func (s *DioSuite) Test0020_Commit2(c *chk.C) {
 	// Verify the branch info
 	br, ok := meta.Branches["master"]
 	c.Assert(ok, chk.Equals, true)
-	c.Check(br.Commit, chk.Equals, "09d05ae9a69e82be44f61ac22cb7e3fcd15a0783973c283fd723e3228bd6c9da")
+	c.Check(br.Commit, chk.Equals, "9c4eab0f96134063f856fc48604f49c7c1e225a79f3eebc4e226dc01b4cfe9bc")
 	c.Check(br.CommitCount, chk.Equals, 2)
 	c.Check(br.Description, chk.Equals, "")
 
 	// TODO: Now that we can capture the display output for checking, we should probably verify the
-	//       info displayed in the output too
+	//       info displayed in the output here too
 }
 
 // Test the "dio branch" commands
@@ -293,7 +325,7 @@ func (s *DioSuite) Test0030_BranchActiveGet(c *chk.C) {
 func (s *DioSuite) Test0040_BranchCreate(c *chk.C) {
 	// Create a new branch
 	branchCreateBranch = "branchtwo"
-	branchCreateCommit = "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"
+	branchCreateCommit = "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"
 	branchCreateMsg = "A new branch"
 	err := branchCreate([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
@@ -303,7 +335,7 @@ func (s *DioSuite) Test0040_BranchCreate(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	br, ok := meta.Branches["branchtwo"]
 	c.Assert(ok, chk.Equals, true)
-	c.Check(br.Commit, chk.Equals, "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889")
+	c.Check(br.Commit, chk.Equals, "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb")
 	c.Check(br.CommitCount, chk.Equals, 1)
 	c.Check(br.Description, chk.Equals, "A new branch")
 
@@ -411,13 +443,13 @@ func (s *DioSuite) Test0100_BranchRevert(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	br, ok := meta.Branches["master"]
 	c.Assert(ok, chk.Equals, true)
-	c.Check(br.Commit, chk.Equals, "09d05ae9a69e82be44f61ac22cb7e3fcd15a0783973c283fd723e3228bd6c9da")
+	c.Check(br.Commit, chk.Equals, "9c4eab0f96134063f856fc48604f49c7c1e225a79f3eebc4e226dc01b4cfe9bc")
 	c.Check(br.CommitCount, chk.Equals, 2)
 	c.Check(br.Description, chk.Equals, "")
 
 	// Revert the master branch back to the original commit
 	branchRevertBranch = "master"
-	branchRevertCommit = "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"
+	branchRevertCommit = "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"
 	err = branchRevert([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
 
@@ -426,7 +458,7 @@ func (s *DioSuite) Test0100_BranchRevert(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	br, ok = meta.Branches["master"]
 	c.Assert(ok, chk.Equals, true)
-	c.Check(br.Commit, chk.Equals, "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889")
+	c.Check(br.Commit, chk.Equals, "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb")
 	c.Check(br.CommitCount, chk.Equals, 1)
 	c.Check(br.Description, chk.Equals, "")
 
@@ -489,7 +521,7 @@ func (s *DioSuite) Test0130_TagCreate(c *chk.C) {
 	c.Assert(ok, chk.Equals, false)
 
 	// Create the tag
-	tagCreateCommit = "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"
+	tagCreateCommit = "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"
 	tagCreateDate = "2019-03-15T18:01:05Z"
 	tagCreateEmail = "sometagger@example.org"
 	tagCreateMsg = "This is a test tag"
@@ -565,7 +597,7 @@ func (s *DioSuite) Test0160_ReleaseCreate(c *chk.C) {
 	c.Assert(ok, chk.Equals, false)
 
 	// Create the release
-	releaseCreateCommit = "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"
+	releaseCreateCommit = "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"
 	releaseCreateCreatorEmail = "somereleaser@example.org"
 	releaseCreateCreatorName = "A test releaser"
 	releaseCreateMsg = "This is a test release"
@@ -644,7 +676,7 @@ func (s *DioSuite) Test0190_Log(c *chk.C) {
 		l := strings.TrimSpace(lines.Text())
 		if strings.HasPrefix(l, "*") {
 			p := strings.Split(lines.Text(), ":")
-			if len(p) >= 2 && strings.TrimSpace(p[1]) == "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889" {
+			if len(p) >= 2 && strings.TrimSpace(p[1]) == "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb" {
 				c.Check(p, chk.HasLen, 2)
 				comFound = true
 			}
@@ -757,9 +789,6 @@ func (s *DioSuite) Test0220_LicenceList(c *chk.C) {
 }
 
 func (s *DioSuite) Test0230_LicenceAdd(c *chk.C) {
-	// Start our mock https server
-	go mockServer()
-
 	// Add a licence (to our mocked up server)
 	licenceAddDisplayOrder = 200
 	licenceAddFileFormat = "text"
@@ -785,15 +814,9 @@ func (s *DioSuite) Test0230_LicenceAdd(c *chk.C) {
 	c.Assert(licVerify.Order, chk.Equals, licenceAddDisplayOrder)
 	c.Assert(licVerify.Sha256, chk.Equals, shaSum)
 	c.Assert(licVerify.URL, chk.Equals, licenceAddURL)
-
-	// Shut down the mock server
-	_ = newServer.Close()
 }
 
 func (s *DioSuite) Test0240_LicenceGet(c *chk.C) {
-	// Start our mock https server
-	go mockServer()
-
 	// Calculate the SHA256 of the original licence file
 	b, err := ioutil.ReadFile(licFile)
 	c.Assert(err, chk.IsNil)
@@ -817,15 +840,9 @@ func (s *DioSuite) Test0240_LicenceGet(c *chk.C) {
 	z = sha256.Sum256(y)
 	newSHASum := hex.EncodeToString(z[:])
 	c.Check(newSHASum, chk.Equals, origSHASum)
-
-	// Shut down the mock server
-	_ = newServer.Close()
 }
 
 func (s *DioSuite) Test0250_LicenceRemove(c *chk.C) {
-	// Start our mock https server
-	go mockServer()
-
 	// Verify the AGPL3 licence exists on the mock server prior to our licenceRemove() call
 	numEntries := 0
 	licFound := false
@@ -869,15 +886,9 @@ func (s *DioSuite) Test0250_LicenceRemove(c *chk.C) {
 	}
 	c.Check(numEntries, chk.Equals, 1)
 	c.Check(licFound, chk.Equals, false)
-
-	// Shut down the mock server
-	_ = newServer.Close()
 }
 
 func (s *DioSuite) Test0260_PullLocal(c *chk.C) {
-	// Start our mock https server
-	go mockServer()
-
 	// Calculate the SHA256 of the test database
 	b, err := ioutil.ReadFile(s.dbFile)
 	c.Assert(err, chk.IsNil)
@@ -901,18 +912,12 @@ func (s *DioSuite) Test0260_PullLocal(c *chk.C) {
 	z = sha256.Sum256(b)
 	newSHASum := hex.EncodeToString(z[:])
 	c.Check(newSHASum, chk.Equals, origSHASum)
-
-	// Shut down the mock server
-	_ = newServer.Close()
 }
 
 func (s *DioSuite) Test0270_PullRemote(c *chk.C) {
 	// Mock the retrieveMetadata() function
 	oldRet := retrieveMetadata
 	retrieveMetadata = mockRetrieveMetadata
-
-	// Start our mock https server
-	go mockServer()
 
 	// Calculate the SHA256 of the test database
 	b, err := ioutil.ReadFile(s.dbFile)
@@ -931,7 +936,7 @@ func (s *DioSuite) Test0270_PullRemote(c *chk.C) {
 
 	// Grab the database from our mock server
 	pullCmdBranch = ""
-	pullCmdCommit = "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"
+	pullCmdCommit = "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"
 	*pullForce = true
 	err = pull([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
@@ -943,32 +948,168 @@ func (s *DioSuite) Test0270_PullRemote(c *chk.C) {
 	newSHASum := hex.EncodeToString(z[:])
 	c.Check(newSHASum, chk.Equals, origSHASum)
 
-	// Shut down the mock server
-	_ = newServer.Close()
-
 	// Restore the original mocked function
 	retrieveMetadata = oldRet
 }
 
-// Mocked functions
-func mockGetDatabases(url string, user string) (dbList []dbListEntry, err error) {
-	dbList = append(dbList, dbListEntry{
-		CommitID:     "316b246eda1e1779b21e9ac338cab4a71847c5268c03911ebfed974ffbab03bc",
-		DefBranch:    "master",
-		LastModified: "12 Mar 19 13:56 AEDT",
-		Licence:      "Not specified",
-		Name:         "2.5mbv13.sqlite",
-		OneLineDesc:  "",
-		Public:       true,
-		RepoModified: "12 Mar 19 13:59 AEDT",
-		SHA256:       "SHA256",
-		Size:         2666496,
-		Type:         "database",
-		URL:          fmt.Sprintf("%s/default/%s", cloud, "2.5mbv13.sqlite?commit=316b246eda1e1779b21e9ac338cab4a71847c5268c03911ebfed974ffbab03bc&branch=master"),
-	})
-	return
+// CompletelyNewDB - Push of a database with no local commit data, and doesn't yet exist on the remote server (should succeed)
+func (s *DioSuite) Test0280_PushCompletelyNewDB(c *chk.C) {
+	// Make sure the new database isn't yet shown on the remote server
+	newDB := "19kBv2.sqlite"
+	dbList, err := getDatabases(cloud, "default")
+	c.Assert(err, chk.IsNil)
+	dbFound := false
+	for _, j := range dbList {
+		if j.Name == newDB {
+			dbFound = true
+		}
+	}
+	c.Assert(dbFound, chk.Equals, false)
+
+	// Rename our test database from 19kB.sqlite to 19kBv2.sqlite, to give us a "new" database with no local metadata
+	err = os.Rename(s.dbFile, newDB)
+	c.Assert(err, chk.IsNil)
+	err = os.Chtimes(newDB, time.Now(), time.Date(2019, time.March, 15, 18, 2, 0, 0, time.UTC))
+	c.Assert(err, chk.IsNil)
+
+	// Send the test database to the server
+	pushCmdName = "Default test user"
+	pushCmdBranch = "master"
+	pushCmdCommit = ""
+	pushCmdDB = newDB
+	pushCmdEmail = "testdefault@dbhub.io"
+	pushCmdForce = false
+	pushCmdLicence = "Not specified"
+	pushCmdMsg = "Test message"
+	pushCmdPublic = false
+	err = push([]string{newDB})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the new test database is on the server
+	dbList, err = getDatabases(cloud, "default")
+	c.Assert(err, chk.IsNil)
+	dbFound = false
+	for _, j := range dbList {
+		if j.Name == newDB {
+			dbFound = true
+		}
+	}
+	c.Assert(dbFound, chk.Equals, true)
 }
 
+func (s *DioSuite) Test0290_PushExistingDBConflict(c *chk.C) {
+	// Verify 19kBv2.sqlite exists on the mock server
+	newDB := "19kBv2.sqlite"
+	dbList, err := getDatabases(cloud, "default")
+	c.Assert(err, chk.IsNil)
+	dbFound := false
+	for _, j := range dbList {
+		if j.Name == newDB {
+			dbFound = true
+		}
+	}
+	c.Assert(dbFound, chk.Equals, true)
+
+	// Remove the local metadata for 19kBv2.sqlite
+	metaDir := filepath.Join(".dio", newDB)
+	err = os.RemoveAll(metaDir)
+	c.Assert(err, chk.IsNil)
+
+	// Push the database to the mock server (should fail)
+	pushCmdName = "Default test user"
+	pushCmdBranch = "master"
+	pushCmdCommit = ""
+	pushCmdDB = newDB
+	pushCmdEmail = "testdefault@dbhub.io"
+	pushCmdForce = false
+	pushCmdLicence = "Not specified"
+	pushCmdMsg = "Test message"
+	pushCmdPublic = false
+	err = push([]string{newDB})
+	c.Check(err, chk.Not(chk.IsNil))
+}
+
+func (s *DioSuite) Test0300_PushNewLocalDBAndMetadata(c *chk.C) {
+	// Rename the test database to "19kBv3.sqlite"
+	newDB := "19kBv3.sqlite"
+	err := os.Rename("19kBv2.sqlite", newDB)
+	c.Assert(err, chk.IsNil)
+
+	// Create a commit using the new test database
+	commitCmdBranch = "master"
+	commitCmdCommit = ""
+	commitCmdAuthEmail = "testdefault@dbhub.io"
+	commitCmdLicence = "Not specified"
+	commitCmdMsg = "Test message"
+	commitCmdAuthName = "Default test user"
+	commitCmdTimestamp = time.Date(2019, time.March, 15, 18, 1, 10, 0, time.UTC).Format(time.RFC3339)
+	err = commit([]string{newDB})
+
+	// Verify the database doesn't exist remotely yet
+	dbList, err := getDatabases(cloud, "default")
+	c.Assert(err, chk.IsNil)
+	dbFound := false
+	for _, j := range dbList {
+		if j.Name == newDB {
+			dbFound = true
+		}
+	}
+	c.Assert(dbFound, chk.Equals, false)
+
+	// Push the database to the server
+	pushCmdName = ""
+	pushCmdBranch = ""
+	pushCmdCommit = ""
+	pushCmdDB = newDB
+	pushCmdEmail = ""
+	pushCmdForce = false
+	pushCmdLicence = ""
+	pushCmdMsg = ""
+	pushCmdPublic = false
+	err = push([]string{newDB})
+	c.Check(err, chk.IsNil)
+
+	// Verify the database has been created
+	dbList, err = getDatabases(cloud, "default")
+	c.Assert(err, chk.IsNil)
+	dbFound = false
+	for _, j := range dbList {
+		if j.Name == newDB {
+			dbFound = true
+		}
+	}
+	c.Assert(dbFound, chk.Equals, true)
+}
+
+func (s *DioSuite) Test0310_PushLocalDBAndMetadata(c *chk.C) {
+	// Create another local commit for 19kbv3.sqlite
+	newDB := "19kBv3.sqlite"
+	err := os.Chtimes(newDB, time.Now(), time.Date(2019, time.March, 15, 18, 11, 0, 0, time.UTC))
+	c.Assert(err, chk.IsNil)
+	commitCmdMsg = "Test message"
+	commitCmdTimestamp = time.Date(2019, time.March, 15, 18, 1, 10, 0, time.UTC).Format(time.RFC3339)
+	err = commit([]string{newDB})
+
+	// Push the new commit to the server
+	pushCmdName = "Default test user"
+	pushCmdBranch = "master"
+	pushCmdCommit = ""
+	pushCmdDB = s.dbName
+	pushCmdEmail = "testdefault@dbhub.io"
+	pushCmdForce = false
+	pushCmdLicence = "Not specified"
+	pushCmdMsg = "Test message"
+	pushCmdPublic = false
+	err = push([]string{newDB})
+	c.Check(err, chk.Not(chk.IsNil))
+
+	// Verify the server now has two commits for the database
+	meta, _, err := retrieveMetadata(newDB)
+	c.Assert(err, chk.IsNil)
+	c.Check(meta.Commits, chk.HasLen, 2)
+}
+
+// Mocked functions
 func mockGetLicences() (map[string]licenceEntry, error) {
 	return licList, nil
 }
@@ -977,8 +1118,8 @@ func mockGetLicences() (map[string]licenceEntry, error) {
 func mockRetrieveMetadata(db string) (meta metaData, onCloud bool, err error) {
 	meta.Branches = make(map[string]branchEntry)
 	meta.Commits = make(map[string]commitEntry)
-	meta.Commits["e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889"] = commitEntry{
-		ID:             "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889",
+	meta.Commits["485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"] = commitEntry{
+		ID:             "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb",
 		CommitterEmail: "someone@example.org",
 		CommitterName:  "Some One",
 		AuthorEmail:    "testdefault@dbhub.io",
@@ -998,7 +1139,7 @@ func mockRetrieveMetadata(db string) (meta metaData, onCloud bool, err error) {
 		},
 	}
 	meta.Branches["master"] = branchEntry{
-		Commit:      "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889",
+		Commit:      "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb",
 		CommitCount: 1,
 		Description: "",
 	}
@@ -1012,10 +1153,14 @@ func mockRetrieveMetadata(db string) (meta metaData, onCloud bool, err error) {
 
 func mockServer() {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/default", mockServerDatabaseListHandler)
+	mux.HandleFunc("/default/19kB.sqlite", mockServerPullHandler)
+	mux.HandleFunc("/default/19kBv2.sqlite", mockServerNewDBPushHandler)
+	mux.HandleFunc("/default/19kBv3.sqlite", mockServerNewDBPushHandler)
 	mux.HandleFunc("/licence/add", mockServerLicenceAddHandler)
 	mux.HandleFunc("/licence/get", mockServerLicenceGetHandler)
 	mux.HandleFunc("/licence/remove", mockServerLicenceRemoveHandler)
-	mux.HandleFunc("/default/19kB.sqlite", mockServerPullHandler)
+	mux.HandleFunc("/metadata/get", mockServerMetadataGetHandler)
 	newServer = &http.Server{
 		Addr:         "localhost:5551",
 		Handler:      mux,
@@ -1023,6 +1168,20 @@ func mockServer() {
 	}
 	_ = newServer.ListenAndServeTLS(filepath.Join(origDir, "..", "test_data", "docker-dev.dbhub.io.cert.pem"),
 		filepath.Join(origDir, "..", "test_data", "docker-dev.dbhub.io.key.pem"))
+}
+
+func mockServerDatabaseListHandler(w http.ResponseWriter, r *http.Request) {
+	// Convert the database entries to JSON
+	var msg bytes.Buffer
+	enc := json.NewEncoder(&msg)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(mockDBEntries); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dbList := msg.Bytes()
+	_, _ = fmt.Fprintf(w, "%s", dbList)
 }
 
 func mockServerLicenceAddHandler(w http.ResponseWriter, r *http.Request) {
@@ -1106,6 +1265,195 @@ func mockServerLicenceRemoveHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, "Success")
 }
 
+func mockServerMetadataGetHandler(w http.ResponseWriter, r *http.Request) {
+	var info struct {
+		Branches  map[string]branchEntry  `json:"branches"`
+		Commits   map[string]commitEntry  `json:"commits"`
+		DefBranch string                  `json:"default_branch"`
+		Releases  map[string]releaseEntry `json:"releases"`
+		Tags      map[string]tagEntry     `json:"tags"`
+	}
+
+	// Return the metadata for the requested database
+	db := r.FormValue("dbname")
+	meta, ok := mockMetaData[db]
+	if !ok {
+		// If we have no info for the database, just return a blank structure
+		meta = metaData{}
+	}
+	info.Branches = meta.Branches
+	info.DefBranch = meta.DefBranch
+	info.Commits = meta.Commits
+	info.Releases = meta.Releases
+	info.Tags = meta.Tags
+	jsonList, err := json.MarshalIndent(info, "", "  ")
+	if err != nil {
+		errMsg := fmt.Sprintf("Error when JSON marshalling the branch list: %v\n", err)
+		log.Print(errMsg)
+		http.Error(w, errMsg, http.StatusBadRequest)
+		return
+	}
+	fmt.Fprintf(w, string(jsonList))
+}
+
+func mockServerNewDBPushHandler(w http.ResponseWriter, r *http.Request) {
+	expected := map[string]string{
+		"dbshasum":     "e8cab91dec32b3990b427b28380e4e052288054f99c4894742f07dee0c924efd",
+		"branch":       "master",
+		"licence":      "",
+		"commit":       "",
+		"commitmsg":    "Test message",
+		"public":       "false",
+		"lastmodified": time.Date(2019, time.March, 15, 18, 2, 0, 0, time.UTC).Format(time.RFC3339),
+		"authorname":   "Default test user",
+		"authoremail":  "testdefault@dbhub.io",
+	}
+
+	// Make sure the uploaded database file matches the expected SHASUM
+	tempFile, hdr, err := r.FormFile("file1")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer tempFile.Close()
+	s := sha256.New()
+	var numBytes int64
+	numBytes, err = io.Copy(s, tempFile)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	shaSum := hex.EncodeToString(s.Sum(nil))
+	if expected["dbshasum"] != shaSum {
+		http.Error(w, "SHA256 of uploaded database doesn't match expected SHA256", http.StatusBadRequest)
+		return
+	}
+
+	// Values for specific databases
+	switch hdr.Filename {
+	case "19kBv2.sqlite":
+		expected["licence"] = "Not specified"
+	case "19kBv3.sqlite":
+		expected["committername"] = "Some One"
+		expected["committeremail"] = "someone@example.org"
+		expected["commitlastmodified"] = time.Date(2019, time.March, 15, 18, 1, 10, 0, time.UTC).Format(time.RFC3339)
+	}
+
+	// If the database already exists on the mock server, specific cases are handled in various ways
+	for _, j := range mockDBEntries {
+		if j.Name == hdr.Filename {
+			// * Yep, the database is already on the mock server *
+
+			// If no (parent) commit ID was provided, we fail, otherwise we use it for generating a second commit
+			commitID := r.FormValue("commit")
+			if commitID == "" {
+				http.Error(w, "No commit ID was provided.  You probably need to upgrade your client before trying this "+
+					"again.", http.StatusUpgradeRequired)
+				return
+			}
+			expected["commit"] = commitID
+			expected["licence"] = "Not specified"
+			expected["lastmodified"] = time.Date(2019, time.March, 15, 18, 11, 00, 0, time.UTC).Format(time.RFC3339)
+		}
+	}
+
+	// Check the remaining values match expectations
+	for name, value := range expected {
+		someValue := r.FormValue(name)
+		if someValue != value {
+			http.Error(w, fmt.Sprintf("incorrect %s value", name), http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Generate a new commit ID
+	lastMod := time.Date(2019, time.March, 15, 18, 2, 0, 0, time.UTC)
+	commitTime := time.Date(2019, time.March, 15, 18, 1, 10, 0, time.UTC)
+	var e dbTreeEntry
+	e.EntryType = DATABASE
+	e.LastModified = lastMod
+	e.LicenceSHA = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" // SHA256 of "Not specified" licence
+	e.Name = hdr.Filename
+	e.Sha256 = shaSum
+	e.Size = int(numBytes)
+	var t dbTree
+	t.Entries = append(t.Entries, e)
+	t.ID = createDBTreeID(t.Entries)
+	newCom := commitEntry{
+		AuthorName:     expected["authorname"],
+		AuthorEmail:    expected["authoremail"],
+		CommitterName:  expected["committername"],
+		CommitterEmail: expected["committeremail"],
+		Message:        commitCmdMsg,
+		Parent:         expected["commit"],
+		Timestamp:      commitTime,
+		Tree:           t,
+	}
+	newCom.ID = createCommitID(newCom)
+
+	// Add the new database to the internal mock server database list
+	entry := dbListEntry{
+		CommitID:     newCom.ID,
+		DefBranch:    expected["branch"],
+		LastModified: lastMod.UTC().Format(time.RFC3339),
+		Licence:      expected["licence"],
+		Name:         hdr.Filename,
+		OneLineDesc:  "A testing database",
+		Public:       false,
+		RepoModified: lastMod.UTC().Format(time.RFC3339),
+		SHA256:       expected["dbshasum"],
+		Size:         int(numBytes),
+		Type:         "database",
+		URL:          fmt.Sprintf("%s/default/%s?commit=%s&branch=%s", cloud, hdr.Filename, newCom.ID, expected["branch"]), // TODO: Is this the right URL, or is it supposed to be the user defined source URL?
+	}
+	mockDBEntries = append(mockDBEntries, entry)
+
+	// Add the new commit info to the internal mock server metadata list
+	meta, ok := mockMetaData[hdr.Filename]
+	if !ok {
+		meta = metaData{
+			Branches:  make(map[string]branchEntry),
+			DefBranch: "",
+			Commits:   make(map[string]commitEntry),
+			Releases:  make(map[string]releaseEntry),
+			Tags:      make(map[string]tagEntry),
+		}
+	}
+	meta.Commits[newCom.ID] = newCom
+	meta.DefBranch = expected["branch"]
+	mockMetaData[hdr.Filename] = meta
+
+	// Increment the commit counter if this push is for a subsequent commit for the database
+	commitCount := 1
+	br, ok := meta.Branches[expected["branch"]]
+	if ok {
+		commitCount = br.CommitCount + 1
+	}
+	meta.Branches[expected["branch"]] = branchEntry{
+		Commit:      newCom.ID,
+		CommitCount: commitCount,
+	}
+
+	// Return an appropriate response to the calling function
+	u := fmt.Sprintf("https://%s/default/%s", cloud, hdr.Filename)
+	u += fmt.Sprintf(`?branch=%s&commit=%s`, expected["branch"], newCom.ID)
+	m := map[string]string{"commit_id": newCom.ID, "url": u}
+
+	// Convert to JSON
+	var msg bytes.Buffer
+	enc := json.NewEncoder(&msg)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(m); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Send return message back to the caller
+	w.WriteHeader(http.StatusCreated)
+	_, _ = fmt.Fprintf(w, msg.String())
+}
+
 func mockServerPullHandler(w http.ResponseWriter, r *http.Request) {
 	// This code is copied from the DB4S end point retrieveDatabase() call, with the values for 19kb.sqlite added
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"; modification-date="%s";`,
@@ -1113,7 +1461,7 @@ func mockServerPullHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", 19456))
 	w.Header().Set("Content-Type", "application/x-sqlite3")
 	w.Header().Set("Branch", "master")
-	w.Header().Set("Commit-ID", "e8109ebe6d84b5fb28245e3fb1dbf852fde041abd60fc7f7f46f35128c192889")
+	w.Header().Set("Commit-ID", "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb")
 	f, err := os.Open(filepath.Join(tempDir, "19kB.sqlite-renamed"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
