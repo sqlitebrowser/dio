@@ -952,7 +952,7 @@ func (s *DioSuite) Test0270_PullRemote(c *chk.C) {
 	retrieveMetadata = oldRet
 }
 
-// CompletelyNewDB - Push of a database with no local commit data, and doesn't yet exist on the remote server (should succeed)
+// Tests pushing a database with no local commit data, and which doesn't yet exist on the remote server (should succeed)
 func (s *DioSuite) Test0280_PushCompletelyNewDB(c *chk.C) {
 	// Make sure the new database isn't yet shown on the remote server
 	newDB := "19kBv2.sqlite"
@@ -997,6 +997,7 @@ func (s *DioSuite) Test0280_PushCompletelyNewDB(c *chk.C) {
 	c.Assert(dbFound, chk.Equals, true)
 }
 
+// Tests pushing a database with no local commit data, but already exists on the remote server (should fail)
 func (s *DioSuite) Test0290_PushExistingDBConflict(c *chk.C) {
 	// Verify 19kBv2.sqlite exists on the mock server
 	newDB := "19kBv2.sqlite"
@@ -1029,6 +1030,7 @@ func (s *DioSuite) Test0290_PushExistingDBConflict(c *chk.C) {
 	c.Check(err, chk.Not(chk.IsNil))
 }
 
+// Tests pushing a database with local commit data, which doesn't yet exist on the remote server (should succeed)
 func (s *DioSuite) Test0300_PushNewLocalDBAndMetadata(c *chk.C) {
 	// Rename the test database to "19kBv3.sqlite"
 	newDB := "19kBv3.sqlite"
@@ -1081,6 +1083,7 @@ func (s *DioSuite) Test0300_PushNewLocalDBAndMetadata(c *chk.C) {
 	c.Assert(dbFound, chk.Equals, true)
 }
 
+// Tests pushing a database with local commit data, which already exists remotely, and the local commits add to the remote (should succeed)
 func (s *DioSuite) Test0310_PushLocalDBAndMetadata(c *chk.C) {
 	// Create another local commit for 19kbv3.sqlite
 	newDB := "19kBv3.sqlite"
@@ -1107,6 +1110,31 @@ func (s *DioSuite) Test0310_PushLocalDBAndMetadata(c *chk.C) {
 	meta, _, err := retrieveMetadata(newDB)
 	c.Assert(err, chk.IsNil)
 	c.Check(meta.Commits, chk.HasLen, 2)
+}
+
+// Tests pushing a database with local commit data, which already exists remotely, and the local commits are behind the remote (should fail)
+func (s *DioSuite) Test0320_PushOldLocalMetadataDBConflict(c *chk.C) {
+	// We use the same 19bKv3.sqlite database from the previous test, reverting it back to it's original commit, then pushing
+
+	// Revert back to the original commit
+	newDB := "19kBv3.sqlite"
+	pullCmdCommit = "7bbfb96b6b13ecce8ab74f33463d270ae0297d0bc9c52095f48bf8017652be5b"
+	*pullForce = true
+	err := pull([]string{newDB})
+	c.Assert(err, chk.IsNil)
+
+	// Push the database to the server
+	pushCmdName = ""
+	pushCmdBranch = ""
+	pushCmdCommit = ""
+	pushCmdDB = newDB
+	pushCmdEmail = ""
+	pushCmdForce = false
+	pushCmdLicence = ""
+	pushCmdMsg = ""
+	pushCmdPublic = false
+	err = push([]string{newDB})
+	c.Check(err, chk.Not(chk.IsNil))
 }
 
 // Mocked functions
