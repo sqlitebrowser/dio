@@ -92,10 +92,12 @@ func pull(args []string) error {
 	}
 
 	// If given, make sure the requested commit exists
-	var thisSha string
 	var lastMod time.Time
+	var ok bool
+	var thisSha string
+	var thisCommit commitEntry
 	if pullCmdCommit != "" {
-		thisCommit, ok := meta.Commits[pullCmdCommit]
+		thisCommit, ok = meta.Commits[pullCmdCommit]
 		if ok == false {
 			return errors.New("The requested commit doesn't exist")
 		}
@@ -104,7 +106,7 @@ func pull(args []string) error {
 	} else {
 		// Determine the sha256 of the database file
 		c := meta.Branches[pullCmdBranch].Commit
-		thisCommit, ok := meta.Commits[c]
+		thisCommit, ok = meta.Commits[c]
 		if ok == false {
 			return errors.New("The requested commit doesn't exist")
 		}
@@ -149,6 +151,30 @@ func pull(args []string) error {
 			_, err = numFormat.Fprintf(fOut, "  * Size: %d bytes\n", len(b))
 			if err != nil {
 				return err
+			}
+
+			// Update the branch metadata with the commit info
+			var oldBranch branchEntry
+			if pullCmdBranch == "" {
+				oldBranch = meta.Branches[meta.ActiveBranch]
+			} else {
+				oldBranch = meta.Branches[pullCmdBranch]
+			}
+			commitCount := 1
+			z := meta.Commits[thisCommit.ID]
+			for z.Parent != "" {
+				commitCount++
+				z = meta.Commits[z.Parent]
+			}
+			newBranch := branchEntry{
+				Commit:      thisCommit.ID,
+				CommitCount: commitCount,
+				Description: oldBranch.Description,
+			}
+			if pullCmdBranch == "" {
+				meta.Branches[meta.ActiveBranch] = newBranch
+			} else {
+				meta.Branches[pullCmdBranch] = newBranch
 			}
 
 			// Save the updated metadata to disk
