@@ -250,7 +250,7 @@ func commit(args []string) error {
 	// Create a new dbTree entry for the database file
 	var e dbTreeEntry
 	e.EntryType = DATABASE
-	e.LastModified = lastModified
+	e.LastModified = lastModified.UTC()
 	e.LicenceSHA = licSHA
 	e.Name = db
 	e.Sha256 = shaSum
@@ -269,7 +269,7 @@ func commit(args []string) error {
 		CommitterEmail: committerEmail,
 		Message:        commitCmdMsg,
 		Parent:         head.Commit,
-		Timestamp:      commitTime,
+		Timestamp:      commitTime.UTC(),
 		Tree:           t,
 	}
 

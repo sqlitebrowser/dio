@@ -103,7 +103,7 @@ func dbChanged(db string, meta metaData) (changed bool, err error) {
 	}
 	metaSHASum := c.Tree.Entries[0].Sha256
 	metaFileSize := c.Tree.Entries[0].Size
-	metaLastModified := c.Tree.Entries[0].LastModified
+	metaLastModified := c.Tree.Entries[0].LastModified.UTC()
 
 	// If the file size or last modified date in the metadata are different from the current file info, then the
 	// local file has probably changed.  Well, "probably" for the last modified day, but "definitely" if the file
@@ -113,7 +113,7 @@ func dbChanged(db string, meta metaData) (changed bool, err error) {
 		return
 	}
 	fileSize := int(fi.Size())
-	lastModified := fi.ModTime()
+	lastModified := fi.ModTime().UTC()
 	if metaFileSize != fileSize || metaLastModified != lastModified {
 		changed = true
 		return
