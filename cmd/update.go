@@ -40,7 +40,7 @@ var updateCmd = &cobra.Command{
 		if updateCmdMessage != "" {
 			req.Set("message", updateCmdMessage)
 		}
-		if pushCmdLicence != "" {
+		if updateCmdBranch != "" {
 			req.Set("branch", updateCmdBranch)
 		}
 		resp, _, errs := req.End()
