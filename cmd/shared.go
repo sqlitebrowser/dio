@@ -55,10 +55,10 @@ func createCommitID(c commitEntry) string {
 		b.WriteString(fmt.Sprintf("parent %s\n", j))
 	}
 	b.WriteString(fmt.Sprintf("author %s <%s> %v\n", c.AuthorName, c.AuthorEmail,
-		c.Timestamp.Format(time.UnixDate)))
+		c.Timestamp.UTC().Format(time.UnixDate)))
 	if c.CommitterEmail != "" {
 		b.WriteString(fmt.Sprintf("committer %s <%s> %v\n", c.CommitterName, c.CommitterEmail,
-			c.Timestamp.Format(time.UnixDate)))
+			c.Timestamp.UTC().Format(time.UnixDate)))
 	}
 	b.WriteString("\n" + c.Message)
 	b.WriteByte(0)
