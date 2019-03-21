@@ -22,7 +22,7 @@ import (
 var (
 	pushCmdBranch, pushCmdCommit, pushCmdDB  string
 	pushCmdEmail, pushCmdLicence, pushCmdMsg string
-	pushCmdName                              string
+	pushCmdName, pushCmdTimestamp            string
 	pushCmdForce, pushCmdPublic              bool
 )
 
@@ -50,6 +50,7 @@ func init() {
 	pushCmd.Flags().StringVar(&pushCmdMsg, "message", "",
 		"(Required) Commit message for this upload")
 	pushCmd.Flags().BoolVar(&pushCmdPublic, "public", false, "Should the database be public?")
+	pushCmd.Flags().StringVar(&pushCmdTimestamp, "timestamp", "", "Timestamp to use as the commit date")
 }
 
 func push(args []string) error {
@@ -71,14 +72,16 @@ func push(args []string) error {
 	}
 
 	// Grab author name & email from the dio config file, but allow command line flags to override them
-	var pushAuthor, pushEmail string
+	var committerName, committerEmail, pushAuthor, pushEmail string
 	u, ok := viper.Get("user.name").(string)
 	if ok {
 		pushAuthor = u
+		committerName = u
 	}
 	v, ok := viper.Get("user.email").(string)
 	if ok {
 		pushEmail = v
+		committerEmail = u
 	}
 	if pushCmdName != "" {
 		pushAuthor = pushCmdName
@@ -372,6 +375,17 @@ func push(args []string) error {
 	// database remotely (if it's not there already) and creates the local metadata.
 	// If the database already exists remotely, this code will fail.
 	// TODO: Maybe add a nicer failure message here for when local metadata is missing but the db exists remotely?
+	z, ok := viper.Get("user.name").(string)
+	if !ok {
+		return fmt.Errorf("Committer name could not be determined")
+	}
+	committerName = z
+	z, ok = viper.Get("user.email").(string)
+	if !ok {
+		return fmt.Errorf("Committer email could not be determined")
+	}
+	committerEmail = z
+
 	b, err := ioutil.ReadFile(db)
 	if err != nil {
 		return err
@@ -385,6 +399,9 @@ func push(args []string) error {
 		Query(fmt.Sprintf("branch=%s", url.QueryEscape(pushCmdBranch))).
 		Query(fmt.Sprintf("commit=%s", pushCmdCommit)).
 		Query(fmt.Sprintf("commitmsg=%s", url.QueryEscape(pushCmdMsg))).
+		Query(fmt.Sprintf("committeremail=%s", url.QueryEscape(committerEmail))).
+		Query(fmt.Sprintf("committername=%s", url.QueryEscape(committerName))).
+		Query(fmt.Sprintf("committimestamp=%v", pushCmdTimestamp)).
 		Query(fmt.Sprintf("dbshasum=%s", url.QueryEscape(shaSum))).
 		Query(fmt.Sprintf("force=%v", pushCmdForce)).
 		Query(fmt.Sprintf("lastmodified=%s", url.QueryEscape(fi.ModTime().UTC().Format(time.RFC3339)))).
@@ -492,7 +509,7 @@ func sendCommit(meta metaData, db string, dbURL string, newCommit string, public
 		Query(fmt.Sprintf("authorname=%s", url.QueryEscape(commitData.AuthorName))).
 		Query(fmt.Sprintf("committeremail=%s", url.QueryEscape(commitData.CommitterEmail))).
 		Query(fmt.Sprintf("committername=%s", url.QueryEscape(commitData.CommitterName))).
-		Query(fmt.Sprintf("commitlastmodified=%s",
+		Query(fmt.Sprintf("committimestamp=%s",
 			url.QueryEscape(commitData.Timestamp.UTC().Format(time.RFC3339)))).
 		Query(fmt.Sprintf("otherparents=%s", url.QueryEscape(otherParents))).
 		Query(fmt.Sprintf("dbshasum=%s", url.QueryEscape(shaSum))).
