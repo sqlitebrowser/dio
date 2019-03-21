@@ -39,7 +39,7 @@ cachain = "%s"
 cert = "%s"
 
 [general]
-cloud = "https://localhost:5551"
+cloud = "%s"
 
 [user]
 name = "Some One"
@@ -59,6 +59,7 @@ var (
 	}}
 	newServer     *http.Server
 	origDir       string
+	remoteServer  = flag.String("remote", "", "URL of remote server to test against, instead of using mock server")
 	showFlag      = flag.Bool("show", false, "Don't redirect test command output to /dev/null")
 	tempDir       string
 	mockDBEntries = []dbListEntry{{
@@ -75,15 +76,7 @@ var (
 		Type:         "database",
 		URL:          fmt.Sprintf("%s/default/%s", cloud, "2.5mbv13.sqlite?commit=316b246eda1e1779b21e9ac338cab4a71847c5268c03911ebfed974ffbab03bc&branch=master"),
 	}}
-	mockMetaData = map[string]metaData{
-		"19kBv3.sqlite": {
-			Branches:  make(map[string]branchEntry),
-			DefBranch: "master",
-			Commits:   make(map[string]commitEntry),
-			Releases:  make(map[string]releaseEntry),
-			Tags:      make(map[string]tagEntry),
-		},
-	}
+	mockMetaData = map[string]metaData{}
 )
 
 func Test(t *testing.T) {
@@ -104,9 +97,14 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 		log.Fatalln(err.Error())
 	}
 	origDir = d
+	mockAddr := "https://localhost:5551"
+	if *remoteServer != "" {
+		mockAddr = *remoteServer
+	}
 	_, err = fmt.Fprintf(f, CONFIG,
 		filepath.Join(d, "..", "test_data", "ca-chain-docker.cert.pem"),
-		filepath.Join(d, "..", "test_data", "default.cert.pem"))
+		filepath.Join(d, "..", "test_data", "default.cert.pem"),
+		mockAddr)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
@@ -157,12 +155,15 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 		}
 	}
 
-	// Set up the replacement functions
-	getLicences = mockGetLicences
+	// If we're not testing against a remote server, use our mock pieces
+	if *remoteServer == "" {
+		// Set up the replacement functions
+		getLicences = mockGetLicences
 
-	// Start our mock https server
-	go mockServer()
-	time.Sleep(250 * time.Millisecond) // Small pause here, to allow the mock server to finish starting
+		// Start our mock https server
+		go mockServer()
+		time.Sleep(250 * time.Millisecond) // Small pause here, to allow the mock server to finish starting
+	}
 
 	// Change to the temp directory
 	err = os.Chdir(tempDir)
@@ -177,8 +178,10 @@ func (s *DioSuite) SetUpTest(c *chk.C) {
 }
 
 func (s *DioSuite) TearDownSuite(c *chk.C) {
-	// Shut down the mock server
-	_ = newServer.Close()
+	if *remoteServer == "" {
+		// Shut down the mock server
+		_ = newServer.Close()
+	}
 }
 
 func (s *DioSuite) TearDownTest(c *chk.C) {
@@ -686,9 +689,12 @@ func (s *DioSuite) Test0190_Log(c *chk.C) {
 }
 
 func (s *DioSuite) Test0200_StatusUnchanged(c *chk.C) {
-	// Mock the retrieveMetadata() function
-	oldRet := retrieveMetadata
-	retrieveMetadata = mockRetrieveMetadata
+	// If we're not using a remote server, then mock the retrieveMetadata() function
+	var oldRet func(db string) (metaData, bool, error)
+	if *remoteServer == "" {
+		oldRet = retrieveMetadata
+		retrieveMetadata = mockRetrieveMetadata
+	}
 
 	// Run the status check command
 	err := status([]string{s.dbName})
@@ -715,13 +721,18 @@ func (s *DioSuite) Test0200_StatusUnchanged(c *chk.C) {
 	c.Check(unchangedFound, chk.Equals, true)
 
 	// Restore the original mocked function
-	retrieveMetadata = oldRet
+	if *remoteServer == "" {
+		retrieveMetadata = oldRet
+	}
 }
 
 func (s *DioSuite) Test0210_StatusChanged(c *chk.C) {
-	// Mock the retrieveMetadata() function
-	oldRet := retrieveMetadata
-	retrieveMetadata = mockRetrieveMetadata
+	// If we're not using a remote server, then mock the retrieveMetadata() function
+	var oldRet func(db string) (metaData, bool, error)
+	if *remoteServer == "" {
+		oldRet = retrieveMetadata
+		retrieveMetadata = mockRetrieveMetadata
+	}
 
 	// Get the current last modified date for the database file
 	f, err := os.Stat(s.dbFile)
@@ -761,7 +772,9 @@ func (s *DioSuite) Test0210_StatusChanged(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 
 	// Restore the original mocked function
-	retrieveMetadata = oldRet
+	if *remoteServer == "" {
+		retrieveMetadata = oldRet
+	}
 }
 
 func (s *DioSuite) Test0220_LicenceList(c *chk.C) {
@@ -784,13 +797,12 @@ func (s *DioSuite) Test0220_LicenceList(c *chk.C) {
 			}
 		}
 	}
-	c.Check(numEntries, chk.Equals, 1)
 	c.Check(licFound, chk.Equals, true)
 }
 
 func (s *DioSuite) Test0230_LicenceAdd(c *chk.C) {
-	// Add a licence (to our mocked up server)
-	licenceAddDisplayOrder = 200
+	// Add a licence to the testing server
+	licenceAddDisplayOrder = 2000
 	licenceAddFileFormat = "text"
 	licenceAddFullName = "GNU AFFERO GENERAL PUBLIC LICENSE"
 	licenceAddFile = licFile
@@ -828,7 +840,7 @@ func (s *DioSuite) Test0240_LicenceGet(c *chk.C) {
 	_, err = os.Stat(getFile)
 	c.Assert(err, chk.Not(chk.IsNil))
 
-	// Retrieve the AGPL3 licence from the mock server using licenceGet()
+	// Retrieve the AGPL3 licence from the test server using licenceGet()
 	err = licenceGet([]string{"AGPL3"})
 	c.Assert(err, chk.IsNil)
 
@@ -843,8 +855,8 @@ func (s *DioSuite) Test0240_LicenceGet(c *chk.C) {
 }
 
 func (s *DioSuite) Test0250_LicenceRemove(c *chk.C) {
-	// Verify the AGPL3 licence exists on the mock server prior to our licenceRemove() call
-	numEntries := 0
+	// Verify the AGPL3 licence exists on the test server prior to our licenceRemove() call
+	oldEntries := 0
 	licFound := false
 	err := licenceList()
 	c.Assert(err, chk.IsNil)
@@ -852,7 +864,7 @@ func (s *DioSuite) Test0250_LicenceRemove(c *chk.C) {
 	for lines.Scan() {
 		l := strings.TrimSpace(lines.Text())
 		if strings.HasPrefix(l, "*") {
-			numEntries++
+			oldEntries++
 			p := strings.Split(lines.Text(), ":")
 			if len(p) >= 2 && strings.TrimSpace(p[1]) == "GNU AFFERO GENERAL PUBLIC LICENSE" {
 				c.Check(p, chk.HasLen, 2)
@@ -860,7 +872,6 @@ func (s *DioSuite) Test0250_LicenceRemove(c *chk.C) {
 			}
 		}
 	}
-	c.Check(numEntries, chk.Equals, 2)
 	c.Check(licFound, chk.Equals, true)
 
 	// Run the licence removal call
@@ -870,7 +881,7 @@ func (s *DioSuite) Test0250_LicenceRemove(c *chk.C) {
 	// Verify the licence has been removed
 	err = licenceList()
 	c.Assert(err, chk.IsNil)
-	numEntries = 0
+	numEntries := 0
 	licFound = false
 	lines = bufio.NewScanner(&s.buf)
 	for lines.Scan() {
@@ -884,7 +895,7 @@ func (s *DioSuite) Test0250_LicenceRemove(c *chk.C) {
 			}
 		}
 	}
-	c.Check(numEntries, chk.Equals, 1)
+	c.Check(numEntries, chk.Equals, oldEntries-1)
 	c.Check(licFound, chk.Equals, false)
 }
 
@@ -914,46 +925,8 @@ func (s *DioSuite) Test0260_PullLocal(c *chk.C) {
 	c.Check(newSHASum, chk.Equals, origSHASum)
 }
 
-func (s *DioSuite) Test0270_PullRemote(c *chk.C) {
-	// Mock the retrieveMetadata() function
-	oldRet := retrieveMetadata
-	retrieveMetadata = mockRetrieveMetadata
-
-	// Calculate the SHA256 of the test database
-	b, err := ioutil.ReadFile(s.dbFile)
-	c.Assert(err, chk.IsNil)
-	z := sha256.Sum256(b)
-	origSHASum := hex.EncodeToString(z[:])
-
-	// Rename the local copy of our test database
-	err = os.Rename(s.dbFile, s.dbFile+"-renamed")
-	c.Assert(err, chk.IsNil)
-
-	// Remove the local metadata and cache for our test database
-	metaDir := filepath.Join(".dio", s.dbName)
-	err = os.RemoveAll(metaDir)
-	c.Assert(err, chk.IsNil)
-
-	// Grab the database from our mock server
-	pullCmdBranch = ""
-	pullCmdCommit = "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"
-	*pullForce = true
-	err = pull([]string{s.dbName})
-	c.Assert(err, chk.IsNil)
-
-	// Verify the SHA256 of the retrieved database matches
-	b, err = ioutil.ReadFile(s.dbFile)
-	c.Assert(err, chk.IsNil)
-	z = sha256.Sum256(b)
-	newSHASum := hex.EncodeToString(z[:])
-	c.Check(newSHASum, chk.Equals, origSHASum)
-
-	// Restore the original mocked function
-	retrieveMetadata = oldRet
-}
-
 // Tests pushing a database with no local commit data, and which doesn't yet exist on the remote server (should succeed)
-func (s *DioSuite) Test0280_PushCompletelyNewDB(c *chk.C) {
+func (s *DioSuite) Test0270_PushCompletelyNewDB(c *chk.C) {
 	// Make sure the new database isn't yet shown on the remote server
 	newDB := "19kBv2.sqlite"
 	dbList, err := getDatabases(cloud, "default")
@@ -982,6 +955,7 @@ func (s *DioSuite) Test0280_PushCompletelyNewDB(c *chk.C) {
 	pushCmdLicence = "Not specified"
 	pushCmdMsg = "Test message"
 	pushCmdPublic = false
+	pushCmdTimestamp = time.Date(2019, time.March, 15, 18, 30, 0, 0, time.UTC).Format(time.RFC3339)
 	err = push([]string{newDB})
 	c.Assert(err, chk.IsNil)
 
@@ -997,9 +971,41 @@ func (s *DioSuite) Test0280_PushCompletelyNewDB(c *chk.C) {
 	c.Assert(dbFound, chk.Equals, true)
 }
 
+func (s *DioSuite) Test0280_PullRemote(c *chk.C) {
+	// Calculate the SHA256 of the test database
+	newDB := "19kBv2.sqlite"
+	b, err := ioutil.ReadFile(newDB)
+	c.Assert(err, chk.IsNil)
+	z := sha256.Sum256(b)
+	origSHASum := hex.EncodeToString(z[:])
+
+	// Rename the local copy of our test database
+	err = os.Rename(newDB, newDB+"-renamed")
+	c.Assert(err, chk.IsNil)
+
+	// Remove the local metadata and cache for our test database
+	metaDir := filepath.Join(".dio", newDB)
+	err = os.RemoveAll(metaDir)
+	c.Assert(err, chk.IsNil)
+
+	// Grab the database from our test server
+	pullCmdBranch = ""
+	pullCmdCommit = "eba04c5fe44ec4545c098d092f0231ed672949b3c93651821d3f1102c56e85eb"
+	*pullForce = true
+	err = pull([]string{newDB})
+	c.Assert(err, chk.IsNil)
+
+	// Verify the SHA256 of the retrieved database matches
+	b, err = ioutil.ReadFile(newDB)
+	c.Assert(err, chk.IsNil)
+	z = sha256.Sum256(b)
+	newSHASum := hex.EncodeToString(z[:])
+	c.Check(newSHASum, chk.Equals, origSHASum)
+}
+
 // Tests pushing a database with no local commit data, but already exists on the remote server (should fail)
 func (s *DioSuite) Test0290_PushExistingDBConflict(c *chk.C) {
-	// Verify 19kBv2.sqlite exists on the mock server
+	// Verify 19kBv2.sqlite exists on the test server
 	newDB := "19kBv2.sqlite"
 	dbList, err := getDatabases(cloud, "default")
 	c.Assert(err, chk.IsNil)
@@ -1016,7 +1022,7 @@ func (s *DioSuite) Test0290_PushExistingDBConflict(c *chk.C) {
 	err = os.RemoveAll(metaDir)
 	c.Assert(err, chk.IsNil)
 
-	// Push the database to the mock server (should fail)
+	// Push the database to the test server (should fail)
 	pushCmdName = "Default test user"
 	pushCmdBranch = "master"
 	pushCmdCommit = ""
@@ -1035,6 +1041,8 @@ func (s *DioSuite) Test0300_PushNewLocalDBAndMetadata(c *chk.C) {
 	// Rename the test database to "19kBv3.sqlite"
 	newDB := "19kBv3.sqlite"
 	err := os.Rename("19kBv2.sqlite", newDB)
+	c.Assert(err, chk.IsNil)
+	err = os.Chtimes(newDB, time.Now(), time.Date(2019, time.March, 15, 18, 1, 10, 0, time.UTC))
 	c.Assert(err, chk.IsNil)
 
 	// Create a commit using the new test database
@@ -1092,6 +1100,7 @@ func (s *DioSuite) Test0310_PushLocalDBAndMetadata(c *chk.C) {
 	commitCmdMsg = "Test message"
 	commitCmdTimestamp = time.Date(2019, time.March, 15, 18, 1, 10, 0, time.UTC).Format(time.RFC3339)
 	err = commit([]string{newDB})
+	c.Check(err, chk.IsNil)
 
 	// Push the new commit to the server
 	pushCmdName = "Default test user"
@@ -1104,7 +1113,7 @@ func (s *DioSuite) Test0310_PushLocalDBAndMetadata(c *chk.C) {
 	pushCmdMsg = "Test message"
 	pushCmdPublic = false
 	err = push([]string{newDB})
-	c.Check(err, chk.Not(chk.IsNil))
+	c.Check(err, chk.IsNil)
 
 	// Verify the server now has two commits for the database
 	meta, _, err := retrieveMetadata(newDB)
@@ -1118,7 +1127,7 @@ func (s *DioSuite) Test0320_PushOldLocalMetadataDBConflict(c *chk.C) {
 
 	// Revert back to the original commit
 	newDB := "19kBv3.sqlite"
-	pullCmdCommit = "7bbfb96b6b13ecce8ab74f33463d270ae0297d0bc9c52095f48bf8017652be5b"
+	pullCmdCommit = "c9a3e3bd641ca17a79a02cc07cc2ecd0c92a89a5437cf3b96221d57575a6f79f"
 	*pullForce = true
 	err := pull([]string{newDB})
 	c.Assert(err, chk.IsNil)
@@ -1182,8 +1191,7 @@ func mockRetrieveMetadata(db string) (meta metaData, onCloud bool, err error) {
 func mockServer() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/default", mockServerDatabaseListHandler)
-	mux.HandleFunc("/default/19kB.sqlite", mockServerPullHandler)
-	mux.HandleFunc("/default/19kBv2.sqlite", mockServerNewDBPushHandler)
+	mux.HandleFunc("/default/19kBv2.sqlite", mockServerPushPullSwitchHandler)
 	mux.HandleFunc("/default/19kBv3.sqlite", mockServerNewDBPushHandler)
 	mux.HandleFunc("/licence/add", mockServerLicenceAddHandler)
 	mux.HandleFunc("/licence/get", mockServerLicenceGetHandler)
@@ -1307,7 +1315,8 @@ func mockServerMetadataGetHandler(w http.ResponseWriter, r *http.Request) {
 	meta, ok := mockMetaData[db]
 	if !ok {
 		// If we have no info for the database, just return a blank structure
-		meta = metaData{}
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
 	}
 	info.Branches = meta.Branches
 	info.DefBranch = meta.DefBranch
@@ -1326,15 +1335,17 @@ func mockServerMetadataGetHandler(w http.ResponseWriter, r *http.Request) {
 
 func mockServerNewDBPushHandler(w http.ResponseWriter, r *http.Request) {
 	expected := map[string]string{
-		"dbshasum":     "e8cab91dec32b3990b427b28380e4e052288054f99c4894742f07dee0c924efd",
-		"branch":       "master",
-		"licence":      "",
-		"commit":       "",
-		"commitmsg":    "Test message",
-		"public":       "false",
-		"lastmodified": time.Date(2019, time.March, 15, 18, 2, 0, 0, time.UTC).Format(time.RFC3339),
-		"authorname":   "Default test user",
-		"authoremail":  "testdefault@dbhub.io",
+		"authoremail":    "testdefault@dbhub.io",
+		"authorname":     "Default test user",
+		"branch":         "master",
+		"commit":         "",
+		"commitmsg":      "Test message",
+		"committername":  "Some One",
+		"committeremail": "someone@example.org",
+		"dbshasum":       "e8cab91dec32b3990b427b28380e4e052288054f99c4894742f07dee0c924efd",
+		"lastmodified":   time.Date(2019, time.March, 15, 18, 2, 0, 0, time.UTC).Format(time.RFC3339),
+		"licence":        "",
+		"public":         "false",
 	}
 
 	// Make sure the uploaded database file matches the expected SHASUM
@@ -1361,10 +1372,12 @@ func mockServerNewDBPushHandler(w http.ResponseWriter, r *http.Request) {
 	switch hdr.Filename {
 	case "19kBv2.sqlite":
 		expected["licence"] = "Not specified"
+		expected["lastmodified"] = time.Date(2019, time.March, 15, 18, 2, 0, 0, time.UTC).Format(time.RFC3339)
+		expected["committimestamp"] = time.Date(2019, time.March, 15, 18, 30, 0, 0, time.UTC).Format(time.RFC3339)
+
 	case "19kBv3.sqlite":
-		expected["committername"] = "Some One"
-		expected["committeremail"] = "someone@example.org"
-		expected["commitlastmodified"] = time.Date(2019, time.March, 15, 18, 1, 10, 0, time.UTC).Format(time.RFC3339)
+		expected["lastmodified"] = time.Date(2019, time.March, 15, 18, 1, 10, 0, time.UTC).Format(time.RFC3339)
+		expected["committimestamp"] = time.Date(2019, time.March, 15, 18, 1, 10, 0, time.UTC).Format(time.RFC3339)
 	}
 
 	// If the database already exists on the mock server, specific cases are handled in various ways
@@ -1395,8 +1408,23 @@ func mockServerNewDBPushHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate a new commit ID
-	lastMod := time.Date(2019, time.March, 15, 18, 2, 0, 0, time.UTC)
-	commitTime := time.Date(2019, time.March, 15, 18, 1, 10, 0, time.UTC)
+	z, err := time.Parse(time.RFC3339, expected["lastmodified"])
+	lastMod := z.UTC()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var commitTime time.Time
+	if expected["committimestamp"] == "" {
+		commitTime = time.Now().UTC()
+	} else {
+		z, err = time.Parse(time.RFC3339, expected["committimestamp"])
+		commitTime = z.UTC()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 	var e dbTreeEntry
 	e.EntryType = DATABASE
 	e.LastModified = lastMod
@@ -1412,7 +1440,7 @@ func mockServerNewDBPushHandler(w http.ResponseWriter, r *http.Request) {
 		AuthorEmail:    expected["authoremail"],
 		CommitterName:  expected["committername"],
 		CommitterEmail: expected["committeremail"],
-		Message:        commitCmdMsg,
+		Message:        expected["commitmsg"],
 		Parent:         expected["commit"],
 		Timestamp:      commitTime,
 		Tree:           t,
@@ -1483,14 +1511,18 @@ func mockServerNewDBPushHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func mockServerPullHandler(w http.ResponseWriter, r *http.Request) {
-	// This code is copied from the DB4S end point retrieveDatabase() call, with the values for 19kb.sqlite added
+	// This code is copied from the DB4S end point retrieveDatabase() call, with the values for 19kbv2.sqlite added
+	db := "19kBv2.sqlite"
+	br := mockMetaData[db].DefBranch
+	com := mockMetaData[db].Branches[br].Commit
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"; modification-date="%s";`,
-		url.QueryEscape("19kB.sqlite"), time.Date(2019, time.March, 15, 18, 1, 0, 0, time.UTC).Format(time.RFC3339)))
+		url.QueryEscape(db), mockMetaData[db].Commits[com].Timestamp.UTC().Format(time.RFC3339)))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", 19456))
 	w.Header().Set("Content-Type", "application/x-sqlite3")
-	w.Header().Set("Branch", "master")
-	w.Header().Set("Commit-ID", "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb")
-	f, err := os.Open(filepath.Join(tempDir, "19kB.sqlite-renamed"))
+	w.Header().Set("Branch", br)
+	w.Header().Set("Commit-ID", com)
+	path := filepath.Join(tempDir, db+"-renamed")
+	f, err := os.Open(path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1501,4 +1533,15 @@ func mockServerPullHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func mockServerPushPullSwitchHandler(w http.ResponseWriter, r *http.Request) {
+	// The handler to use depends upon the request type
+	reqType := r.Method
+	if reqType == "GET" {
+		mockServerPullHandler(w, r)
+	} else {
+		mockServerNewDBPushHandler(w, r)
+	}
+	return
 }
