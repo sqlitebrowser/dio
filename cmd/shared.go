@@ -110,6 +110,9 @@ func dbChanged(db string, meta metaData) (changed bool, err error) {
 	// size is different
 	fi, err := os.Stat(db)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
 		return
 	}
 	fileSize := int(fi.Size())
