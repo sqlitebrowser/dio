@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -90,11 +91,11 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 	s.config = filepath.Join(tempDir, "config.toml")
 	f, err := os.Create(s.config)
 	if err != nil {
-		log.Fatalln(err.Error())
+		log.Fatalln(err)
 	}
 	d, err := os.Getwd()
 	if err != nil {
-		log.Fatalln(err.Error())
+		log.Fatalln(err)
 	}
 	origDir = d
 	mockAddr := "https://localhost:5551"
@@ -106,45 +107,66 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 		filepath.Join(d, "..", "test_data", "default.cert.pem"),
 		mockAddr)
 	if err != nil {
-		log.Fatalln(err.Error())
+		log.Fatalln(err)
 	}
 
 	// Drop any old config loaded automatically by viper, and use our temporary test config instead
 	viper.Reset()
 	viper.SetConfigFile(s.config)
 	if err = viper.ReadInConfig(); err != nil {
-		log.Fatalf("Error loading test config file: %s", err.Error())
+		log.Fatalf("Error loading test config file: %s", err)
 		return
 	}
 	cloud = viper.GetString("general.cloud")
+
+	// Use our testing certificates
+	ourCAPool := x509.NewCertPool()
+	chainFile, err := ioutil.ReadFile(filepath.Join(d, "..", "test_data", "ca-chain-docker.cert.pem"))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	ok := ourCAPool.AppendCertsFromPEM(chainFile)
+	if !ok {
+		log.Fatalln("Error when loading certificate chain file")
+	}
+	testCert := filepath.Join(d, "..", "test_data", "default.cert.pem")
+	cert, err := tls.LoadX509KeyPair(testCert, testCert)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	TLSConfig.Certificates = []tls.Certificate{cert}
+	certUser, _, err = getUserAndServer()
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	// Add test database
 	s.dbName = "19kB.sqlite"
 	db, err := ioutil.ReadFile(filepath.Join(d, "..", "test_data", s.dbName))
 	if err != nil {
-		log.Fatalln(err.Error())
+		log.Fatalln(err)
 	}
 	s.dbFile = filepath.Join(tempDir, s.dbName)
 	err = ioutil.WriteFile(s.dbFile, db, 0644)
 	if err != nil {
-		log.Fatalln(err.Error())
+		log.Fatalln(err)
 	}
 
 	// Set the last modified date of the database file to a known value
 	err = os.Chtimes(s.dbFile, time.Now(), time.Date(2019, time.March, 15, 18, 1, 0, 0, time.UTC))
 	if err != nil {
-		log.Fatalln(err.Error())
+		log.Fatalln(err)
 	}
 
 	// Add a test licence
 	lic, err := ioutil.ReadFile(filepath.Join(d, "..", "LICENSE"))
 	if err != nil {
-		log.Fatalln(err.Error())
+		log.Fatalln(err)
 	}
 	licFile = filepath.Join(tempDir, "test.licence")
 	err = ioutil.WriteFile(licFile, lic, 0644)
 	if err != nil {
-		log.Fatalln(err.Error())
+		log.Fatalln(err)
 	}
 
 	// If not told otherwise, redirect command output to /dev/null

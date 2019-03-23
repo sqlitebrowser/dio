@@ -148,7 +148,7 @@ func dbChanged(db string, meta metaData) (changed bool, err error) {
 
 // Retrieves the list of databases available to the user
 var getDatabases = func(url string, user string) (dbList []dbListEntry, err error) {
-	resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(fmt.Sprintf("%s/%s", url, user)).End()
+	resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(fmt.Sprintf("%s/%s", url, user)).EndBytes()
 	if errs != nil {
 		e := fmt.Sprintln("Errors when retrieving the database list:")
 		for _, err := range errs {
@@ -158,7 +158,7 @@ var getDatabases = func(url string, user string) (dbList []dbListEntry, err erro
 		return
 	}
 	defer resp.Body.Close()
-	err = json.Unmarshal([]byte(body), &dbList)
+	err = json.Unmarshal(body, &dbList)
 	if err != nil {
 		_, errInner := fmt.Fprintf(fOut, "Error retrieving database list: '%v'\n", err.Error())
 		if errInner != nil {

@@ -102,9 +102,9 @@ func commit(args []string) error {
 	if _, err = os.Stat(filepath.Join(".dio", db, "db")); os.IsNotExist(err) {
 		// At the moment, since there's no better way to check for the existence of a remote database, we just
 		// grab the list of the users databases and check against that
-		dbList, err := getDatabases(cloud, certUser)
-		if err != nil {
-			return err
+		dbList, errInner := getDatabases(cloud, certUser)
+		if errInner != nil {
+			return errInner
 		}
 		for _, j := range dbList {
 			if db == j.Name {
