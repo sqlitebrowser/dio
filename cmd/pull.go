@@ -187,6 +187,12 @@ func pull(args []string) error {
 	}
 
 	// Download the database file
+	// TODO: Use a streaming download approach, so download progress can be shown.  Something like this should help:
+	//         https://stackoverflow.com/questions/22108519/how-do-i-read-a-streaming-response-body-using-golangs-net-http-package
+	_, err = fmt.Fprintf(fOut, "Downloading '%s' from %s...\n", db, cloud)
+	if err != nil {
+		return err
+	}
 	resp, body, err := retrieveDatabase(db, pullCmdBranch, pullCmdCommit)
 	if err != nil {
 		return err
@@ -201,17 +207,17 @@ func pull(args []string) error {
 	}
 
 	// Calculate the sha256 of the database file
-	s := sha256.Sum256([]byte(body))
+	s := sha256.Sum256(body)
 	shaSum := hex.EncodeToString(s[:])
 
 	// Write the database file to disk in the cache directory
-	err = ioutil.WriteFile(filepath.Join(".dio", db, "db", shaSum), []byte(body), 0644)
+	err = ioutil.WriteFile(filepath.Join(".dio", db, "db", shaSum), body, 0644)
 	if err != nil {
 		return err
 	}
 
 	// Write the database file to disk again, this time in the working directory
-	err = ioutil.WriteFile(db, []byte(body), 0644)
+	err = ioutil.WriteFile(db, body, 0644)
 	if err != nil {
 		return err
 	}
@@ -250,7 +256,7 @@ func pull(args []string) error {
 
 	// Display success message to the user
 	comID := resp.Header.Get("Commit-Id")
-	_, err = fmt.Fprintf(fOut, "Database '%s' downloaded from %s\n", db, cloud)
+	_, err = fmt.Fprintln(fOut, "Downloaded complete")
 	if err != nil {
 		return err
 	}
@@ -267,8 +273,5 @@ func pull(args []string) error {
 		}
 	}
 	_, err = numFormat.Fprintf(fOut, "  * Size: %d bytes\n", len(body))
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }

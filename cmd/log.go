@@ -88,7 +88,7 @@ func branchLog(args []string) error {
 func createCommitText(c commitEntry, licList map[string]string) string {
 	s := fmt.Sprintf("  * Commit: %s\n", c.ID)
 	s += fmt.Sprintf("    Author: %s <%s>\n", c.AuthorName, c.AuthorEmail)
-	s += fmt.Sprintf("    Date: %v\n", c.Timestamp.Format(time.UnixDate))
+	s += fmt.Sprintf("    Date: %v\n", c.Timestamp.Local().Format(time.RFC1123))
 	if c.Tree.Entries[0].LicenceSHA != "" {
 		s += fmt.Sprintf("    Licence: %s\n\n", licList[c.Tree.Entries[0].LicenceSHA])
 	} else {

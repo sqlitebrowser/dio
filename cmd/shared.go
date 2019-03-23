@@ -23,14 +23,14 @@ import (
 // Check if the database with the given SHA256 checksum is in local cache.  If it's not then download and cache it
 func checkDBCache(db, shaSum string) (err error) {
 	if _, err = os.Stat(filepath.Join(".dio", db, "db", shaSum)); os.IsNotExist(err) {
-		var body string
+		var body []byte
 		_, body, err = retrieveDatabase(db, pullCmdBranch, pullCmdCommit)
 		if err != nil {
 			return
 		}
 
 		// Verify the SHA256 checksum of the new download
-		s := sha256.Sum256([]byte(body))
+		s := sha256.Sum256(body)
 		thisSum := hex.EncodeToString(s[:])
 		if thisSum != shaSum {
 			// The newly downloaded database file doesn't have the expected checksum.  Abort.
@@ -39,7 +39,7 @@ func checkDBCache(db, shaSum string) (err error) {
 		}
 
 		// Write the database file to disk in the cache directory
-		err = ioutil.WriteFile(filepath.Join(".dio", db, "db", shaSum), []byte(body), 0644)
+		err = ioutil.WriteFile(filepath.Join(".dio", db, "db", shaSum), body, 0644)
 	}
 	return
 }
@@ -525,7 +525,7 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 }
 
 // Retrieves a database from DBHub.io
-func retrieveDatabase(db string, branch string, commit string) (resp rq.Response, body string, err error) {
+func retrieveDatabase(db string, branch string, commit string) (resp rq.Response, body []byte, err error) {
 	dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, db)
 	req := rq.New().TLSClientConfig(&TLSConfig).Get(dbURL)
 	if branch != "" {
@@ -534,7 +534,7 @@ func retrieveDatabase(db string, branch string, commit string) (resp rq.Response
 		req.Query(fmt.Sprintf("commit=%s", url.QueryEscape(commit)))
 	}
 	var errs []error
-	resp, body, errs = req.End()
+	resp, body, errs = req.EndBytes()
 	if errs != nil {
 		log.Print("Errors when downloading database:")
 		for _, err := range errs {

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -65,11 +66,21 @@ func list(args []string) error {
 				return err
 			}
 		}
-		_, err = fmt.Fprintf(fOut, "      File last modified: %s\n", j.LastModified)
+		// The server gives us the last modified and repo modified dates in pre-formatted UTC timezone.  For now, lets
+		// convert these back to the users local time
+		z, err := time.Parse(time.RFC822, j.LastModified)
 		if err != nil {
 			return err
 		}
-		_, err = fmt.Fprintf(fOut, "      Repository last updated: %s\n\n", j.RepoModified)
+		_, err = fmt.Fprintf(fOut, "      File last modified: %s\n", z.Local().Format(time.RFC1123))
+		if err != nil {
+			return err
+		}
+		z, err = time.Parse(time.RFC822, j.RepoModified)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(fOut, "      Repository last updated: %s\n\n", z.Local().Format(time.RFC1123))
 		if err != nil {
 			return err
 		}
