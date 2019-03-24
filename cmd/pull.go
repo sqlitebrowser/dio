@@ -40,9 +40,21 @@ func init() {
 
 func pull(args []string) error {
 	// Ensure a database file was given
+	var db, defDB string
+	var err error
 	if len(args) == 0 {
-		return errors.New("No database file specified")
+		db, err = getDefaultDatabase()
+		if err != nil {
+			return err
+		}
+		if db == "" {
+			// No database name was given on the command line, and we don't have a default database selected
+			return errors.New("No database file specified")
+		}
+	} else {
+		db = args[0]
 	}
+
 	// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
 	// TODO  into a for loop
 	if len(args) > 1 {
@@ -59,23 +71,24 @@ func pull(args []string) error {
 
 	// Retrieve metadata for the database
 	var meta metaData
-	var err error
-	db := args[0]
 	meta, err = updateMetadata(db, false) // Don't store the metadata to disk yet, in case the download fails
 	if err != nil {
 		return err
 	}
 
-	// Unless --force is specified, check whether the file has changed since the last commit, and let the user know
-	if *pullForce == false {
-		changed, err := dbChanged(db, meta)
-		if err != nil {
-			return err
-		}
-		if changed {
-			_, err = fmt.Fprintf(fOut, "%s has been changed since the last commit.  Use --force if you "+
-				"really want to overwrite it\n", db)
-			return err
+	// If the database file already exists locally, check whether the file has changed since the last commit, and let
+	// the user know.  The --force option on the command line overrides this
+	if _, err = os.Stat(db); err == nil {
+		if *pullForce == false {
+			changed, err := dbChanged(db, meta)
+			if err != nil {
+				return err
+			}
+			if changed {
+				_, err = fmt.Fprintf(fOut, "%s has been changed since the last commit.  Use --force if you "+
+					"really want to overwrite it\n", db)
+				return err
+			}
 		}
 	}
 
@@ -182,6 +195,18 @@ func pull(args []string) error {
 			if err != nil {
 				return err
 			}
+
+			// If a default database isn't already selected, we use this one as the default
+			defDB, err = getDefaultDatabase()
+			if err != nil {
+				return err
+			}
+			if defDB == "" {
+				err = saveDefaultDatabase(db)
+				if err != nil {
+					return err
+				}
+			}
 			return nil
 		}
 	}
@@ -252,6 +277,18 @@ func pull(args []string) error {
 	err = saveMetadata(db, meta)
 	if err != nil {
 		return err
+	}
+
+	// If a default database isn't already selected, we use this one as the default
+	defDB, err = getDefaultDatabase()
+	if err != nil {
+		return err
+	}
+	if defDB == "" {
+		err = saveDefaultDatabase(db)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Display success message to the user

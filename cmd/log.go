@@ -27,8 +27,19 @@ func init() {
 
 func branchLog(args []string) error {
 	// Ensure a database file was given
+	var db string
+	var err error
 	if len(args) == 0 {
-		return errors.New("no database file specified")
+		db, err = getDefaultDatabase()
+		if err != nil {
+			return err
+		}
+		if db == "" {
+			// No database name was given on the command line, and we don't have a default database selected
+			return errors.New("No database file specified")
+		}
+	} else {
+		db = args[0]
 	}
 	if len(args) > 1 {
 		return errors.New("only one database can be worked with at a time (for now)")
@@ -36,8 +47,8 @@ func branchLog(args []string) error {
 
 	// If there is a local metadata cache for the requested database, use that.  Otherwise, retrieve it from the
 	// server first (without storing it)
-	db := args[0]
-	meta, err := localFetchMetadata(db, true)
+	var meta metaData
+	meta, err = localFetchMetadata(db, true)
 	if err != nil {
 		return err
 	}

@@ -57,6 +57,10 @@ type dbTreeEntry struct {
 	Size         int             `json:"size"`
 }
 
+type defaultSettings struct {
+	SelectedDatabase string `json:"selected_database"`
+}
+
 type licenceEntry struct {
 	FileFormat string `json:"file_format"`
 	FullName   string `json:"full_name"`

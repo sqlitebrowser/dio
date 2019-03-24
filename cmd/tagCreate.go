@@ -35,8 +35,20 @@ func init() {
 
 func tagCreate(args []string) error {
 	// Ensure a database file was given
+	var db string
+	var err error
+	var meta metaData
 	if len(args) == 0 {
-		return errors.New("No database file specified")
+		db, err = getDefaultDatabase()
+		if err != nil {
+			return err
+		}
+		if db == "" {
+			// No database name was given on the command line, and we don't have a default database selected
+			return errors.New("No database file specified")
+		}
+	} else {
+		db = args[0]
 	}
 	if len(args) > 1 {
 		return errors.New("Only one database can be changed at a time (for now)")
@@ -68,7 +80,6 @@ func tagCreate(args []string) error {
 
 	// If a date was given, parse it to ensure the format is correct.  Warn the user if it isn't,
 	tagTimeStamp := time.Now()
-	var err error
 	if tagCreateDate != "" {
 		tagTimeStamp, err = time.Parse(time.RFC3339, tagCreateDate)
 		if err != nil {
@@ -77,8 +88,7 @@ func tagCreate(args []string) error {
 	}
 
 	// Load the metadata
-	db := args[0]
-	meta, err := loadMetadata(db)
+	meta, err = loadMetadata(db)
 	if err != nil {
 		return err
 	}

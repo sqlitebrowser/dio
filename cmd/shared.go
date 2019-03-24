@@ -169,6 +169,29 @@ var getDatabases = func(url string, user string) (dbList []dbListEntry, err erro
 	return
 }
 
+// Returns the name of the default database, if one has been selected.  Returns an empty string if not
+func getDefaultDatabase() (db string, err error) {
+	// Check if the local defaults info exists
+	var z []byte
+	if z, err = ioutil.ReadFile(filepath.Join(".dio", "defaults.json")); err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return
+	}
+
+	// Read and parse the metadata
+	var y defaultSettings
+	err = json.Unmarshal([]byte(z), &y)
+	if err != nil {
+		return
+	}
+	if y.SelectedDatabase != "" {
+		db = y.SelectedDatabase
+	}
+	return
+}
+
 // Returns a map with the list of licences available on the remote server
 var getLicences = func() (list map[string]licenceEntry, err error) {
 	// Retrieve the database list from the cloud
@@ -593,6 +616,32 @@ var retrieveMetadata = func(db string) (meta metaData, onCloud bool, err error) 
 		return
 	}
 	return meta, true, nil
+}
+
+// Returns the name of the default database, if one has been selected.  Returns an empty string if not
+func saveDefaultDatabase(db string) (err error) {
+	// Load the local default info
+	var z []byte
+	var def defaultSettings
+	if z, err = ioutil.ReadFile(filepath.Join(".dio", "defaults.json")); err == nil {
+		err = json.Unmarshal([]byte(z), &def)
+		if err != nil {
+			return
+		}
+	} else {
+		// No local default info, so we use a new blank set instead
+		def = defaultSettings{}
+	}
+
+	// Save the new default database setting to disk
+	def.SelectedDatabase = db
+	var j []byte
+	j, err = json.MarshalIndent(def, "", "  ")
+	if err != nil {
+		return
+	}
+	err = ioutil.WriteFile(filepath.Join(".dio", "defaults.json"), j, 0644)
+	return
 }
 
 // Saves the metadata to a local cache

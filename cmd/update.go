@@ -18,8 +18,20 @@ var updateCmd = &cobra.Command{
 	Short: "Update the details for a database",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure a database file was given
+		var db string
+		var err error
+		//var meta metaData
 		if len(args) == 0 {
-			return errors.New("No database file specified")
+			db, err = getDefaultDatabase()
+			if err != nil {
+				return err
+			}
+			if db == "" {
+				// No database name was given on the command line, and we don't have a default database selected
+				return errors.New("No database file specified")
+			}
+		} else {
+			db = args[0]
 		}
 		// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
 		// TODO  into a for loop
@@ -33,7 +45,6 @@ var updateCmd = &cobra.Command{
 		}
 
 		// Send the details to the API server
-		db := args[0]
 		req := rq.New().Post(cloud+"/db_update").
 			Set("database", db).
 			Set("licence", updateCmdLicence)

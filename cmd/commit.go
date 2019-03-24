@@ -49,8 +49,20 @@ func init() {
 
 func commit(args []string) error {
 	// Ensure a database file was given
+	var db string
+	var err error
+	var meta metaData
 	if len(args) == 0 {
-		return errors.New("No database file specified")
+		db, err = getDefaultDatabase()
+		if err != nil {
+			return err
+		}
+		if db == "" {
+			// No database name was given on the command line, and we don't have a default database selected
+			return errors.New("No database file specified")
+		}
+	} else {
+		db = args[0]
 	}
 	// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
 	// TODO  into a for loop
@@ -59,7 +71,6 @@ func commit(args []string) error {
 	}
 
 	// Ensure the database file exists
-	db := args[0]
 	fi, err := os.Stat(db)
 	if err != nil {
 		return err
@@ -98,7 +109,6 @@ func commit(args []string) error {
 
 	// If the database metadata doesn't exist locally, check if it does exist on the server.
 	var newDB, localPresent bool
-	var meta metaData
 	if _, err = os.Stat(filepath.Join(".dio", db, "db")); os.IsNotExist(err) {
 		// At the moment, since there's no better way to check for the existence of a remote database, we just
 		// grab the list of the users databases and check against that

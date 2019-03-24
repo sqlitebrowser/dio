@@ -55,8 +55,19 @@ func init() {
 
 func push(args []string) error {
 	// Ensure a database file was given
+	var db string
+	var err error
 	if len(args) == 0 {
-		return errors.New("No database file specified")
+		db, err = getDefaultDatabase()
+		if err != nil {
+			return err
+		}
+		if db == "" {
+			// No database name was given on the command line, and we don't have a default database selected
+			return errors.New("No database file specified")
+		}
+	} else {
+		db = args[0]
 	}
 	// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
 	// TODO  into a for loop
@@ -65,7 +76,6 @@ func push(args []string) error {
 	}
 
 	// Ensure the database file exists
-	db := args[0]
 	fi, err := os.Stat(db)
 	if err != nil {
 		return err
