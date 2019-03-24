@@ -61,24 +61,34 @@ func init() {
 
 	// Read all of our configuration data now
 	if cfgFile != "" {
-		// Use config file from the flag.
+		// Use config file from the flag
 		viper.SetConfigFile(cfgFile)
 	} else {
-		// Find home directory.
+		// Find home directory
 		home, err := homedir.Dir()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
-		// Search config in home directory with name ".dio" (without extension).
-		viper.AddConfigPath(filepath.Join(home, ".dio"))
+		// Search for config in ".dio" subdirectory under the users home directory
+		p := filepath.Join(home, ".dio")
+		viper.AddConfigPath(p)
 		viper.SetConfigName("config")
+		cfgFile = filepath.Join(p, "config.toml")
 	}
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err != nil {
-		log.Fatalf("Error loading config file: %s", err.Error())
+		// No configuration file was found, so generate a default one and let the user know they need to supply the
+		// missing info
+		errInner := generateConfig(cfgFile)
+		if errInner != nil {
+			log.Fatalln(errInner)
+			return
+		}
+		log.Fatalf("No usable configuration file was found, so a default one has been generated in: %s\n"+
+			"Please update it with your name, and the path to your DBHub.io user certificate file.\n", cfgFile)
 		return
 	}
 

@@ -92,6 +92,7 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	defer f.Close()
 	d, err := os.Getwd()
 	if err != nil {
 		log.Fatalln(err)

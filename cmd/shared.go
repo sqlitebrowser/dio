@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
@@ -17,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mitchellh/go-homedir"
 	rq "github.com/parnurzeal/gorequest"
 )
 
@@ -166,6 +168,60 @@ var getDatabases = func(url string, user string) (dbList []dbListEntry, err erro
 			return
 		}
 	}
+	return
+}
+
+// Generates an initial default (production) configuration file.  Before it's useful, the user will need to fill out
+// their display name + provide a DB4S certificate file
+func generateConfig(cfgFile string) (err error) {
+	// Create the ".dio" directory in the users home folder, to store the configuration file in
+	var home string
+	home, err = homedir.Dir()
+	if err != nil {
+		return
+	}
+	if _, err = os.Stat(filepath.Join(home, ".dio")); os.IsNotExist(err) {
+		err = os.Mkdir(filepath.Join(home, ".dio"), 0770)
+		if err != nil {
+			return
+		}
+	}
+
+	// Download the Certificate Authority chain file
+	caURL := "https://github.com/sqlitebrowser/dio/raw/master/cert/ca-chain.cert.pem"
+	chainFile := filepath.Join(home, ".dio", "ca-chain.cert.pem")
+	resp, body, errs := rq.New().TLSClientConfig(&tls.Config{InsecureSkipVerify: true}).Get(caURL).EndBytes()
+	if errs != nil {
+		e := fmt.Sprintln("errors when retrieving the CA chain file:")
+		for _, errInner := range errs {
+			e += fmt.Sprintf(errInner.Error())
+		}
+		return errors.New(e)
+	}
+	defer resp.Body.Close()
+	err = ioutil.WriteFile(chainFile, body, 0644)
+	if err != nil {
+		return err
+	}
+
+	// Generate the initial config file
+	const CFG = `[certs]
+cachain = "%s"
+cert = "/path/to/your/certificate/here"
+
+[general]
+cloud = "https://dbhub.io:5550"
+
+[user]
+name = "Your Name"
+`
+	var f *os.File
+	f, err = os.Create(cfgFile)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, err = fmt.Fprintf(f, CFG, chainFile)
 	return
 }
 
