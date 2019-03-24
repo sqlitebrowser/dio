@@ -44,7 +44,6 @@ cloud = "%s"
 
 [user]
 name = "Some One"
-email = "someone@example.org"
 `
 )
 
@@ -135,10 +134,12 @@ func (s *DioSuite) SetUpSuite(c *chk.C) {
 		log.Fatalln(err)
 	}
 	TLSConfig.Certificates = []tls.Certificate{cert}
-	certUser, _, err = getUserAndServer()
+	var email string
+	certUser, email, _, err = getUserAndServer()
 	if err != nil {
 		log.Fatalln(err)
 	}
+	viper.Set("user.email", email)
 
 	// Add test database
 	s.dbName = "19kB.sqlite"
@@ -236,7 +237,7 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	c.Check(meta.Commits, chk.HasLen, 1)
 
 	// Verify the values in the commit data match the values we provided
-	com, ok := meta.Commits["485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"] // This commit ID is what the given values should generate a commit ID as
+	com, ok := meta.Commits["59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941"] // This commit ID is what the given values should generate a commit ID as
 	c.Assert(ok, chk.Equals, true)
 	c.Check(com.AuthorName, chk.Equals, commitCmdAuthName)
 	c.Check(com.AuthorEmail, chk.Equals, commitCmdAuthEmail)
@@ -245,8 +246,8 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	c.Check(com.Parent, chk.Equals, "")
 	c.Check(com.OtherParents, chk.IsNil)
 	c.Check(com.CommitterName, chk.Equals, "Some One")
-	c.Check(com.CommitterEmail, chk.Equals, "someone@example.org")
-	c.Check(com.ID, chk.Equals, "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb")
+	c.Check(com.CommitterEmail, chk.Equals, "default@docker-dev.dbhub.io")
+	c.Check(com.ID, chk.Equals, "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941")
 	c.Check(com.Tree.Entries[0].EntryType, chk.Equals, dbTreeEntryType(DATABASE))
 	c.Check(com.Tree.Entries[0].LastModified.UTC(), chk.Equals, time.Date(2019, time.March, 15, 18, 1, 0, 0, time.UTC))
 	c.Check(com.Tree.Entries[0].LicenceSHA, chk.Equals, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") // e3b... is the SHA256 for the "Not specified" licence option
@@ -269,7 +270,7 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	// Verify the branch info
 	br, ok := meta.Branches["master"]
 	c.Assert(ok, chk.Equals, true)
-	c.Check(br.Commit, chk.Equals, "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb")
+	c.Check(br.Commit, chk.Equals, "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941")
 	c.Check(br.CommitCount, chk.Equals, 1)
 	c.Check(br.Description, chk.Equals, "")
 }
@@ -294,17 +295,17 @@ func (s *DioSuite) Test0020_Commit2(c *chk.C) {
 	c.Check(meta.Commits, chk.HasLen, 2)
 
 	// Verify the values in the commit data match the values we provided
-	com, ok := meta.Commits["9c4eab0f96134063f856fc48604f49c7c1e225a79f3eebc4e226dc01b4cfe9bc"] // This commit ID is what the given values should generate a commit ID as
+	com, ok := meta.Commits["70815d687cfc614b23dfb2f66f8fa0a8cb7bad199e05d4142db883690eefeba5"] // This commit ID is what the given values should generate a commit ID as
 	c.Assert(ok, chk.Equals, true)
 	c.Check(com.AuthorName, chk.Equals, commitCmdAuthName)
 	c.Check(com.AuthorEmail, chk.Equals, commitCmdAuthEmail)
 	c.Check(com.Message, chk.Equals, commitCmdMsg)
 	c.Check(com.Timestamp, chk.Equals, time.Date(2019, time.March, 15, 18, 1, 3, 0, time.UTC))
-	c.Check(com.Parent, chk.Equals, "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb")
+	c.Check(com.Parent, chk.Equals, "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941")
 	c.Check(com.OtherParents, chk.IsNil)
 	c.Check(com.CommitterName, chk.Equals, "Some One")
-	c.Check(com.CommitterEmail, chk.Equals, "someone@example.org")
-	c.Check(com.ID, chk.Equals, "9c4eab0f96134063f856fc48604f49c7c1e225a79f3eebc4e226dc01b4cfe9bc")
+	c.Check(com.CommitterEmail, chk.Equals, "default@docker-dev.dbhub.io")
+	c.Check(com.ID, chk.Equals, "70815d687cfc614b23dfb2f66f8fa0a8cb7bad199e05d4142db883690eefeba5")
 	c.Check(com.Tree.Entries[0].EntryType, chk.Equals, dbTreeEntryType(DATABASE))
 	c.Check(com.Tree.Entries[0].LastModified.UTC(), chk.Equals, time.Date(2019, time.March, 15, 18, 1, 2, 0, time.UTC))
 	c.Check(com.Tree.Entries[0].LicenceSHA, chk.Equals, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") // e3b... is the SHA256 for the "Not specified" licence option
@@ -327,7 +328,7 @@ func (s *DioSuite) Test0020_Commit2(c *chk.C) {
 	// Verify the branch info
 	br, ok := meta.Branches["master"]
 	c.Assert(ok, chk.Equals, true)
-	c.Check(br.Commit, chk.Equals, "9c4eab0f96134063f856fc48604f49c7c1e225a79f3eebc4e226dc01b4cfe9bc")
+	c.Check(br.Commit, chk.Equals, "70815d687cfc614b23dfb2f66f8fa0a8cb7bad199e05d4142db883690eefeba5")
 	c.Check(br.CommitCount, chk.Equals, 2)
 	c.Check(br.Description, chk.Equals, "")
 
@@ -350,7 +351,7 @@ func (s *DioSuite) Test0030_BranchActiveGet(c *chk.C) {
 func (s *DioSuite) Test0040_BranchCreate(c *chk.C) {
 	// Create a new branch
 	branchCreateBranch = "branchtwo"
-	branchCreateCommit = "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"
+	branchCreateCommit = "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941"
 	branchCreateMsg = "A new branch"
 	err := branchCreate([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
@@ -360,7 +361,7 @@ func (s *DioSuite) Test0040_BranchCreate(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	br, ok := meta.Branches["branchtwo"]
 	c.Assert(ok, chk.Equals, true)
-	c.Check(br.Commit, chk.Equals, "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb")
+	c.Check(br.Commit, chk.Equals, "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941")
 	c.Check(br.CommitCount, chk.Equals, 1)
 	c.Check(br.Description, chk.Equals, "A new branch")
 
@@ -468,13 +469,13 @@ func (s *DioSuite) Test0100_BranchRevert(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	br, ok := meta.Branches["master"]
 	c.Assert(ok, chk.Equals, true)
-	c.Check(br.Commit, chk.Equals, "9c4eab0f96134063f856fc48604f49c7c1e225a79f3eebc4e226dc01b4cfe9bc")
+	c.Check(br.Commit, chk.Equals, "70815d687cfc614b23dfb2f66f8fa0a8cb7bad199e05d4142db883690eefeba5")
 	c.Check(br.CommitCount, chk.Equals, 2)
 	c.Check(br.Description, chk.Equals, "")
 
 	// Revert the master branch back to the original commit
 	branchRevertBranch = "master"
-	branchRevertCommit = "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"
+	branchRevertCommit = "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941"
 	err = branchRevert([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
 
@@ -483,7 +484,7 @@ func (s *DioSuite) Test0100_BranchRevert(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 	br, ok = meta.Branches["master"]
 	c.Assert(ok, chk.Equals, true)
-	c.Check(br.Commit, chk.Equals, "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb")
+	c.Check(br.Commit, chk.Equals, "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941")
 	c.Check(br.CommitCount, chk.Equals, 1)
 	c.Check(br.Description, chk.Equals, "")
 
@@ -546,7 +547,7 @@ func (s *DioSuite) Test0130_TagCreate(c *chk.C) {
 	c.Assert(ok, chk.Equals, false)
 
 	// Create the tag
-	tagCreateCommit = "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"
+	tagCreateCommit = "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941"
 	tagCreateDate = "2019-03-15T18:01:05Z"
 	tagCreateEmail = "sometagger@example.org"
 	tagCreateMsg = "This is a test tag"
@@ -622,7 +623,7 @@ func (s *DioSuite) Test0160_ReleaseCreate(c *chk.C) {
 	c.Assert(ok, chk.Equals, false)
 
 	// Create the release
-	releaseCreateCommit = "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"
+	releaseCreateCommit = "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941"
 	releaseCreateCreatorEmail = "somereleaser@example.org"
 	releaseCreateCreatorName = "A test releaser"
 	releaseCreateMsg = "This is a test release"
@@ -701,7 +702,7 @@ func (s *DioSuite) Test0190_Log(c *chk.C) {
 		l := strings.TrimSpace(lines.Text())
 		if strings.HasPrefix(l, "*") {
 			p := strings.Split(lines.Text(), ":")
-			if len(p) >= 2 && strings.TrimSpace(p[1]) == "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb" {
+			if len(p) >= 2 && strings.TrimSpace(p[1]) == "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941" {
 				c.Check(p, chk.HasLen, 2)
 				comFound = true
 			}
@@ -1012,7 +1013,7 @@ func (s *DioSuite) Test0280_PullRemote(c *chk.C) {
 
 	// Grab the database from our test server
 	pullCmdBranch = ""
-	pullCmdCommit = "eba04c5fe44ec4545c098d092f0231ed672949b3c93651821d3f1102c56e85eb"
+	pullCmdCommit = "9a78d0c8c13c0442eb24367f3561d0cbb5676100bd69d147ec3bde4cdbaefa49"
 	*pullForce = true
 	err = pull([]string{newDB})
 	c.Assert(err, chk.IsNil)
@@ -1149,7 +1150,7 @@ func (s *DioSuite) Test0320_PushOldLocalMetadataDBConflict(c *chk.C) {
 
 	// Revert back to the original commit
 	newDB := "19kBv3.sqlite"
-	pullCmdCommit = "c9a3e3bd641ca17a79a02cc07cc2ecd0c92a89a5437cf3b96221d57575a6f79f"
+	pullCmdCommit = "601e78fb16a715e37e86fc57ba3415e2684481cffea0455eb3463dc086e22177"
 	*pullForce = true
 	err := pull([]string{newDB})
 	c.Assert(err, chk.IsNil)
@@ -1177,8 +1178,8 @@ func mockGetLicences() (map[string]licenceEntry, error) {
 func mockRetrieveMetadata(db string) (meta metaData, onCloud bool, err error) {
 	meta.Branches = make(map[string]branchEntry)
 	meta.Commits = make(map[string]commitEntry)
-	meta.Commits["485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb"] = commitEntry{
-		ID:             "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb",
+	meta.Commits["59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941"] = commitEntry{
+		ID:             "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941",
 		CommitterEmail: "someone@example.org",
 		CommitterName:  "Some One",
 		AuthorEmail:    "testdefault@dbhub.io",
@@ -1198,7 +1199,7 @@ func mockRetrieveMetadata(db string) (meta metaData, onCloud bool, err error) {
 		},
 	}
 	meta.Branches["master"] = branchEntry{
-		Commit:      "485ca5b2014c1520e7952ad97fed0a8024349b43cea7711a6c98706c3d7e55cb",
+		Commit:      "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941",
 		CommitCount: 1,
 		Description: "",
 	}
@@ -1363,7 +1364,7 @@ func mockServerNewDBPushHandler(w http.ResponseWriter, r *http.Request) {
 		"commit":         "",
 		"commitmsg":      "Test message",
 		"committername":  "Some One",
-		"committeremail": "someone@example.org",
+		"committeremail": "default@docker-dev.dbhub.io",
 		"dbshasum":       "e8cab91dec32b3990b427b28380e4e052288054f99c4894742f07dee0c924efd",
 		"lastmodified":   time.Date(2019, time.March, 15, 18, 2, 0, 0, time.UTC).Format(time.RFC3339),
 		"licence":        "",

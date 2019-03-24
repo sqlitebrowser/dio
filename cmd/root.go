@@ -125,9 +125,11 @@ func init() {
 		RootCAs:                  ourCAPool,
 	}
 
-	// Extract the username and server from the TLS certificate
-	certUser, _, err = getUserAndServer()
+	// Extract the username and email from the TLS certificate
+	var email string
+	certUser, email, _, err = getUserAndServer()
 	if err != nil {
 		fmt.Println(err)
 	}
+	viper.Set("user.email", email)
 }

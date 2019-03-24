@@ -214,7 +214,7 @@ var getLicences = func() (list map[string]licenceEntry, err error) {
 }
 
 // getUserAndServer() returns the user name and server from a DBHub.io client certificate
-func getUserAndServer() (userAcc string, certServer string, err error) {
+func getUserAndServer() (userAcc string, email string, certServer string, err error) {
 	if numCerts := len(TLSConfig.Certificates); numCerts == 0 {
 		err = errors.New("No client certificates installed.  Can't proceed.")
 		return
@@ -228,14 +228,14 @@ func getUserAndServer() (userAcc string, certServer string, err error) {
 		return
 	}
 
-	// Extract the account name and associated server from the certificate
-	cn := cert.Subject.CommonName
-	if cn == "" {
+	// Extract the account name, email address, and associated server from the certificate
+	email = cert.Subject.CommonName
+	if email == "" {
 		// The common name field is empty in the client cert.  Can't proceed.
 		err = errors.New("Common name is blank in client certificate")
 		return
 	}
-	s := strings.Split(cn, "@")
+	s := strings.Split(email, "@")
 	if len(s) < 2 {
 		err = errors.New("Missing information in client certificate")
 		return
@@ -247,7 +247,6 @@ func getUserAndServer() (userAcc string, certServer string, err error) {
 		err = errors.New("Missing information in client certificate")
 		return
 	}
-
 	return
 }
 
