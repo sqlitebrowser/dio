@@ -252,7 +252,7 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	c.Check(com.Tree.Entries[0].EntryType, chk.Equals, dbTreeEntryType(DATABASE))
 	c.Check(com.Tree.Entries[0].LastModified.UTC(), chk.Equals, time.Date(2019, time.March, 15, 18, 1, 0, 0, time.UTC))
 	c.Check(com.Tree.Entries[0].LicenceSHA, chk.Equals, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") // e3b... is the SHA256 for the "Not specified" licence option
-	c.Check(com.Tree.Entries[0].Size, chk.Equals, 19456)
+	c.Check(int(com.Tree.Entries[0].Size), chk.Equals, 19456)
 	c.Check(com.Tree.Entries[0].Name, chk.Equals, s.dbName)
 
 	// Check the database has been written to the cache area using its checksum as filename
@@ -263,7 +263,7 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	// Verify the contents of the cached database match the size and sha256 recorded in the commit
 	b, err := ioutil.ReadFile(cacheFile)
 	c.Assert(err, chk.IsNil)
-	c.Check(b, chk.HasLen, com.Tree.Entries[0].Size)
+	c.Check(b, chk.HasLen, int(com.Tree.Entries[0].Size))
 	z := sha256.Sum256(b)
 	shaSum := hex.EncodeToString(z[:])
 	c.Check(shaSum, chk.Equals, com.Tree.Entries[0].Sha256)
@@ -310,7 +310,7 @@ func (s *DioSuite) Test0020_Commit2(c *chk.C) {
 	c.Check(com.Tree.Entries[0].EntryType, chk.Equals, dbTreeEntryType(DATABASE))
 	c.Check(com.Tree.Entries[0].LastModified.UTC(), chk.Equals, time.Date(2019, time.March, 15, 18, 1, 2, 0, time.UTC))
 	c.Check(com.Tree.Entries[0].LicenceSHA, chk.Equals, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") // e3b... is the SHA256 for the "Not specified" licence option
-	c.Check(com.Tree.Entries[0].Size, chk.Equals, 19456)
+	c.Check(int(com.Tree.Entries[0].Size), chk.Equals, 19456)
 	c.Check(com.Tree.Entries[0].Name, chk.Equals, s.dbName)
 
 	// Check the database has been written to the cache area using its checksum as filename
@@ -321,7 +321,7 @@ func (s *DioSuite) Test0020_Commit2(c *chk.C) {
 	// Verify the contents of the cached database match the size and sha256 recorded in the commit
 	b, err := ioutil.ReadFile(cacheFile)
 	c.Assert(err, chk.IsNil)
-	c.Check(b, chk.HasLen, com.Tree.Entries[0].Size)
+	c.Check(b, chk.HasLen, int(com.Tree.Entries[0].Size))
 	z := sha256.Sum256(b)
 	shaSum := hex.EncodeToString(z[:])
 	c.Check(shaSum, chk.Equals, com.Tree.Entries[0].Sha256)
@@ -1455,7 +1455,7 @@ func mockServerNewDBPushHandler(w http.ResponseWriter, r *http.Request) {
 	e.LicenceSHA = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" // SHA256 of "Not specified" licence
 	e.Name = hdr.Filename
 	e.Sha256 = shaSum
-	e.Size = int(numBytes)
+	e.Size = numBytes
 	var t dbTree
 	t.Entries = append(t.Entries, e)
 	t.ID = createDBTreeID(t.Entries)
@@ -1482,7 +1482,7 @@ func mockServerNewDBPushHandler(w http.ResponseWriter, r *http.Request) {
 		Public:       false,
 		RepoModified: lastMod.UTC().Format(time.RFC3339),
 		SHA256:       expected["dbshasum"],
-		Size:         int(numBytes),
+		Size:         numBytes,
 		Type:         "database",
 		URL:          fmt.Sprintf("%s/default/%s?commit=%s&branch=%s", cloud, hdr.Filename, newCom.ID, expected["branch"]), // TODO: Is this the right URL, or is it supposed to be the user defined source URL?
 	}

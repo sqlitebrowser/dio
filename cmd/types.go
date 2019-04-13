@@ -31,7 +31,7 @@ type dbListEntry struct {
 	Public       bool   `json:"public"`
 	RepoModified string `json:"repo_modified"`
 	SHA256       string `json:"sha256"`
-	Size         int    `json:"size"`
+	Size         int64  `json:"size"`
 	Type         string `json:"type"`
 	URL          string `json:"url"`
 }
@@ -54,7 +54,7 @@ type dbTreeEntry struct {
 	LicenceSHA   string          `json:"licence"`
 	Name         string          `json:"name"`
 	Sha256       string          `json:"sha256"`
-	Size         int             `json:"size"`
+	Size         int64           `json:"size"`
 }
 
 type defaultSettings struct {
@@ -84,7 +84,7 @@ type releaseEntry struct {
 	Description   string    `json:"description"`
 	ReleaserEmail string    `json:"email"`
 	ReleaserName  string    `json:"name"`
-	Size          int       `json:"size"`
+	Size          int64     `json:"size"`
 }
 
 type tagEntry struct {

@@ -113,7 +113,7 @@ func releaseCreate(args []string) error {
 		Description:   releaseCreateMsg,
 		ReleaserEmail: releaseCreateCreatorEmail,
 		ReleaserName:  releaseCreateCreatorName,
-		Size:          int(size),
+		Size:          size,
 	}
 
 	// Add the new release to the local metadata cache

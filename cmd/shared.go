@@ -118,7 +118,7 @@ func dbChanged(db string, meta metaData) (changed bool, err error) {
 		}
 		return
 	}
-	fileSize := int(fi.Size())
+	fileSize := fi.Size()
 	lastModified := fi.ModTime().Truncate(time.Second).UTC()
 	if metaFileSize != fileSize || !metaLastModified.Equal(lastModified) {
 		changed = true
@@ -134,7 +134,7 @@ func dbChanged(db string, meta metaData) (changed bool, err error) {
 	if err != nil {
 		return
 	}
-	if len(b) != fileSize {
+	if int64(len(b)) != fileSize {
 		err = errors.New(numFormat.Sprintf("Aborting: # of bytes read (%d) when reading the database "+
 			"doesn't match the database file size (%d)", len(b), fileSize))
 		return

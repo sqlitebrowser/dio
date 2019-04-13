@@ -238,7 +238,7 @@ func commit(args []string) error {
 	// * Collect info for the new commit *
 
 	// Get file size and last modified time for the database
-	fileSize := int(fi.Size())
+	fileSize := fi.Size()
 	lastModified := fi.ModTime()
 
 	// Verify we've read the file from disk ok
@@ -246,7 +246,7 @@ func commit(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(b) != fileSize {
+	if int64(len(b)) != fileSize {
 		return errors.New(numFormat.Sprintf("Aborting: # of bytes read (%d) when generating commit don't "+
 			"match database file size (%d)", len(b), fileSize))
 	}
