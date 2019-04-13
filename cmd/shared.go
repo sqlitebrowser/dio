@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -205,23 +206,30 @@ func generateConfig(cfgFile string) (err error) {
 	}
 
 	// Generate the initial config file
-	const CFG = `[certs]
-cachain = "%s"
-cert = "/path/to/your/certificate/here"
-
-[general]
-cloud = "https://dbhub.io:5550"
-
-[user]
-name = "Your Name"
-`
 	var f *os.File
 	f, err = os.Create(cfgFile)
 	if err != nil {
 		return
 	}
 	defer f.Close()
-	_, err = fmt.Fprintf(f, CFG, chainFile)
+	lineEnd := "\n"
+	warnMsg := ""
+	if runtime.GOOS == "windows" {
+		lineEnd = "\r\n"
+		warnMsg = " # On Windows, directory slashes need to be doubled up otherwise parsing fails."
+	}
+	safeChainFile := strings.ReplaceAll(chainFile, `\`, `\\`)
+	certPath := fmt.Sprintf("%c%s", os.PathSeparator, filepath.Join("path", "to", "your", "certificate", "here"))
+	safeCertPath := strings.ReplaceAll(certPath, `\`, `\\`)
+	_, err = fmt.Fprint(f, `[certs]`+lineEnd)
+	_, err = fmt.Fprint(f, fmt.Sprintf(`cachain = "%s"%s`, safeChainFile, lineEnd))
+	_, err = fmt.Fprint(f, fmt.Sprintf(`cert = "%s"%s%s`, safeCertPath, warnMsg, lineEnd))
+	_, err = fmt.Fprint(f, lineEnd)
+	_, err = fmt.Fprint(f, `[general]`+lineEnd)
+	_, err = fmt.Fprint(f, `cloud = "https://dbhub.io:5550"`+lineEnd)
+	_, err = fmt.Fprint(f, lineEnd)
+	_, err = fmt.Fprint(f, `[user]`+lineEnd)
+	_, err = fmt.Fprint(f, `name = "Your Name"`+lineEnd)
 	return
 }
 

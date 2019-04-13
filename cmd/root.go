@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	DIO_VERSION = "0.2.0"
+	DIO_VERSION = "0.2.1"
 )
 
 var (
@@ -55,7 +55,7 @@ func init() {
 
 	// Add the global environment variables
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
-		"config file (default is $HOME/.dio/config.toml)")
+		fmt.Sprintf("config file (default is %s)", filepath.Join("$HOME", ".dio", "config.toml")))
 	RootCmd.PersistentFlags().StringVar(&cloud, "cloud", "https://dbhub.io:5550",
 		"Address of the DBHub.io cloud")
 
