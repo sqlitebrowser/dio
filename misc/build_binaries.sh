@@ -19,8 +19,8 @@ done
 GOOS=windows
 for GOARCH in 386 amd64; do
   echo Building Dio for ${GOOS} + ${GOARCH}
-  go build -o dio-${GOOS}-${GOARCH} ..
-  sha256sum dio-${GOOS}-${GOARCH} > dio-${GOOS}-${GOARCH}.SHA256
+  go build -o dio-${GOOS}-${GOARCH}.exe ..
+  sha256sum dio-${GOOS}-${GOARCH}.exe > dio-${GOOS}-${GOARCH}.exe.SHA256
 done
 
 GOOS=linux
