@@ -647,10 +647,10 @@ func retrieveDatabase(db string, branch string, commit string) (resp rq.Response
 }
 
 // Retrieves database metadata from DBHub.io
-var retrieveMetadata = func(db string) (meta metaData, onCloud bool, err error) {
+var retrieveMetadata = func(userName string, db string) (meta metaData, onCloud bool, err error) {
 	// Download the database metadata
 	resp, md, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/metadata/get").
-		Query(fmt.Sprintf("username=%s", url.QueryEscape(certUser))).
+		Query(fmt.Sprintf("username=%s", url.QueryEscape(userName))).
 		Query(fmt.Sprintf("folder=%s", "/")).
 		Query(fmt.Sprintf("dbname=%s", url.QueryEscape(db))).
 		End()
@@ -729,11 +729,11 @@ func saveMetadata(db string, meta metaData) (err error) {
 }
 
 // Saves metadata to the local cache, merging in with any existing metadata
-func updateMetadata(db string, saveMeta bool) (mergedMeta metaData, err error) {
+func updateMetadata(userName string, db string, saveMeta bool) (mergedMeta metaData, err error) {
 	// Check for existing metadata file, loading it if present
 	var md []byte
 	origMeta := metaData{}
-	md, err = ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
+	md, err = ioutil.ReadFile(filepath.Join(".dio", userName, db, "metadata.json"))
 	if err == nil {
 		err = json.Unmarshal([]byte(md), &origMeta)
 		if err != nil {
@@ -746,7 +746,7 @@ func updateMetadata(db string, saveMeta bool) (mergedMeta metaData, err error) {
 	if err != nil {
 		return
 	}
-	newMeta, _, err := retrieveMetadata(db)
+	newMeta, _, err := retrieveMetadata(userName, db)
 	if err != nil {
 		return
 	}
@@ -782,7 +782,7 @@ func updateMetadata(db string, saveMeta bool) (mergedMeta metaData, err error) {
 				return
 			}
 		}
-		mdFile := filepath.Join(".dio", db, "metadata.json")
+		mdFile := filepath.Join(".dio", userName, db, "metadata.json")
 		err = ioutil.WriteFile(mdFile, []byte(jsonString), 0644)
 	}
 	return

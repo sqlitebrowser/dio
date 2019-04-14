@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -26,29 +27,44 @@ func init() {
 
 func branchList(args []string) error {
 	// Ensure a database file was given
-	var db string
+	var d, db, userName string
 	var err error
 	var meta metaData
 	if len(args) == 0 {
-		db, err = getDefaultDatabase()
+		d, err = getDefaultDatabase()
 		if err != nil {
 			return err
 		}
-		if db == "" {
+		if d == "" {
 			// No database name was given on the command line, and we don't have a default database selected
 			return errors.New("No database file specified")
 		}
 	} else {
-		db = args[0]
+		d = args[0]
 	}
 	if len(args) > 1 {
 		return errors.New("Only one database can be worked with at a time (for now)")
 	}
 
+	// Split database name into username/database parts
+	s := strings.Split(d, "/")
+	switch len(s) {
+	case 1:
+		// Probably a database belonging to the user
+		userName = certUser
+		db = d
+	case 2:
+		// Probably a username/database string
+		userName = s[0]
+		db = s[1]
+	default:
+		return errors.New("Can't parse the given database name")
+	}
+
 	// If there is a local metadata cache for the requested database, use that.  Otherwise, retrieve it from the
 	// server first (without storing it)
 	meta = metaData{}
-	md, err := ioutil.ReadFile(filepath.Join(".dio", db, "metadata.json"))
+	md, err := ioutil.ReadFile(filepath.Join(".dio", userName, db, "metadata.json"))
 	if err == nil {
 		err = json.Unmarshal([]byte(md), &meta)
 		if err != nil {
@@ -56,7 +72,7 @@ func branchList(args []string) error {
 		}
 	} else {
 		// No local cache, so retrieve the info from the server
-		meta, _, err = retrieveMetadata(db)
+		meta, _, err = retrieveMetadata(userName, db)
 		if err != nil {
 			return err
 		}
@@ -70,7 +86,7 @@ func branchList(args []string) error {
 	sort.Strings(sortedKeys)
 
 	// Display the list of branches
-	_, err = fmt.Fprintf(fOut, "Branches for %s:\n\n", db)
+	_, err = fmt.Fprintf(fOut, "Branches for %s/%s:\n\n", userName, db)
 	if err != nil {
 		return err
 	}

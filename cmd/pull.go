@@ -40,19 +40,19 @@ func init() {
 
 func pull(args []string) error {
 	// Ensure a database file was given
-	var db, defDB string
+	var d, defDB string
 	var err error
 	if len(args) == 0 {
-		db, err = getDefaultDatabase()
+		d, err = getDefaultDatabase()
 		if err != nil {
 			return err
 		}
-		if db == "" {
+		if d == "" {
 			// No database name was given on the command line, and we don't have a default database selected
 			return errors.New("No database file specified")
 		}
 	} else {
-		db = args[0]
+		d = args[0]
 	}
 
 	// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
@@ -69,9 +69,25 @@ func pull(args []string) error {
 		return errors.New("Either a branch name or commit ID can be given.  Not both at the same time!")
 	}
 
+	// TODO: Check if the database given is really a username/database combination
+	var db, userName string
+	s := strings.Split(d, "/")
+	switch len(s) {
+	case 1:
+		// Probably a database belonging to the user
+		userName = certUser
+		db = d
+	case 2:
+		// Probably a username/database string
+		userName = s[0]
+		db = s[1]
+	default:
+		return errors.New("Can't parse the given database name")
+	}
+
 	// Retrieve metadata for the database
 	var meta metaData
-	meta, err = updateMetadata(db, false) // Don't store the metadata to disk yet, in case the download fails
+	meta, err = updateMetadata(userName, db, false) // Don't store the metadata to disk yet, in case the download fails
 	if err != nil {
 		return err
 	}

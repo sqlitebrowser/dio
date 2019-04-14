@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	rq "github.com/parnurzeal/gorequest"
@@ -55,24 +56,39 @@ func init() {
 
 func push(args []string) error {
 	// Ensure a database file was given
-	var db string
+	var d, db, userName string
 	var err error
 	if len(args) == 0 {
-		db, err = getDefaultDatabase()
+		d, err = getDefaultDatabase()
 		if err != nil {
 			return err
 		}
-		if db == "" {
+		if d == "" {
 			// No database name was given on the command line, and we don't have a default database selected
 			return errors.New("No database file specified")
 		}
 	} else {
-		db = args[0]
+		d = args[0]
 	}
 	// TODO: Allow giving multiple database files on the command line.  Hopefully just needs turning this
 	// TODO  into a for loop
 	if len(args) > 1 {
 		return errors.New("Only one database can be uploaded at a time (for now)")
+	}
+
+	// Split database name into username/database parts
+	s := strings.Split(d, "/")
+	switch len(s) {
+	case 1:
+		// Probably a database belonging to the user
+		userName = certUser
+		db = d
+	case 2:
+		// Probably a username/database string
+		userName = s[0]
+		db = s[1]
+	default:
+		return errors.New("Can't parse the given database name")
 	}
 
 	// Ensure the database file exists
@@ -114,10 +130,10 @@ func push(args []string) error {
 	// Then we go through a simple loop, uploading each outstanding commit to the remote server along with it's
 	// metadata (via appropriate http headers)
 	var meta metaData
-	dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, db)
-	if _, err = os.Stat(filepath.Join(".dio", db, "metadata.json")); err == nil {
+	dbURL := fmt.Sprintf("%s/%s/%s", cloud, userName, db)
+	if _, err = os.Stat(filepath.Join(".dio", userName, db, "metadata.json")); err == nil {
 		// Load the local metadata cache, without retrieving updated metadata from the cloud
-		meta, err = localFetchMetadata(db, false)
+		meta, err = localFetchMetadata(userName, db, false)
 		if err != nil {
 			return err
 		}
@@ -148,7 +164,7 @@ func push(args []string) error {
 
 		// Download the latest database metadata
 		extraCtr := 0
-		newMeta, found, err := retrieveMetadata(db)
+		newMeta, found, err := retrieveMetadata(userName, db)
 		if err != nil {
 			return err
 		}
@@ -196,14 +212,14 @@ func push(args []string) error {
 			}
 
 			// Let the user know the remote database has been created
-			_, err = fmt.Fprintf(fOut, "Created new database '%s' on %s\n", db, cloud)
+			_, err = fmt.Fprintf(fOut, "Created new database '%s/%s' on %s\n", userName, db, cloud)
 			if err != nil {
 				return err
 			}
 
 			// Fetch the remote metadata, now that the database exists remotely.  This lets us use the existing
 			// code below to add the remaining commits
-			newMeta, found, err = retrieveMetadata(db)
+			newMeta, found, err = retrieveMetadata(userName, db)
 			if err != nil {
 				return err
 			}
@@ -306,7 +322,7 @@ func push(args []string) error {
 		// Make sure the local and remote commits start out with the same commit ID
 		if localCommitList[localCommitLength] != remoteCommitList[remoteCommitLength] {
 			// The local and remote branches don't have a common root, so abort
-			err = errors.New(fmt.Sprintf("Local and remote branch %s don't have a common root.  "+
+			err = errors.New(fmt.Sprintf("Local and remote branch '%s' don't have a common root.  "+
 				"Aborting.", pushCmdBranch))
 			return err
 		}
@@ -400,8 +416,8 @@ func push(args []string) error {
 	if err != nil {
 		return err
 	}
-	s := sha256.Sum256(b)
-	shaSum := hex.EncodeToString(s[:])
+	s2 := sha256.Sum256(b)
+	shaSum := hex.EncodeToString(s2[:])
 	req := rq.New().TLSClientConfig(&TLSConfig).Post(dbURL).
 		Type("multipart").
 		Query(fmt.Sprintf("authoremail=%s", url.QueryEscape(pushEmail))).
@@ -434,7 +450,7 @@ func push(args []string) error {
 	}
 
 	// Retrieve updated metadata
-	meta, _, err = retrieveMetadata(db)
+	meta, _, err = retrieveMetadata(userName, db)
 	if err != nil {
 		return err
 	}
