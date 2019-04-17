@@ -112,17 +112,24 @@ func init() {
 	ourCAPool := x509.NewCertPool()
 	chainFile, err := ioutil.ReadFile(viper.GetString("certs.cachain"))
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 	ok := ourCAPool.AppendCertsFromPEM(chainFile)
 	if !ok {
-		fmt.Println("Error when loading certificate chain file")
+		log.Fatal("Error when loading certificate chain file")
+	}
+
+	// TODO: Check if the client certificate file is present
+	certFile := viper.GetString("certs.cert")
+	if _, err = os.Stat(certFile); err != nil {
+		log.Fatalf("Please download your client certificate from DBHub.io, then update the configuration " +
+			"file '%s' with its path", cfgFile)
 	}
 
 	// Load a client certificate file
-	cert, err := tls.LoadX509KeyPair(viper.GetString("certs.cert"), viper.GetString("certs.cert"))
+	cert, err := tls.LoadX509KeyPair(certFile, certFile)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 
 	// Load our self signed CA Cert chain, and set TLS1.2 as minimum
@@ -139,7 +146,7 @@ func init() {
 	var email string
 	certUser, email, _, err = getUserAndServer()
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 	viper.Set("user.email", email)
 }
