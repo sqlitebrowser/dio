@@ -335,7 +335,7 @@ func commit(args []string) error {
 			return err
 		}
 	}
-	_, err = fmt.Fprintf(fOut, "    Size: %d bytes\n", e.Size)
+	_, err = numFormat.Fprintf(fOut, "    Size: %d bytes\n", e.Size)
 	if err != nil {
 		return err
 	}
