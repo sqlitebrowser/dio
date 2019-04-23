@@ -416,6 +416,7 @@ func push(args []string) error {
 		Query(fmt.Sprintf("force=%v", pushCmdForce)).
 		Query(fmt.Sprintf("lastmodified=%s", url.QueryEscape(fi.ModTime().UTC().Format(time.RFC3339)))).
 		Query(fmt.Sprintf("public=%v", pushCmdPublic)).
+		Set("User-Agent", fmt.Sprintf("Dio %s", DIO_VERSION)).
 		SendFile(db, "", "file1")
 	if pushCmdLicence != "" {
 		req.Query(fmt.Sprintf("licence=%s", url.QueryEscape(pushCmdLicence)))
@@ -524,6 +525,7 @@ func sendCommit(meta metaData, db string, dbURL string, newCommit string, public
 		Query(fmt.Sprintf("otherparents=%s", url.QueryEscape(otherParents))).
 		Query(fmt.Sprintf("dbshasum=%s", url.QueryEscape(shaSum))).
 		Query(fmt.Sprintf("public=%v", pushCmdPublic)).
+		Set("User-Agent", fmt.Sprintf("Dio %s", DIO_VERSION)).
 		SendFile(filepath.Join(".dio", db, "db", shaSum), db, "file1")
 	if pushCmdLicence != "" {
 		req.Query(fmt.Sprintf("licence=%s", url.QueryEscape(pushCmdLicence)))

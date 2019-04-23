@@ -66,6 +66,7 @@ func licenceAdd(args []string) error {
 		Type("multipart").
 		Query(fmt.Sprintf("licence_id=%s", url.QueryEscape(name))).
 		Query(fmt.Sprintf("display_order=%d", licenceAddDisplayOrder)).
+		Set("User-Agent", fmt.Sprintf("Dio %s", DIO_VERSION)).
 		SendFile(licenceAddFile, "", "file1")
 	if licenceAddFileFormat != "" {
 		req.Query(fmt.Sprintf("file_format=%s", url.QueryEscape(licenceAddFileFormat)))

@@ -47,7 +47,8 @@ var updateCmd = &cobra.Command{
 		// Send the details to the API server
 		req := rq.New().Post(cloud+"/db_update").
 			Set("database", db).
-			Set("licence", updateCmdLicence)
+			Set("licence", updateCmdLicence).
+			Set("User-Agent", fmt.Sprintf("Dio %s", DIO_VERSION))
 		if updateCmdMessage != "" {
 			req.Set("message", updateCmdMessage)
 		}

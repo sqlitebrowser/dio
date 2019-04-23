@@ -57,8 +57,10 @@ func licenceGet(args []string) error {
 	// Download the licence text
 	dlStatus := make(map[string]string)
 	for _, lic := range licenceList {
-		resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/licence/get").
-			Query(fmt.Sprintf("licence=%s", lic)).End()
+		resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud+"/licence/get").
+			Query(fmt.Sprintf("licence=%s", lic)).
+			Set("User-Agent", fmt.Sprintf("Dio %s", DIO_VERSION)).
+			End()
 		if errs != nil {
 			for _, err := range errs {
 				log.Print(err.Error())

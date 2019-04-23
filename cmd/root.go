@@ -122,7 +122,7 @@ func init() {
 	// TODO: Check if the client certificate file is present
 	certFile := viper.GetString("certs.cert")
 	if _, err = os.Stat(certFile); err != nil {
-		log.Fatalf("Please download your client certificate from DBHub.io, then update the configuration " +
+		log.Fatalf("Please download your client certificate from DBHub.io, then update the configuration "+
 			"file '%s' with its path", cfgFile)
 	}
 

@@ -151,7 +151,10 @@ func dbChanged(db string, meta metaData) (changed bool, err error) {
 
 // Retrieves the list of databases available to the user
 var getDatabases = func(url string, user string) (dbList []dbListEntry, err error) {
-	resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(fmt.Sprintf("%s/%s", url, user)).EndBytes()
+	resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).
+		Get(fmt.Sprintf("%s/%s", url, user)).
+		Set("User-Agent", fmt.Sprintf("Dio %s", DIO_VERSION)).
+		EndBytes()
 	if errs != nil {
 		e := fmt.Sprintln("Errors when retrieving the database list:")
 		for _, err := range errs {
@@ -191,7 +194,9 @@ func generateConfig(cfgFile string) (err error) {
 	// Download the Certificate Authority chain file
 	caURL := "https://github.com/sqlitebrowser/dio/raw/master/cert/ca-chain.cert.pem"
 	chainFile := filepath.Join(home, ".dio", "ca-chain.cert.pem")
-	resp, body, errs := rq.New().TLSClientConfig(&tls.Config{InsecureSkipVerify: true}).Get(caURL).EndBytes()
+	resp, body, errs := rq.New().TLSClientConfig(&tls.Config{InsecureSkipVerify: true}).Get(caURL).
+		Set("User-Agent", fmt.Sprintf("Dio %s", DIO_VERSION)).
+		EndBytes()
 	if errs != nil {
 		e := fmt.Sprintln("errors when retrieving the CA chain file:")
 		for _, errInner := range errs {
@@ -255,7 +260,9 @@ func getDefaultDatabase() (db string, err error) {
 // Returns a map with the list of licences available on the remote server
 var getLicences = func() (list map[string]licenceEntry, err error) {
 	// Retrieve the database list from the cloud
-	resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/licence/list").End()
+	resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud+"/licence/list").
+		Set("User-Agent", fmt.Sprintf("Dio %s", DIO_VERSION)).
+		End()
 	if errs != nil {
 		e := fmt.Sprintln("errors when retrieving the licence list:")
 		for _, err := range errs {
@@ -609,7 +616,8 @@ func mergeMetadata(origMeta metaData, newMeta metaData) (mergedMeta metaData, er
 // Retrieves a database from DBHub.io
 func retrieveDatabase(db string, branch string, commit string) (resp rq.Response, body []byte, err error) {
 	dbURL := fmt.Sprintf("%s/%s/%s", cloud, certUser, db)
-	req := rq.New().TLSClientConfig(&TLSConfig).Get(dbURL)
+	req := rq.New().TLSClientConfig(&TLSConfig).Get(dbURL).
+		Set("User-Agent", fmt.Sprintf("Dio %s", DIO_VERSION))
 	if branch != "" {
 		req.Query(fmt.Sprintf("branch=%s", url.QueryEscape(branch)))
 	} else {
@@ -649,10 +657,11 @@ func retrieveDatabase(db string, branch string, commit string) (resp rq.Response
 // Retrieves database metadata from DBHub.io
 var retrieveMetadata = func(db string) (meta metaData, onCloud bool, err error) {
 	// Download the database metadata
-	resp, md, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud + "/metadata/get").
+	resp, md, errs := rq.New().TLSClientConfig(&TLSConfig).Get(cloud+"/metadata/get").
 		Query(fmt.Sprintf("username=%s", url.QueryEscape(certUser))).
 		Query(fmt.Sprintf("folder=%s", "/")).
 		Query(fmt.Sprintf("dbname=%s", url.QueryEscape(db))).
+		Set("User-Agent", fmt.Sprintf("Dio %s", DIO_VERSION)).
 		End()
 
 	if errs != nil {

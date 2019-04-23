@@ -35,7 +35,9 @@ func licenceRemove(args []string) error {
 	// Remove the licence
 	name := args[0]
 	resp, body, errs := rq.New().TLSClientConfig(&TLSConfig).Post(fmt.Sprintf("%s/licence/remove", cloud)).
-		Query(fmt.Sprintf("licence_id=%s", url.QueryEscape(name))).End()
+		Query(fmt.Sprintf("licence_id=%s", url.QueryEscape(name))).
+		Set("User-Agent", fmt.Sprintf("Dio %s", DIO_VERSION)).
+		End()
 	if errs != nil {
 		_, err := fmt.Fprint(fOut, "Errors when removing licence:")
 		if err != nil {
