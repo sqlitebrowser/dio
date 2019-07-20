@@ -152,7 +152,7 @@ func commit(args []string) error {
 		if err != nil {
 			return err
 		}
-		if !changed {
+		if !changed && commitCmdLicence == ""{
 			return fmt.Errorf("Database is unchanged from last commit.  No need to commit anything.")
 		}
 	}
