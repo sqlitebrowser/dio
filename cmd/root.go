@@ -56,7 +56,7 @@ func init() {
 	// Add the global environment variables
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
 		fmt.Sprintf("config file (default is %s)", filepath.Join("$HOME", ".dio", "config.toml")))
-	RootCmd.PersistentFlags().StringVar(&cloud, "cloud", "https://dbhub.io:5550",
+	RootCmd.PersistentFlags().StringVar(&cloud, "cloud", "https://db4s.dbhub.io",
 		"Address of the DBHub.io cloud")
 
 	// Read all of our configuration data now

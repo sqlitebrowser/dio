@@ -3,7 +3,7 @@ cachain = "/path/to/ca-chain-docker.cert.pem"
 cert = "/path/to/your.cert.pem"
 
 [general]
-cloud = "https://docker-dev.dbhub.io:5550"
+cloud = "https://db4s.dbhub.io"
 
 [user]
 name = "Some One"

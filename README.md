@@ -34,7 +34,7 @@ cachain = "ca-chain.cert.pem"
 cert = "/path/to/your/certificate.cert.pem"
 
 [general]
-cloud = "https://dbhub.io:5550"
+cloud = "https://db4s.dbhub.io"
 
 [user]
 name = "Your Name"
@@ -44,7 +44,7 @@ email = "youremail@example.org"
 * The `ca-chain-cert.pem` file is from [here](https://github.com/sqlitebrowser/dio/blob/master/cert/ca-chain.cert.pem)
   * Download it and save it on your computer, then update that path to point to it
 * The `cert` path should point to your generated DBHub.io certificate
-* The `cloud` value should be left alone (eg pointing to https://dbhub.io:5550)
+* The `cloud` value should be left alone (eg pointing to https://db4s.dbhub.io)
 * The name and email values should be set to your name and email address
 
 You can check the information from Dio's point of view by running `dio info`, which

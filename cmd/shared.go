@@ -227,7 +227,7 @@ func generateConfig(cfgFile string) (err error) {
 	_, err = fmt.Fprint(f, fmt.Sprintf(`cert = '%s'%s`, certPath, lineEnd))
 	_, err = fmt.Fprint(f, lineEnd)
 	_, err = fmt.Fprint(f, `[general]`+lineEnd)
-	_, err = fmt.Fprint(f, `cloud = 'https://dbhub.io:5550'`+lineEnd)
+	_, err = fmt.Fprint(f, `cloud = 'https://db4s.dbhub.io'`+lineEnd)
 	_, err = fmt.Fprint(f, lineEnd)
 	_, err = fmt.Fprint(f, `[user]`+lineEnd)
 	_, err = fmt.Fprint(f, `name = 'Your Name'`+lineEnd)
