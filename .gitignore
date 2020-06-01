@@ -23,6 +23,3 @@ dio
 *.db
 .dio
 *-LICENCE
-
-# Go vendor directory
-vendor
