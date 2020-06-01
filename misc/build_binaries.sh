@@ -13,21 +13,21 @@ export GOARCH=amd64
 for GOOS in android darwin freebsd netbsd openbsd plan9 solaris windows linux; do
   echo Building Dio for ${GOOS}-${GOARCH}
   go build -o dio-${GOOS}-${GOARCH} ..
-  sha256sum dio-${GOOS}-${GOARCH} > dio-${GOOS}-x86.SHA256
+  sha256sum dio-${GOOS}-${GOARCH} > dio-${GOOS}-${GOARCH}.SHA256
 done
 
 export GOARCH=arm
 for GOOS in android darwin freebsd netbsd openbsd plan9 windows linux; do
   echo Building Dio for ${GOOS}-${GOARCH}
   go build -o dio-${GOOS}-${GOARCH} ..
-  sha256sum dio-${GOOS}-${GOARCH} > dio-${GOOS}-x86.SHA256
+  sha256sum dio-${GOOS}-${GOARCH} > dio-${GOOS}-${GOARCH}.SHA256
 done
 
 export GOARCH=arm64
 for GOOS in android darwin freebsd illumos netbsd openbsd linux; do
   echo Building Dio for ${GOOS}-${GOARCH}
   go build -o dio-${GOOS}-${GOARCH} ..
-  sha256sum dio-${GOOS}-${GOARCH} > dio-${GOOS}-x86.SHA256
+  sha256sum dio-${GOOS}-${GOARCH} > dio-${GOOS}-${GOARCH}.SHA256
 done
 
 GOOS=linux
