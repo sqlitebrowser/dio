@@ -68,7 +68,7 @@ func list(args []string) error {
 		}
 		// The server gives us the last modified and repo modified dates in pre-formatted UTC timezone.  For now, lets
 		// convert these back to the users local time
-		z, err := time.Parse(time.RFC822, j.LastModified)
+		z, err := time.Parse(time.RFC3339, j.LastModified)
 		if err != nil {
 			return err
 		}
@@ -76,7 +76,7 @@ func list(args []string) error {
 		if err != nil {
 			return err
 		}
-		z, err = time.Parse(time.RFC822, j.RepoModified)
+		z, err = time.Parse(time.RFC3339, j.RepoModified)
 		if err != nil {
 			return err
 		}
