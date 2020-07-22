@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	DIO_VERSION = "0.3.0"
+	DIO_VERSION = "0.3.1"
 )
 
 var (
