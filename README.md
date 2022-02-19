@@ -1,4 +1,5 @@
 # dio
+[![Go](https://github.com/alexDtorres/dio/actions/workflows/go.yml/badge.svg?branch=master&event=push)](https://github.com/alexDtorres/dio/actions/workflows/go.yml)
 
 Dio is our reference command line interface (CLI) for working with DBHub.io.
 
