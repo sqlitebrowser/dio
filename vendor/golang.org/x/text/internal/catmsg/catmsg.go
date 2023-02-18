@@ -9,8 +9,7 @@
 // own. For instance, the plural package provides functionality for selecting
 // translation strings based on the plural category of substitution arguments.
 //
-//
-// Encoding and Decoding
+// # Encoding and Decoding
 //
 // Catalogs store Messages encoded as a single string. Compiling a message into
 // a string both results in compacter representation and speeds up evaluation.
@@ -25,8 +24,7 @@
 // the message. This decoder takes a Decoder argument which provides the
 // counterparts for the decoding.
 //
-//
-// Renderers
+// # Renderers
 //
 // A Decoder must be initialized with a Renderer implementation. These
 // implementations must be provided by packages that use Catalogs, typically
@@ -38,22 +36,22 @@
 // as sequence of substrings passed to the Renderer. The following snippet shows
 // how to express the above example using the message package.
 //
-//   message.Set(language.English, "You are %d minute(s) late.",
-//       catalog.Var("minutes", plural.Select(1, "one", "minute")),
-//       catalog.String("You are %[1]d ${minutes} late."))
+//	message.Set(language.English, "You are %d minute(s) late.",
+//		catalog.Var("minutes", plural.Select(1, "one", "minute")),
+//		catalog.String("You are %[1]d ${minutes} late."))
 //
-//   p := message.NewPrinter(language.English)
-//   p.Printf("You are %d minute(s) late.", 5) // always 5 minutes late.
+//	p := message.NewPrinter(language.English)
+//	p.Printf("You are %d minute(s) late.", 5) // always 5 minutes late.
 //
 // To evaluate the Printf, package message wraps the arguments in a Renderer
 // that is passed to the catalog for message decoding. The call sequence that
 // results from evaluating the above message, assuming the person is rather
 // tardy, is:
 //
-//   Render("You are %[1]d ")
-//   Arg(1)
-//   Render("minutes")
-//   Render(" late.")
+//	Render("You are %[1]d ")
+//	Arg(1)
+//	Render("minutes")
+//	Render(" late.")
 //
 // The calls to Arg is caused by the plural.Select execution, which evaluates
 // the argument to determine whether the singular or plural message form should
@@ -104,20 +102,24 @@ const (
 	msgFirst
 	msgRaw
 	msgString
-	numFixed
+	msgAffix
+	// Leave some arbitrary room for future expansion: 20 should suffice.
+	numInternal = 20
 )
 
 const prefix = "golang.org/x/text/internal/catmsg."
 
 var (
+	// TODO: find a more stable way to link handles to message types.
 	mutex sync.Mutex
 	names = map[string]Handle{
 		prefix + "Vars":   msgVars,
 		prefix + "First":  msgFirst,
 		prefix + "Raw":    msgRaw,
 		prefix + "String": msgString,
+		prefix + "Affix":  msgAffix,
 	}
-	handlers = make([]Handler, numFixed)
+	handlers = make([]Handler, numInternal)
 )
 
 func init() {
@@ -160,6 +162,20 @@ func init() {
 			d.ExecuteSubstitution()
 		}
 		return true
+	}
+
+	handlers[msgAffix] = func(d *Decoder) bool {
+		// TODO: use an alternative method for common cases.
+		prefix := d.DecodeString()
+		suffix := d.DecodeString()
+		if prefix != "" {
+			d.Render(prefix)
+		}
+		ret := d.ExecuteMessage()
+		if suffix != "" {
+			d.Render(suffix)
+		}
+		return ret
 	}
 }
 
@@ -249,10 +265,12 @@ func (s FirstOf) Compile(e *Encoder) error {
 // Var defines a message that can be substituted for a placeholder of the same
 // name. If an expression does not result in a string after evaluation, Name is
 // used as the substitution. For example:
-//    Var{
-//      Name:    "minutes",
-//      Message: plural.Select(1, "one", "minute"),
-//    }
+//
+//	Var{
+//	  Name:    "minutes",
+//	  Message: plural.Select(1, "one", "minute"),
+//	}
+//
 // will resolve to minute for singular and minutes for plural forms.
 type Var struct {
 	Name    string
@@ -300,13 +318,15 @@ func (r Raw) Compile(e *Encoder) (err error) {
 // calls for each placeholder and interstitial string. For example, for the
 // message: "%[1]v ${invites} %[2]v to ${their} party." The sequence of calls
 // is:
-//   d.Render("%[1]v ")
-//   d.Arg(1)
-//   d.Render(resultOfInvites)
-//   d.Render(" %[2]v to ")
-//   d.Arg(2)
-//   d.Render(resultOfTheir)
-//   d.Render(" party.")
+//
+//	d.Render("%[1]v ")
+//	d.Arg(1)
+//	d.Render(resultOfInvites)
+//	d.Render(" %[2]v to ")
+//	d.Arg(2)
+//	d.Render(resultOfTheir)
+//	d.Render(" party.")
+//
 // where the messages for "invites" and "their" both use a plural.Select
 // referring to the first argument.
 //
@@ -373,4 +393,25 @@ func (s String) Compile(e *Encoder) (err error) {
 		e.EncodeString(string(b))
 	}
 	return err
+}
+
+// Affix is a message that adds a prefix and suffix to another message.
+// This is mostly used add back whitespace to a translation that was stripped
+// before sending it out.
+type Affix struct {
+	Message Message
+	Prefix  string
+	Suffix  string
+}
+
+// Compile implements Message.
+func (a Affix) Compile(e *Encoder) (err error) {
+	// TODO: consider adding a special message type that just adds a single
+	// return. This is probably common enough to handle the majority of cases.
+	// Get some stats first, though.
+	e.EncodeMessageType(msgAffix)
+	e.EncodeString(a.Prefix)
+	e.EncodeString(a.Suffix)
+	e.EncodeMessage(a.Message)
+	return nil
 }
