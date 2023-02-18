@@ -357,7 +357,7 @@ func newMetaStruct(branch string) (meta metaData) {
 	}
 	var initialBranch string
 	if branch == "" {
-		initialBranch = "master"
+		initialBranch = "main"
 	} else {
 		initialBranch = branch
 	}

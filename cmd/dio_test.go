@@ -64,7 +64,7 @@ var (
 	tempDir       string
 	mockDBEntries = []dbListEntry{{
 		CommitID:     "316b246eda1e1779b21e9ac338cab4a71847c5268c03911ebfed974ffbab03bc",
-		DefBranch:    "master",
+		DefBranch:    "main",
 		LastModified: "12 Mar 19 13:56 AEDT",
 		Licence:      "Not specified",
 		Name:         "2.5mbv13.sqlite",
@@ -74,7 +74,7 @@ var (
 		SHA256:       "SHA256",
 		Size:         2666496,
 		Type:         "database",
-		URL:          fmt.Sprintf("%s/default/%s", cloud, "2.5mbv13.sqlite?commit=316b246eda1e1779b21e9ac338cab4a71847c5268c03911ebfed974ffbab03bc&branch=master"),
+		URL:          fmt.Sprintf("%s/default/%s", cloud, "2.5mbv13.sqlite?commit=316b246eda1e1779b21e9ac338cab4a71847c5268c03911ebfed974ffbab03bc&branch=main"),
 	}}
 	mockMetaData = map[string]metaData{}
 )
@@ -219,7 +219,7 @@ func (s *DioSuite) TearDownTest(c *chk.C) {
 // Test the "dio commit" command
 func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	// Call the commit code
-	commitCmdBranch = "master"
+	commitCmdBranch = "main"
 	commitCmdCommit = ""
 	commitCmdAuthEmail = "testdefault@dbhub.io"
 	commitCmdLicence = "Not specified"
@@ -269,7 +269,7 @@ func (s *DioSuite) Test0010_Commit(c *chk.C) {
 	c.Check(shaSum, chk.Equals, com.Tree.Entries[0].Sha256)
 
 	// Verify the branch info
-	br, ok := meta.Branches["master"]
+	br, ok := meta.Branches["main"]
 	c.Assert(ok, chk.Equals, true)
 	c.Check(br.Commit, chk.Equals, "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941")
 	c.Check(br.CommitCount, chk.Equals, 1)
@@ -327,7 +327,7 @@ func (s *DioSuite) Test0020_Commit2(c *chk.C) {
 	c.Check(shaSum, chk.Equals, com.Tree.Entries[0].Sha256)
 
 	// Verify the branch info
-	br, ok := meta.Branches["master"]
+	br, ok := meta.Branches["main"]
 	c.Assert(ok, chk.Equals, true)
 	c.Check(br.Commit, chk.Equals, "70815d687cfc614b23dfb2f66f8fa0a8cb7bad199e05d4142db883690eefeba5")
 	c.Check(br.CommitCount, chk.Equals, 2)
@@ -343,10 +343,10 @@ func (s *DioSuite) Test0030_BranchActiveGet(c *chk.C) {
 	err := branchActiveGet([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
 
-	// Verify the active branch is set to "master"
+	// Verify the active branch is set to "main"
 	p := strings.Split(s.buf.String(), ":")
 	c.Assert(p, chk.HasLen, 2)
-	c.Check(strings.TrimSpace(p[1]), chk.Equals, "master")
+	c.Check(strings.TrimSpace(p[1]), chk.Equals, "main")
 }
 
 func (s *DioSuite) Test0040_BranchCreate(c *chk.C) {
@@ -393,21 +393,21 @@ func (s *DioSuite) Test0060_BranchList(c *chk.C) {
 	err := branchList([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
 
-	// Verify entries are present for both "master" and "branchtwo"
+	// Verify entries are present for both "main" and "branchtwo"
 	lines := bufio.NewScanner(&s.buf)
-	var branchTwoFound, masterFound bool
+	var branchTwoFound, mainFound bool
 	for lines.Scan() {
 		p := strings.Split(lines.Text(), "'")
-		if len(p) > 2 && p[1] == "master" {
+		if len(p) > 2 && p[1] == "main" {
 			c.Check(p, chk.HasLen, 3)
-			masterFound = true
+			mainFound = true
 		}
 		if len(p) > 2 && p[1] == "branchtwo" {
 			c.Check(p, chk.HasLen, 3)
 			branchTwoFound = true
 		}
 	}
-	c.Check(masterFound, chk.Equals, true)
+	c.Check(mainFound, chk.Equals, true)
 	c.Check(branchTwoFound, chk.Equals, true)
 }
 
@@ -417,10 +417,10 @@ func (s *DioSuite) Test0070_BranchRemoveFail(c *chk.C) {
 	err := branchRemove([]string{s.dbName})
 	c.Assert(err, chk.Not(chk.IsNil))
 
-	// Make sure both the "master" and "branchtwo" branches are still present on disk
+	// Make sure both the "main" and "branchtwo" branches are still present on disk
 	meta, err := localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
-	_, ok := meta.Branches["master"]
+	_, ok := meta.Branches["main"]
 	c.Assert(ok, chk.Equals, true)
 	_, ok = meta.Branches["branchtwo"]
 	c.Assert(ok, chk.Equals, true)
@@ -429,9 +429,9 @@ func (s *DioSuite) Test0070_BranchRemoveFail(c *chk.C) {
 	//       add a check of the output here
 }
 
-func (s *DioSuite) Test0080_BranchSetMaster(c *chk.C) {
-	// Switch to the master branch
-	branchActiveSetBranch = "master"
+func (s *DioSuite) Test0080_BranchSetMain(c *chk.C) {
+	// Switch to the main branch
+	branchActiveSetBranch = "main"
 	err := branchActiveSet([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
 
@@ -451,10 +451,10 @@ func (s *DioSuite) Test0090_BranchRemoveSuccess(c *chk.C) {
 	err := branchRemove([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
 
-	// Make sure the "master" branch is still present on disk, but "branchtwo" isn't
+	// Make sure the "main" branch is still present on disk, but "branchtwo" isn't
 	meta, err := localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
-	_, ok := meta.Branches["master"]
+	_, ok := meta.Branches["main"]
 	c.Assert(ok, chk.Equals, true)
 	_, ok = meta.Branches["branchtwo"]
 	c.Assert(ok, chk.Equals, false)
@@ -465,25 +465,25 @@ func (s *DioSuite) Test0090_BranchRemoveSuccess(c *chk.C) {
 }
 
 func (s *DioSuite) Test0100_BranchRevert(c *chk.C) {
-	// Verify that (prior to the revert) the master branch still points to the 2nd commit
+	// Verify that (prior to the revert) the main branch still points to the 2nd commit
 	meta, err := localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
-	br, ok := meta.Branches["master"]
+	br, ok := meta.Branches["main"]
 	c.Assert(ok, chk.Equals, true)
 	c.Check(br.Commit, chk.Equals, "70815d687cfc614b23dfb2f66f8fa0a8cb7bad199e05d4142db883690eefeba5")
 	c.Check(br.CommitCount, chk.Equals, 2)
 	c.Check(br.Description, chk.Equals, "")
 
-	// Revert the master branch back to the original commit
-	branchRevertBranch = "master"
+	// Revert the main branch back to the original commit
+	branchRevertBranch = "main"
 	branchRevertCommit = "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941"
 	err = branchRevert([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
 
-	// Verify the master branch now points to the original commit
+	// Verify the main branch now points to the original commit
 	meta, err = localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
-	br, ok = meta.Branches["master"]
+	br, ok = meta.Branches["main"]
 	c.Assert(ok, chk.Equals, true)
 	c.Check(br.Commit, chk.Equals, "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941")
 	c.Check(br.CommitCount, chk.Equals, 1)
@@ -494,15 +494,15 @@ func (s *DioSuite) Test0100_BranchRevert(c *chk.C) {
 }
 
 func (s *DioSuite) Test0110_BranchUpdateChgDesc(c *chk.C) {
-	// Verify that (prior to the update) the master branch has an empty description
+	// Verify that (prior to the update) the main branch has an empty description
 	meta, err := localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
-	br, ok := meta.Branches["master"]
+	br, ok := meta.Branches["main"]
 	c.Assert(ok, chk.Equals, true)
 	c.Check(br.Description, chk.Equals, "")
 
-	// Update description for the master branch
-	branchUpdateBranch = "master"
+	// Update description for the main branch
+	branchUpdateBranch = "main"
 	branchUpdateMsg = "This is a new description"
 	err = branchUpdate([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
@@ -510,20 +510,20 @@ func (s *DioSuite) Test0110_BranchUpdateChgDesc(c *chk.C) {
 	// Verify the description was correctly updated
 	meta, err = localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
-	br, ok = meta.Branches["master"]
+	br, ok = meta.Branches["main"]
 	c.Assert(ok, chk.Equals, true)
 	c.Check(br.Description, chk.Equals, branchUpdateMsg)
 }
 
 func (s *DioSuite) Test0120_BranchUpdateDelDesc(c *chk.C) {
-	// Verify that (prior to the update) the master branch has a non-empty description
+	// Verify that (prior to the update) the main branch has a non-empty description
 	meta, err := localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
-	br, ok := meta.Branches["master"]
+	br, ok := meta.Branches["main"]
 	c.Assert(ok, chk.Equals, true)
 	c.Check(br.Description, chk.Not(chk.Equals), "")
 
-	// Delete the description for the master branch
+	// Delete the description for the main branch
 	*descDel = true
 	err = branchUpdate([]string{s.dbName})
 	c.Assert(err, chk.IsNil)
@@ -531,7 +531,7 @@ func (s *DioSuite) Test0120_BranchUpdateDelDesc(c *chk.C) {
 	// Verify the description was deleted
 	meta, err = localFetchMetadata(s.dbName, false)
 	c.Assert(err, chk.IsNil)
-	br, ok = meta.Branches["master"]
+	br, ok = meta.Branches["main"]
 	c.Assert(ok, chk.Equals, true)
 	c.Check(br.Description, chk.Equals, "")
 
@@ -935,7 +935,7 @@ func (s *DioSuite) Test0260_PullLocal(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 
 	// Grab the database from local cache
-	pullCmdBranch = "master"
+	pullCmdBranch = "main"
 	pullCmdCommit = ""
 	*pullForce = true
 	err = pull([]string{s.dbName})
@@ -971,7 +971,7 @@ func (s *DioSuite) Test0270_PushCompletelyNewDB(c *chk.C) {
 
 	// Send the test database to the server
 	pushCmdName = "Default test user"
-	pushCmdBranch = "master"
+	pushCmdBranch = "main"
 	pushCmdCommit = ""
 	pushCmdDB = newDB
 	pushCmdEmail = "testdefault@dbhub.io"
@@ -1048,7 +1048,7 @@ func (s *DioSuite) Test0290_PushExistingDBConflict(c *chk.C) {
 
 	// Push the database to the test server (should fail)
 	pushCmdName = "Default test user"
-	pushCmdBranch = "master"
+	pushCmdBranch = "main"
 	pushCmdCommit = ""
 	pushCmdDB = newDB
 	pushCmdEmail = "testdefault@dbhub.io"
@@ -1070,7 +1070,7 @@ func (s *DioSuite) Test0300_PushNewLocalDBAndMetadata(c *chk.C) {
 	c.Assert(err, chk.IsNil)
 
 	// Create a commit using the new test database
-	commitCmdBranch = "master"
+	commitCmdBranch = "main"
 	commitCmdCommit = ""
 	commitCmdAuthEmail = "testdefault@dbhub.io"
 	commitCmdLicence = "Not specified"
@@ -1128,7 +1128,7 @@ func (s *DioSuite) Test0310_PushLocalDBAndMetadata(c *chk.C) {
 
 	// Push the new commit to the server
 	pushCmdName = "Default test user"
-	pushCmdBranch = "master"
+	pushCmdBranch = "main"
 	pushCmdCommit = ""
 	pushCmdDB = s.dbName
 	pushCmdEmail = "testdefault@dbhub.io"
@@ -1175,7 +1175,7 @@ func mockGetLicences() (map[string]licenceEntry, error) {
 	return licList, nil
 }
 
-// Returns metadata of a database with a single commit, on the master branch
+// Returns metadata of a database with a single commit, on the main branch
 func mockRetrieveMetadata(db string) (meta metaData, onCloud bool, err error) {
 	meta.Branches = make(map[string]branchEntry)
 	meta.Commits = make(map[string]commitEntry)
@@ -1199,12 +1199,12 @@ func mockRetrieveMetadata(db string) (meta metaData, onCloud bool, err error) {
 			},
 		},
 	}
-	meta.Branches["master"] = branchEntry{
+	meta.Branches["main"] = branchEntry{
 		Commit:      "59b72b78cb83bdba371438cb36950fe007265445a63068ae5586c9cc19203941",
 		CommitCount: 1,
 		Description: "",
 	}
-	meta.DefBranch = "master"
+	meta.DefBranch = "main"
 
 	// No need for tags nor releases at this stage
 	meta.Tags = make(map[string]tagEntry)
@@ -1361,7 +1361,7 @@ func mockServerNewDBPushHandler(w http.ResponseWriter, r *http.Request) {
 	expected := map[string]string{
 		"authoremail":    "testdefault@dbhub.io",
 		"authorname":     "Default test user",
-		"branch":         "master",
+		"branch":         "main",
 		"commit":         "",
 		"commitmsg":      "Test message",
 		"committername":  "Some One",
