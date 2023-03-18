@@ -20,6 +20,7 @@ just require:
 
 ```bash
 $ go get github.com/sqlitebrowser/dio
+$ go install github.com/sqlitebrowser/dio
 ```
 
 ## Getting Started
