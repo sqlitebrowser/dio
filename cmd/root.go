@@ -53,6 +53,11 @@ func init() {
 	// Add support for pretty printing numbers
 	numFormat = message.NewPrinter(message.MatchLanguage("en"))
 
+	// When run from go test we skip this, as we generate a temporary config file in the test suite setup
+	if os.Getenv("IS_TESTING") == "yes" {
+		return
+	}
+
 	// Add the global environment variables
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
 		fmt.Sprintf("config file (default is %s)", filepath.Join("$HOME", ".dio", "config.toml")))
